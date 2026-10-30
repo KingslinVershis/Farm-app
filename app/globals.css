@@ -1,0 +1,1346 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Color Palette - Farm Modern Tech */
+  --bg-app: #080d16;
+  --bg-sidebar: rgba(13, 21, 36, 0.82);
+  --bg-topbar: rgba(13, 21, 36, 0.82);
+  --bg-card: #121c2d;
+  --bg-card-hover: #17243a;
+  --bg-surface: #1a273e;
+  --bg-surface-glass: rgba(26, 39, 62, 0.6);
+
+  /* Borders & Dividers */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-light: rgba(255, 255, 255, 0.12);
+  --border-highlight: rgba(52, 211, 153, 0.35);
+
+  /* Typography */
+  --text-main: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-inverse: #020617;
+
+  /* Accents - Agricultural Tech */
+  --accent-emerald: #10b981;
+  --accent-emerald-light: #34d399;
+  --accent-emerald-dark: #059669;
+  --accent-emerald-soft: rgba(16, 185, 129, 0.12);
+
+  --accent-cyan: #06b6d4;
+  --accent-cyan-soft: rgba(6, 182, 212, 0.12);
+
+  --accent-amber: #f59e0b;
+  --accent-amber-soft: rgba(245, 158, 11, 0.12);
+
+  --accent-rose: #f43f5e;
+  --accent-rose-soft: rgba(244, 63, 94, 0.12);
+
+  /* Layout Measurements */
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 80px;
+  --topbar-height: 70px;
+  --border-radius-sm: 8px;
+  --border-radius-md: 12px;
+  --border-radius-lg: 16px;
+  --border-radius-xl: 20px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 4px 20px -2px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 0 25px rgba(16, 185, 129, 0.18);
+  --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:root[data-theme='light'],
+html[data-theme='light'],
+body[data-theme='light'],
+[data-theme='light'],
+.light {
+  /* Color Palette - Farm Modern Tech Light Mode */
+  --bg-app: #f1f5f9;
+  --bg-sidebar: rgba(255, 255, 255, 0.82);
+  --bg-topbar: rgba(255, 255, 255, 0.82);
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --bg-surface: #f1f5f9;
+  --bg-surface-glass: rgba(255, 255, 255, 0.9);
+
+  /* Borders & Dividers */
+  --border-subtle: rgba(226, 232, 240, 0.9);
+  --border-light: rgba(203, 213, 225, 0.85);
+  --border-highlight: rgba(16, 185, 129, 0.4);
+
+  /* Typography */
+  --text-main: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-inverse: #ffffff;
+
+  /* Accents - Agricultural Tech */
+  --accent-emerald: #059669;
+  --accent-emerald-light: #10b981;
+  --accent-emerald-dark: #047857;
+  --accent-emerald-soft: rgba(5, 150, 105, 0.12);
+
+  --accent-cyan: #0891b2;
+  --accent-cyan-soft: rgba(8, 145, 178, 0.12);
+
+  --accent-amber: #d97706;
+  --accent-amber-soft: rgba(217, 119, 6, 0.12);
+
+  --accent-rose: #e11d48;
+  --accent-rose-soft: rgba(225, 29, 72, 0.12);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-card: 0 4px 20px -2px rgba(0, 0, 0, 0.08);
+  --shadow-glow: 0 0 25px rgba(16, 185, 129, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  min-height: 100vh;
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: clip;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* Animations */
+@keyframes pulseGlow {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.6;
+    transform: scale(0.95);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 4s linear infinite;
+}
+
+/* Skeleton Loading Shimmer System */
+.skeleton-box {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0.5rem;
+}
+
+.skeleton-box::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(90deg,
+      rgba(255, 255, 255, 0) 0,
+      rgba(255, 255, 255, 0.05) 20%,
+      rgba(255, 255, 255, 0.1) 60%,
+      rgba(255, 255, 255, 0));
+  animation: skeletonShimmer 1.8s infinite;
+  content: '';
+}
+
+@keyframes skeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Border Beam SVG Stroke Animation */
+@keyframes borderBeam {
+  0% {
+    stroke-dashoffset: 0;
+  }
+
+  100% {
+    stroke-dashoffset: -100;
+  }
+}
+
+.animate-border-beam {
+  animation: borderBeam 6s linear infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Human-Crafted Glassmorphism & Depth System
+   ───────────────────────────────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────────
+   Human-Crafted Glassmorphism & Depth System
+   ───────────────────────────────────────────────────────────── */
+
+.gpu-accelerate {
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+  will-change: transform;
+}
+
+.glass-panel {
+  background: rgba(13, 21, 37, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.6);
+}
+
+.glass-table-panel {
+  background: rgba(13, 21, 37, 0.52);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.5);
+}
+
+.glass-card {
+  background: rgba(15, 24, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s ease-out;
+}
+
+.glass-card-hover:hover {
+  border-color: rgba(52, 211, 153, 0.35);
+  box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.7), 0 0 16px -4px rgba(16, 185, 129, 0.18);
+  transform: translateY(-2px);
+}
+
+.glass-surface {
+  background: rgba(22, 34, 56, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-input {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: all 0.15s ease;
+}
+
+.glass-input:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+  background: rgba(15, 23, 42, 0.98);
+}
+
+.glass-dock {
+  background: rgba(9, 14, 26, 0.92);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 -10px 30px -4px rgba(0, 0, 0, 0.6);
+}
+
+/* backdrop-photo-overlay is handled per-theme in the farm-bg-image section below */
+
+/* ─────────────────────────────────────────────────────────────
+   White / Light Theme Overrides (Entire Application)
+   ───────────────────────────────────────────────────────────── */
+
+[data-theme='light'],
+html[data-theme='light'],
+body[data-theme='light'] {
+  --bg-app: #f1f5f9;
+  --bg-sidebar: rgba(255, 255, 255, 0.82);
+  --bg-topbar: rgba(255, 255, 255, 0.82);
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --bg-surface: #f8fafc;
+  --bg-surface-glass: rgba(255, 255, 255, 0.92);
+
+  --border-subtle: rgba(203, 213, 225, 0.8);
+  --border-light: rgba(226, 232, 240, 0.95);
+  --border-highlight: rgba(16, 185, 129, 0.5);
+
+  --text-main: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-inverse: #ffffff;
+}
+
+[data-theme='light'] html,
+[data-theme='light'] body,
+body[data-theme='light'] {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* Application Shell Background & Text */
+.app-shell-bg {
+  background-color: var(--bg-app);
+  color: var(--text-main);
+}
+
+[data-theme='light'] .app-shell-bg,
+[data-theme='light'] .bg-app {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* Sidebar Theme Styles - Transparent in both themes matching Topbar */
+.app-sidebar {
+  background-color: var(--bg-sidebar) !important;
+  color: var(--text-main);
+  border-color: var(--border-subtle);
+}
+
+[data-theme='light'] .app-sidebar,
+[data-theme='light'] aside,
+.light .app-sidebar,
+.light aside {
+  background-color: var(--bg-sidebar) !important;
+  color: #0f172a !important;
+  border-color: rgba(226, 232, 240, 0.75) !important;
+}
+
+/* Topbar Theme Styles - Transparent in both themes matching Sidebar */
+.app-topbar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 40 !important;
+  background-color: var(--bg-topbar) !important;
+  color: var(--text-main);
+  border-color: var(--border-subtle);
+}
+
+[data-theme='light'] .app-topbar,
+[data-theme='light'] header,
+.light .app-topbar,
+.light header {
+  background-color: var(--bg-topbar) !important;
+  color: #0f172a !important;
+  border-color: rgba(226, 232, 240, 0.75) !important;
+}
+
+/* Text Color Classes in Light Theme */
+[data-theme='light'] .text-text-main,
+[data-theme='light'] h1,
+[data-theme='light'] h2,
+[data-theme='light'] h3,
+[data-theme='light'] h4,
+[data-theme='light'] h5,
+[data-theme='light'] h6 {
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .text-text-secondary {
+  color: #475569 !important;
+}
+
+[data-theme='light'] .text-text-muted {
+  color: #64748b !important;
+}
+
+/* Surface & Card Classes in Light Theme */
+[data-theme='light'] .bg-surface,
+[data-theme='light'] .bg-surface\/80,
+[data-theme='light'] .bg-surface\/70,
+[data-theme='light'] .bg-surface\/50 {
+  background-color: #f8fafc !important;
+  border-color: rgba(226, 232, 240, 0.95) !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .bg-card,
+[data-theme='light'] .bg-card\/60 {
+  background-color: #ffffff !important;
+  border-color: rgba(226, 232, 240, 0.95) !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .border-border-light,
+[data-theme='light'] .border-border-subtle {
+  border-color: rgba(226, 232, 240, 0.95) !important;
+}
+
+/* Form inputs & select in Light Theme */
+[data-theme='light'] input,
+[data-theme='light'] select,
+[data-theme='light'] textarea {
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+}
+
+[data-theme='light'] input::placeholder,
+[data-theme='light'] textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+[data-theme='light'] .glass-panel,
+.light .glass-panel {
+  background: rgba(255, 255, 255, 0.75) !important;
+  border: 1px solid rgba(255, 255, 255, 0.75) !important;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.03) !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .glass-table-panel,
+.light .glass-table-panel {
+  background: rgba(255, 255, 255, 0.50) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.70) !important;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.03) !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .glass-card,
+.light .glass-card {
+  background: rgba(255, 255, 255, 0.80) !important;
+  border: 1px solid rgba(255, 255, 255, 0.75) !important;
+  box-shadow: 0 8px 24px -3px rgba(0, 0, 0, 0.06) !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .glass-card-hover:hover,
+.light .glass-card-hover:hover {
+  background: rgba(255, 255, 255, 0.90) !important;
+  border-color: rgba(16, 185, 129, 0.6) !important;
+  box-shadow: 0 14px 30px -6px rgba(0, 0, 0, 0.1), 0 0 16px -4px rgba(16, 185, 129, 0.2) !important;
+}
+
+[data-theme='light'] .glass-surface,
+.light .glass-surface {
+  background: rgba(255, 255, 255, 0.65) !important;
+  border: 1px solid rgba(255, 255, 255, 0.65) !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .glass-input,
+.light .glass-input {
+  background: rgba(255, 255, 255, 0.75) !important;
+  border: 1px solid rgba(203, 213, 225, 0.8) !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .glass-input:focus {
+  background: #ffffff !important;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important;
+}
+
+[data-theme='light'] .glass-dock {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border-top: 1px solid rgba(226, 232, 240, 0.95) !important;
+  box-shadow: 0 -8px 25px -4px rgba(0, 0, 0, 0.08) !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .bg-slate-900,
+[data-theme='light'] .bg-slate-900\/60,
+[data-theme='light'] .bg-slate-900\/85,
+[data-theme='light'] .bg-slate-900\/50,
+[data-theme='light'] .bg-slate-950,
+[data-theme='light'] .bg-slate-950\/85,
+[data-theme='light'] .bg-slate-950\/80,
+[data-theme='light'] .bg-slate-950\/70,
+[data-theme='light'] .bg-slate-950\/60,
+[data-theme='light'] .bg-slate-950\/95 {
+  background-color: #ffffff !important;
+  border-color: rgba(226, 232, 240, 0.95) !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .bg-black\/20,
+[data-theme='light'] .bg-black\/25,
+[data-theme='light'] .bg-black\/30 {
+  background-color: rgba(241, 245, 249, 0.85) !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .bg-white\/5,
+[data-theme='light'] .bg-white\/10,
+[data-theme='light'] .bg-white\/15,
+[data-theme='light'] .bg-white\/20 {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme='light'] .border-slate-800,
+[data-theme='light'] .border-slate-700,
+[data-theme='light'] .border-white\/5,
+[data-theme='light'] .border-white\/10,
+[data-theme='light'] .border-white\/15,
+[data-theme='light'] .border-white\/20 {
+  border-color: rgba(226, 232, 240, 0.95) !important;
+}
+
+[data-theme='light'] .text-white {
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .text-slate-100,
+[data-theme='light'] .text-slate-200,
+[data-theme='light'] .text-slate-300 {
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .text-slate-400 {
+  color: #475569 !important;
+}
+
+[data-theme='light'] .text-slate-500 {
+  color: #64748b !important;
+}
+
+[data-theme='light'] .bg-white\/\[0\.02\],
+[data-theme='light'] .bg-white\/\[0\.03\],
+[data-theme='light'] .bg-white\/5 {
+  background-color: #ffffff !important;
+  border-color: rgba(226, 232, 240, 0.95) !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .border-slate-800\/80,
+[data-theme='light'] .border-slate-800\/60,
+[data-theme='light'] .border-slate-700\/80,
+[data-theme='light'] .border-slate-700\/60 {
+  border-color: rgba(226, 232, 240, 0.95) !important;
+}
+
+/* Ensure action emerald buttons keep crisp text */
+[data-theme='light'] button.bg-emerald-500,
+[data-theme='light'] .bg-gradient-to-r.from-emerald-500 {
+  color: #ffffff !important;
+}
+
+[data-theme='light'] button.bg-emerald-500 *,
+[data-theme='light'] .bg-gradient-to-r.from-emerald-500 * {
+  color: #ffffff !important;
+}
+
+[data-theme='light'] .text-emerald-400 {
+  color: #059669 !important;
+}
+
+[data-theme='light'] .text-cyan-400 {
+  color: #0891b2 !important;
+}
+
+[data-theme='light'] .text-amber-400 {
+  color: #d97706 !important;
+}
+
+/* Ant Design Enhancements for Dark & Light Themes */
+.ant-modal .ant-modal-content {
+  background: var(--card-bg, #0f182a) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 1.25rem !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8) !important;
+  padding: 24px !important;
+}
+
+[data-theme='light'] .ant-modal .ant-modal-content {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15) !important;
+}
+
+.ant-modal-close {
+  top: 20px !important;
+  right: 20px !important;
+  color: var(--text-muted, #94a3b8) !important;
+}
+
+.ant-modal-close:hover {
+  color: var(--text-main, #ffffff) !important;
+}
+
+/* Ant Design Global Dark & Light Theme Integration for Inputs, Selects, & Tables */
+html[data-theme='dark'] input:not([type="checkbox"]):not([type="radio"]):not(.ant-select-input):not(.ant-select-selection-search-input):not(.search-inner-input):not(.bg-transparent):not(.ant-input):not(.ant-input-affix-wrapper input):not(.ant-picker input):not(.ant-picker-input input),
+html[data-theme='dark'] textarea,
+html[data-theme='dark'] select,
+[data-theme='dark'] input:not([type="checkbox"]):not([type="radio"]):not(.ant-select-input):not(.ant-select-selection-search-input):not(.search-inner-input):not(.bg-transparent):not(.ant-input):not(.ant-input-affix-wrapper input):not(.ant-picker input):not(.ant-picker-input input),
+[data-theme='dark'] textarea,
+[data-theme='dark'] select,
+.dark input:not([type="checkbox"]):not([type="radio"]):not(.ant-select-input):not(.ant-select-selection-search-input):not(.search-inner-input):not(.bg-transparent):not(.ant-input):not(.ant-input-affix-wrapper input):not(.ant-picker input):not(.ant-picker-input input),
+.dark textarea,
+.dark select {
+  background-color: var(--bg-surface, #1a273e) !important;
+  color: var(--text-main, #f1f5f9) !important;
+}
+
+/* Ensure Ant Design Select overlay inputs never block text with opaque background */
+.ant-select-input,
+.ant-select input,
+.custom-antd-select input,
+.ant-select-selection-search-input {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Seamless Search Inputs (Unified single background color across dark & light themes) */
+.search-input-box {
+  background-color: rgba(15, 23, 42, 0.75) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.search-input-box:focus-within {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25) !important;
+}
+
+[data-theme='light'] .search-input-box {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(203, 213, 225, 0.95) !important;
+}
+
+.search-inner-input,
+input.search-inner-input,
+.search-input-box input,
+.searchBox input,
+.ant-input-affix-wrapper input,
+.ant-input-affix-wrapper .ant-input,
+.ant-picker input,
+.ant-picker-input>input,
+.custom-antd-picker input {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Ant Design Input Affix Wrapper (Topbar and search bars unified background) */
+.ant-input-affix-wrapper {
+  background-color: rgba(18, 28, 45, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: var(--text-main) !important;
+}
+
+.ant-input-affix-wrapper:hover {
+  border-color: rgba(16, 185, 129, 0.4) !important;
+}
+
+.ant-input-affix-wrapper:focus,
+.ant-input-affix-wrapper-focused,
+.ant-input-affix-wrapper:focus-within {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important;
+}
+
+[data-theme='light'] .ant-input-affix-wrapper {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(203, 213, 225, 0.95) !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .ant-input-affix-wrapper input,
+[data-theme='light'] .ant-input-affix-wrapper .ant-input {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #0f172a !important;
+}
+
+[data-theme='dark'] .glass-input {
+  background-color: rgba(15, 23, 42, 0.9) !important;
+  color: var(--text-main, #f1f5f9) !important;
+}
+
+[data-theme='light'] input:not([type="checkbox"]):not([type="radio"]):not(.ant-select-input):not(.ant-select-selection-search-input),
+[data-theme='light'] textarea,
+[data-theme='light'] select,
+.light input:not([type="checkbox"]):not([type="radio"]):not(.ant-select-input):not(.ant-select-selection-search-input),
+.light textarea,
+.light select {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/* Ant Design Inputs & Dropdowns */
+html[data-theme='dark'] .ant-picker,
+html[data-theme='dark'] .ant-select-selector,
+html[data-theme='dark'] .ant-input,
+html[data-theme='dark'] .ant-input-affix-wrapper,
+[data-theme='dark'] .ant-picker,
+[data-theme='dark'] .ant-select-selector,
+[data-theme='dark'] .ant-input,
+[data-theme='dark'] .ant-input-affix-wrapper,
+.dark .ant-picker,
+.dark .ant-select-selector,
+.dark .ant-input,
+.dark .ant-input-affix-wrapper,
+.custom-antd-picker,
+/* Ant Design Custom Dropdowns & Inputs */
+.custom-antd-select {
+  width: 100% !important;
+}
+
+/* Ant Design Custom Dropdowns & Inputs */
+.custom-antd-select {
+  width: 100% !important;
+}
+
+.custom-antd-select,
+.custom-antd-select .ant-select-selector,
+.custom-antd-select .ant-select-content {
+  color: var(--text-main, #0f172a) !important;
+}
+
+.custom-antd-select .ant-select-selector {
+  border-radius: 12px !important;
+  min-height: 42px !important;
+  height: 42px !important;
+  padding: 0 12px !important;
+  transition: all 0.2s ease !important;
+}
+
+.custom-antd-select:hover:not(.ant-select-disabled) .ant-select-selector {
+  border-color: #10b981 !important;
+}
+
+/* Ant Design Selected Item text */
+.custom-antd-select .ant-select-selection-item {
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  line-height: 40px !important;
+  color: var(--text-main, #0f172a) !important;
+  -webkit-text-fill-color: var(--text-main, #0f172a) !important;
+}
+
+/* Ant Design Placeholder text */
+.custom-antd-select .ant-select-selection-placeholder {
+  color: var(--text-muted, #64748b) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 40px !important;
+}
+
+/* Search input container & input */
+.custom-antd-select .ant-select-selection-search-input {
+  color: var(--text-main, #0f172a) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  height: 40px !important;
+}
+
+/* Arrow */
+.custom-antd-select .ant-select-arrow {
+  color: #10b981 !important;
+  font-size: 12px !important;
+}
+
+/* When actively searching/typing, hide the selected item completely so it never collides with typed search text */
+.is-searching .ant-select-selection-item,
+.is-searching .ant-select-selection-placeholder,
+.custom-antd-select.is-searching .ant-select-selection-item,
+.custom-antd-select.is-searching .ant-select-selection-placeholder,
+.ant-select-single.is-searching .ant-select-selection-item,
+.ant-select-single.is-searching .ant-select-selection-placeholder,
+.ant-select-show-search.is-searching .ant-select-selection-item,
+.ant-select-show-search.is-searching .ant-select-selection-placeholder {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  display: none !important;
+  pointer-events: none !important;
+}
+
+/* Dark Theme Specifics for Select */
+[data-theme='dark'] .custom-antd-select .ant-select-selector,
+.dark .custom-antd-select .ant-select-selector {
+  background-color: #121c2d !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #f1f5f9 !important;
+}
+
+[data-theme='dark'] .custom-antd-select .ant-select-selection-item,
+.dark .custom-antd-select .ant-select-selection-item {
+  color: #f1f5f9 !important;
+  -webkit-text-fill-color: #f1f5f9 !important;
+}
+
+[data-theme='dark'] .custom-antd-select .ant-select-selection-placeholder,
+.dark .custom-antd-select .ant-select-selection-placeholder {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+[data-theme='dark'] .custom-antd-select .ant-select-selection-search-input,
+.dark .custom-antd-select .ant-select-selection-search-input {
+  color: #f1f5f9 !important;
+}
+
+/* Disabled State Dark */
+[data-theme='dark'] .custom-antd-select.ant-select-disabled .ant-select-selector,
+.dark .custom-antd-select.ant-select-disabled .ant-select-selector {
+  background-color: rgba(15, 23, 42, 0.45) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  cursor: not-allowed !important;
+  opacity: 0.85 !important;
+}
+
+[data-theme='dark'] .custom-antd-select.ant-select-disabled .ant-select-selection-placeholder,
+[data-theme='dark'] .custom-antd-select.ant-select-disabled .ant-select-selection-item,
+.dark .custom-antd-select.ant-select-disabled .ant-select-selection-placeholder,
+.dark .custom-antd-select.ant-select-disabled .ant-select-selection-item {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+/* Light / White Theme Overrides */
+[data-theme='light'] .custom-antd-select .ant-select-selector,
+.light .custom-antd-select .ant-select-selector {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .custom-antd-select .ant-select-selection-item,
+.light .custom-antd-select .ant-select-selection-item {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+/* Force hiding selected item and placeholder whenever searching/typing in both dark and light modes */
+.ant-select-show-search.ant-select-open .ant-select-selection-item,
+.ant-select-show-search:has(.ant-select-selection-search-input:focus) .ant-select-selection-item,
+.ant-select-show-search .ant-select-selection-search:focus-within~.ant-select-selection-item,
+.custom-antd-select.is-searching .ant-select-selection-item,
+.custom-antd-select.is-searching .ant-select-selection-placeholder,
+.custom-antd-select.ant-select-open.is-searching .ant-select-selection-item,
+.custom-antd-select.ant-select-open.is-searching .ant-select-selection-placeholder,
+.custom-antd-select:has(.ant-select-selection-search-input:focus) .ant-select-selection-item,
+.is-searching .ant-select-selection-item,
+.is-searching .ant-select-selection-placeholder,
+[data-theme='light'] .custom-antd-select.is-searching .ant-select-selection-item,
+[data-theme='light'] .custom-antd-select.is-searching .ant-select-selection-placeholder,
+[data-theme='light'] .custom-antd-select.ant-select-open.is-searching .ant-select-selection-item,
+[data-theme='light'] .custom-antd-select.ant-select-open.is-searching .ant-select-selection-placeholder,
+[data-theme='light'] .custom-antd-select:has(.ant-select-selection-search-input:focus) .ant-select-selection-item,
+[data-theme='light'] .ant-select-show-search.ant-select-open.is-searching .ant-select-selection-item,
+[data-theme='light'] .ant-select-show-search.ant-select-open.is-searching .ant-select-selection-placeholder,
+[data-theme='light'] .ant-select-show-search:has(.ant-select-selection-search-input:focus) .ant-select-selection-item,
+.light .custom-antd-select.is-searching .ant-select-selection-item,
+.light .custom-antd-select.is-searching .ant-select-selection-placeholder,
+.light .custom-antd-select.ant-select-open.is-searching .ant-select-selection-item,
+.light .custom-antd-select.ant-select-open.is-searching .ant-select-selection-placeholder,
+.light .custom-antd-select:has(.ant-select-selection-search-input:focus) .ant-select-selection-item,
+.light .ant-select-show-search.ant-select-open.is-searching .ant-select-selection-item,
+.light .ant-select-show-search.ant-select-open.is-searching .ant-select-selection-placeholder,
+.light .ant-select-show-search:has(.ant-select-selection-search-input:focus) .ant-select-selection-item {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+[data-theme='light'] .custom-antd-select .ant-select-selection-placeholder,
+.light .custom-antd-select .ant-select-selection-placeholder {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+}
+
+[data-theme='light'] .custom-antd-select .ant-select-selection-search-input,
+.light .custom-antd-select .ant-select-selection-search-input {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+[data-theme='light'] .custom-antd-select.ant-select-disabled .ant-select-selector,
+.light .custom-antd-select.ant-select-disabled .ant-select-selector {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+
+[data-theme='light'] .custom-antd-select.ant-select-disabled,
+[data-theme='light'] .custom-antd-select.ant-select-disabled .ant-select-selection-placeholder,
+[data-theme='light'] .custom-antd-select.ant-select-disabled .ant-select-selection-item,
+.light .custom-antd-select.ant-select-disabled,
+.light .custom-antd-select.ant-select-disabled .ant-select-selection-placeholder,
+.light .custom-antd-select.ant-select-disabled .ant-select-selection-item {
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+}
+
+[data-theme='light'] .custom-antd-select.ant-select-disabled .ant-select-arrow,
+.light .custom-antd-select.ant-select-disabled .ant-select-arrow {
+  color: #64748b !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Number Input Spinners (Hide up/down arrows across all 5 phases & apps)
+   ───────────────────────────────────────────────────────────── */
+*::-webkit-outer-spin-button,
+*::-webkit-inner-spin-button,
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button,
+.ant-input::-webkit-outer-spin-button,
+.ant-input::-webkit-inner-spin-button,
+.ant-input-affix-wrapper input::-webkit-outer-spin-button,
+.ant-input-affix-wrapper input::-webkit-inner-spin-button,
+.ant-input-number-input::-webkit-outer-spin-button,
+.ant-input-number-input::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  display: none !important;
+  margin: 0 !important;
+}
+
+input[type='number'],
+.ant-input[type='number'],
+.ant-input-affix-wrapper input[type='number'],
+.ant-input-number-input {
+  -moz-appearance: textfield !important;
+  appearance: textfield !important;
+}
+
+.ant-input-number-handler-wrap {
+  display: none !important;
+  width: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Ant Design Dropdown Popup (Dark & Light Theme Scoped)
+   ───────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   Ant Design Dropdown Popup (Default Light & Scoped Dark)
+   ───────────────────────────────────────────────────────────── */
+.ant-select-dropdown {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 12px 35px -5px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+  border-radius: 14px !important;
+  padding: 6px !important;
+  z-index: 99999 !important;
+}
+
+.ant-select-dropdown .ant-select-item {
+  color: #0f172a !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  padding: 8px 12px !important;
+  border-radius: 8px !important;
+  margin: 2px 0 !important;
+  transition: all 0.15s ease !important;
+}
+
+.ant-select-dropdown .ant-select-item-option-selected {
+  background-color: #ecfdf5 !important;
+  color: #059669 !important;
+  font-weight: 700 !important;
+}
+
+.ant-select-dropdown .ant-select-item-option-active {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* Dark Theme Dropdown Popup Override */
+[data-theme='dark'] .ant-select-dropdown,
+html[data-theme='dark'] .ant-select-dropdown,
+body[data-theme='dark'] .ant-select-dropdown,
+.dark .ant-select-dropdown {
+  background-color: #0f182a !important;
+  background: #0f182a !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.85) !important;
+  border-radius: 14px !important;
+  padding: 6px !important;
+  z-index: 99999 !important;
+}
+
+[data-theme='dark'] .ant-select-dropdown .ant-select-item,
+html[data-theme='dark'] .ant-select-dropdown .ant-select-item,
+body[data-theme='dark'] .ant-select-dropdown .ant-select-item,
+.dark .ant-select-dropdown .ant-select-item {
+  color: #e2e8f0 !important;
+  font-size: 13px !important;
+  padding: 8px 12px !important;
+  border-radius: 8px !important;
+  margin: 2px 0 !important;
+  transition: all 0.15s ease !important;
+}
+
+[data-theme='dark'] .ant-select-dropdown .ant-select-item-option-selected,
+html[data-theme='dark'] .ant-select-dropdown .ant-select-item-option-selected,
+body[data-theme='dark'] .ant-select-dropdown .ant-select-item-option-selected,
+.dark .ant-select-dropdown .ant-select-item-option-selected {
+  background-color: rgba(16, 185, 129, 0.25) !important;
+  color: #34d399 !important;
+  font-weight: 700 !important;
+}
+
+[data-theme='dark'] .ant-select-dropdown .ant-select-item-option-active,
+html[data-theme='dark'] .ant-select-dropdown .ant-select-item-option-active,
+body[data-theme='dark'] .ant-select-dropdown .ant-select-item-option-active,
+.dark .ant-select-dropdown .ant-select-item-option-active {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Dark theme selector fallback */
+.ant-picker,
+.custom-antd-picker,
+[data-theme='dark'] .ant-picker,
+[data-theme='dark'] .ant-input,
+[data-theme='dark'] .ant-input-affix-wrapper,
+[data-theme='dark'] .custom-antd-picker,
+.dark .ant-picker,
+.dark .custom-antd-picker {
+  background-color: #121c2d !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #f1f5f9 !important;
+}
+
+.ant-picker input,
+.ant-picker-input>input,
+.custom-antd-picker input,
+[data-theme='dark'] .ant-picker input,
+[data-theme='dark'] .ant-picker-input>input,
+[data-theme='dark'] .ant-input-affix-wrapper input,
+[data-theme='dark'] .ant-input {
+  color: #f1f5f9 !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+[data-theme='dark'] .ant-select-item-option-selected,
+.dark .ant-select-item-option-selected {
+  background-color: rgba(16, 185, 129, 0.2) !important;
+  color: #34d399 !important;
+}
+
+[data-theme='dark'] .ant-select-item-option-active,
+.dark .ant-select-item-option-active {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme='dark'] .ant-picker-panel-container {
+  background-color: #0f182a !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #f1f5f9 !important;
+}
+
+[data-theme='dark'] .ant-picker-header,
+[data-theme='dark'] .ant-picker-content th {
+  color: #94a3b8 !important;
+}
+
+[data-theme='dark'] .ant-picker-cell {
+  color: #64748b !important;
+}
+
+[data-theme='dark'] .ant-picker-cell-in-view {
+  color: #f1f5f9 !important;
+}
+
+/* Ant Design Table Dark Mode Integration */
+[data-theme='dark'] .ant-table {
+  background: transparent !important;
+  color: #f1f5f9 !important;
+}
+
+[data-theme='dark'] .ant-table-thead>tr>th {
+  background: rgba(18, 28, 45, 0.8) !important;
+  color: #94a3b8 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+[data-theme='dark'] .ant-table-tbody>tr>td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: #f1f5f9 !important;
+  font-size: 12px !important;
+}
+
+[data-theme='dark'] .ant-table-tbody>tr:hover>td {
+  background: rgba(26, 39, 62, 0.6) !important;
+}
+
+/* Compact Table Layout for Reservoirs (No Horizontal Scroll) */
+.reservoirs-table .ant-table,
+.reservoirs-table table {
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+
+.reservoirs-table .ant-table-thead>tr>th {
+  padding: 10px 6px !important;
+  font-size: 11px !important;
+  line-height: 1.3 !important;
+  vertical-align: middle !important;
+}
+
+.reservoirs-table .ant-table-tbody>tr>td {
+  padding: 10px 6px !important;
+  font-size: 12px !important;
+  vertical-align: middle !important;
+}
+
+/* Light Mode Overrides */
+[data-theme='light'] .ant-picker,
+[data-theme='light'] .ant-select-selector,
+[data-theme='light'] .ant-input,
+[data-theme='light'] .ant-input-affix-wrapper,
+[data-theme='light'] .custom-antd-picker,
+[data-theme='light'] .custom-antd-select .ant-select-selector {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .ant-input:not(.ant-input-affix-wrapper input) {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .ant-input-affix-wrapper {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+}
+
+[data-theme='light'] .ant-picker input,
+[data-theme='light'] .ant-picker-input>input,
+[data-theme='light'] .custom-antd-picker input,
+[data-theme='light'] .ant-select-selection-item,
+[data-theme='light'] .ant-input-affix-wrapper input {
+  color: #0f172a !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+[data-theme='light'] .ant-input-suffix {
+  color: #64748b !important;
+}
+
+/* Ant Design Table Complete Transparency - Matches Fertilizer Management Table Style */
+.ant-table-wrapper,
+.ant-table-wrapper .ant-table,
+.ant-table-wrapper .ant-table-container,
+.ant-table-wrapper .ant-table-content,
+.ant-table-wrapper table,
+.ant-table-wrapper .ant-table-thead,
+.ant-table-wrapper .ant-table-tbody,
+.ant-table-wrapper .ant-table-cell,
+.ant-table,
+.ant-table-container,
+.ant-table-content,
+.ant-table table,
+.ant-table-thead,
+.ant-table-tbody,
+.ant-table-cell,
+.ant-table-thead>tr>th,
+.ant-table-tbody>tr>td,
+[data-theme='light'] .ant-table-wrapper,
+[data-theme='light'] .ant-table-wrapper .ant-table,
+[data-theme='light'] .ant-table-wrapper .ant-table-container,
+[data-theme='light'] .ant-table-wrapper .ant-table-content,
+[data-theme='light'] .ant-table-wrapper table,
+[data-theme='light'] .ant-table-wrapper .ant-table-thead,
+[data-theme='light'] .ant-table-wrapper .ant-table-tbody,
+[data-theme='light'] .ant-table-wrapper .ant-table-cell,
+[data-theme='light'] .ant-table,
+[data-theme='light'] .ant-table-container,
+[data-theme='light'] .ant-table-content,
+[data-theme='light'] .ant-table table,
+[data-theme='light'] .ant-table-thead,
+[data-theme='light'] .ant-table-tbody,
+[data-theme='light'] .ant-table-cell,
+[data-theme='light'] .ant-table-thead>tr>th,
+[data-theme='light'] .ant-table-tbody>tr>td,
+.light .ant-table-wrapper,
+.light .ant-table-wrapper .ant-table,
+.light .ant-table-wrapper .ant-table-container,
+.light .ant-table-wrapper .ant-table-content,
+.light .ant-table-wrapper table,
+.light .ant-table-wrapper .ant-table-thead,
+.light .ant-table-wrapper .ant-table-tbody,
+.light .ant-table-wrapper .ant-table-cell,
+.light .ant-table,
+.light .ant-table-container,
+.light .ant-table-content,
+.light .ant-table table,
+.light .ant-table-thead,
+.light .ant-table-tbody,
+.light .ant-table-cell,
+.light .ant-table-thead>tr>th,
+.light .ant-table-tbody>tr>td {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+[data-theme='light'] .ant-table-thead>tr>th,
+.light .ant-table-thead>tr>th {
+  background: rgba(0, 0, 0, 0.03) !important;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.7) !important;
+  color: #334155 !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+[data-theme='light'] .ant-table-tbody>tr>td,
+.light .ant-table-tbody>tr>td {
+  border-bottom: 1px solid rgba(226, 232, 240, 0.6) !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .ant-table-tbody>tr:hover>td,
+.light .ant-table-tbody>tr:hover>td {
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Mini Float Button Group for inline form field */
+.mini-float-btn-group {
+  --ant-float-btn-list-trigger-offset: 30px !important;
+  position: relative !important;
+  inset: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  top: auto !important;
+  left: auto !important;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  z-index: 25 !important;
+}
+
+.mini-float-btn-group .ant-float-btn {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25) !important;
+  background-color: #10b981 !important;
+  transition: all 0.2s ease !important;
+}
+
+.mini-float-btn-group .ant-float-btn:hover {
+  background-color: #059669 !important;
+  transform: scale(1.08) !important;
+}
+
+.mini-float-btn-group .ant-float-btn-body {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.mini-float-btn-group .ant-float-btn-content {
+  padding: 0 !important;
+  min-height: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.mini-float-btn-group .ant-float-btn-icon {
+  width: auto !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.mini-float-btn-group .ant-float-btn-group-list,
+.mini-float-btn-group .ant-float-btn-group-wrap {
+  bottom: 30px !important;
+  margin-bottom: 0 !important;
+  gap: 6px !important;
+  z-index: 30 !important;
+}
