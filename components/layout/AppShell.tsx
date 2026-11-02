@@ -8,7 +8,11 @@ import type { AppShellProps } from '@/types/components';
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const pathname = usePathname();
-  const isAuthPage = pathname === '/signin' || pathname === '/signup';
+  const isAuthPage =
+    pathname === '/signin' ||
+    pathname === '/signup' ||
+    pathname?.startsWith('/signin') ||
+    pathname?.startsWith('/signup');
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -19,7 +23,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   if (isAuthPage) {
     return (
-      <main className="min-h-screen w-full bg-app font-sans text-text-main">
+      <main className="min-h-screen w-full bg-black font-sans text-text-main">
         {children}
       </main>
     );
