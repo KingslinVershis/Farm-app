@@ -42,21 +42,25 @@ export const StepNavigation: React.FC<StepNavigationProps> = ({
             <div className="flex items-center justify-between mb-1.5">
               <span
                 className={`text-[10px] font-extrabold uppercase tracking-wider ${
-                  isActive ? 'text-emerald-400' : isCompleted ? 'text-emerald-300' : 'text-text-muted'
+                  isActive
+                    ? 'text-emerald-500 dark:text-emerald-400'
+                    : isCompleted
+                      ? 'text-emerald-600 dark:text-emerald-300'
+                      : 'text-slate-700 dark:text-slate-300'
                 }`}
               >
                 Step {item.num}
               </span>
               {item.num === 3 ? (
-                <span className="flex items-center rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] font-extrabold text-emerald-400 border border-emerald-500/30">
+                <span className="flex items-center rounded-full bg-emerald-500/15 dark:bg-emerald-500/20 px-2 py-0.5 text-[9px] font-extrabold text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
                   5 Phases
                 </span>
               ) : isCompleted ? (
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500/25 text-[10px] font-bold text-emerald-300">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500/25 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
                   ✓
                 </span>
               ) : (
-                <span className="text-[10px] text-text-muted font-semibold group-hover:text-emerald-400">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold group-hover:text-emerald-400">
                   →
                 </span>
               )}

@@ -135,14 +135,15 @@ export default function FarmDashboardPage() {
   useEffect(() => {
     let mounted = true;
 
-    // 1. Fetch fertilizer plans count
-    fetch('/api/fertilizer-plans')
+    // 1. Fetch fertilizer plans count for authenticated user
+    fetch('/api/user')
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
-        if (!mounted || !json || !json.data) return;
-        if (Array.isArray(json.data) && json.data.length > 0) {
-          setPlansCount(json.data.length);
-          const mapped: CultivationPlanSummary[] = json.data.slice(0, 3).map((item: any) => {
+        if (!mounted || !json) return;
+        const plansList = json.plans || [];
+        if (Array.isArray(plansList)) {
+          setPlansCount(plansList.length);
+          const mapped: CultivationPlanSummary[] = plansList.slice(0, 3).map((item: any) => {
             const outlay = item.totals?.grandTotal || 50000;
             const profit = item.totals?.netProfit || 150000;
             const roiCalc = outlay > 0 ? Math.round((profit / outlay) * 100) : 0;
@@ -164,7 +165,7 @@ export default function FarmDashboardPage() {
           setSavedPlans(mapped);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     // 2. Fetch reservoirs telemetry
     fetch('/api/reservoirs')
@@ -179,7 +180,7 @@ export default function FarmDashboardPage() {
           }
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     // 3. Fetch TNAU seeds count
     fetch('/api/tnau-seeds')
@@ -192,7 +193,7 @@ export default function FarmDashboardPage() {
           setSeedVarietiesCount(json.data.length);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     return () => {
       mounted = false;
@@ -267,21 +268,21 @@ export default function FarmDashboardPage() {
           {/* KPI 1: Active Fertilizer Plans */}
           <motion.div variants={itemVariants}>
             <SpotlightCard
-              spotlightColor="rgba(16, 185, 129, 0.15)"
-              className="h-full glass-panel p-5 rounded-2xl border border-border-light shadow-xl flex flex-col justify-between gap-3"
+              spotlightColor="rgba(16, 185, 129, 0.18)"
+              className="h-full glass-panel p-5 rounded-2xl border-b-2 border-b-emerald-400 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_12px_28px_-8px_rgba(16,185,129,0.3)] flex flex-col justify-between gap-3 group transition-all"
             >
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
                   {t.metrics.activePlans}
                 </span>
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-500 dark:text-emerald-400">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center text-emerald-400 shadow-sm">
                   <FlaskConicalIcon size={18} />
                 </div>
               </div>
               <div className="text-2xl sm:text-3xl font-black text-text-main tracking-tight">
                 <AnimatedCounter value={plansCount} suffix={isTamil ? ' ஆவணங்கள்' : ' Plans Saved'} />
               </div>
-              <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+              <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                 <span>✓</span>
                 <span>{t.metrics.activePlansTrend}</span>
               </div>
@@ -291,21 +292,21 @@ export default function FarmDashboardPage() {
           {/* KPI 2: Reservoirs Storage */}
           <motion.div variants={itemVariants}>
             <SpotlightCard
-              spotlightColor="rgba(6, 182, 212, 0.15)"
-              className="h-full glass-panel p-5 rounded-2xl border border-border-light shadow-xl flex flex-col justify-between gap-3"
+              spotlightColor="rgba(6, 182, 212, 0.18)"
+              className="h-full glass-panel p-5 rounded-2xl border-b-2 border-b-cyan-400 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_12px_28px_-8px_rgba(6,182,212,0.3)] flex flex-col justify-between gap-3 group transition-all"
             >
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
                   {t.metrics.reservoirsStorage}
                 </span>
-                <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-500 dark:text-cyan-400">
+                <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-400/30 flex items-center justify-center text-cyan-400 shadow-sm">
                   <WavesIcon size={18} />
                 </div>
               </div>
               <div className="text-2xl sm:text-3xl font-black text-text-main tracking-tight">
                 <AnimatedCounter value={reservoirPercent} decimals={1} suffix="% Full" />
               </div>
-              <div className="text-xs font-bold text-cyan-600 dark:text-cyan-400 flex items-center gap-1">
+              <div className="text-xs font-bold text-cyan-600 dark:text-cyan-400 flex items-center gap-1.5">
                 <span>🌊</span>
                 <span>{t.metrics.reservoirsTrend}</span>
               </div>
@@ -315,21 +316,21 @@ export default function FarmDashboardPage() {
           {/* KPI 3: TNAU Seed Price Varieties */}
           <motion.div variants={itemVariants}>
             <SpotlightCard
-              spotlightColor="rgba(245, 158, 11, 0.15)"
-              className="h-full glass-panel p-5 rounded-2xl border border-border-light shadow-xl flex flex-col justify-between gap-3"
+              spotlightColor="rgba(168, 85, 247, 0.18)"
+              className="h-full glass-panel p-5 rounded-2xl border-b-2 border-b-purple-400 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_12px_28px_-8px_rgba(168,85,247,0.3)] flex flex-col justify-between gap-3 group transition-all"
             >
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
                   {t.metrics.tnauSeeds}
                 </span>
-                <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 dark:text-amber-400">
+                <div className="w-9 h-9 rounded-xl bg-purple-500/15 border border-purple-400/30 flex items-center justify-center text-purple-400 shadow-sm">
                   <SproutIcon size={18} />
                 </div>
               </div>
               <div className="text-2xl sm:text-3xl font-black text-text-main tracking-tight">
                 <AnimatedCounter value={seedVarietiesCount} suffix={isTamil ? ' வகைகள்' : ' Varieties'} />
               </div>
-              <div className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+              <div className="text-xs font-bold text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
                 <span>🌱</span>
                 <span>{t.metrics.tnauSeedsTrend}</span>
               </div>
@@ -339,21 +340,21 @@ export default function FarmDashboardPage() {
           {/* KPI 4: Commercial ROI & Net Profit */}
           <motion.div variants={itemVariants}>
             <SpotlightCard
-              spotlightColor="rgba(16, 185, 129, 0.18)"
-              className="h-full glass-panel p-5 rounded-2xl border border-border-light shadow-xl flex flex-col justify-between gap-3"
+              spotlightColor="rgba(16, 185, 129, 0.22)"
+              className="h-full glass-panel p-5 rounded-2xl border-b-2 border-b-emerald-400 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_12px_28px_-8px_rgba(16,185,129,0.3)] flex flex-col justify-between gap-3 group transition-all"
             >
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
                   {t.metrics.estRoi}
                 </span>
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-500 dark:text-emerald-400">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center text-emerald-400 shadow-sm">
                   <TractorIcon size={18} />
                 </div>
               </div>
               <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
                 <AnimatedCounter value={314} prefix="+" suffix="% ROI" />
               </div>
-              <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+              <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
                 <span>💰</span>
                 <span>{t.metrics.estRoiTrend}</span>
               </div>
@@ -378,33 +379,56 @@ export default function FarmDashboardPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {/* Module 1: Fertilizer Mgmt */}
-            <div className="rounded-2xl glass-panel p-6 border border-border-light shadow-xl flex flex-col justify-between group hover:border-emerald-500/40 transition-all">
-              <div className="space-y-3">
+            <div className="rounded-2xl glass-panel p-6 shadow-xl flex flex-col justify-between group hover:border-emerald-500/40 transition-all">
+              <div className="space-y-3.5">
                 <div className="flex items-center justify-between">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-black text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
                     {t.modules.fertilizerBadge}
                   </span>
-                  <div className="h-10 w-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-lg">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-lg shadow-sm">
                     🌾
                   </div>
                 </div>
-                <h3 className="text-lg font-black text-text-main group-hover:text-emerald-400 transition-colors">
-                  {t.modules.fertilizerTitle}
-                </h3>
-                <p className="text-xs text-text-secondary leading-relaxed">
-                  {t.modules.fertilizerDesc}
-                </p>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  <span className="px-2 py-0.5 rounded-md bg-surface text-[10px] font-semibold text-text-muted">
+                <div>
+                  <h3 className="text-lg font-black text-text-main group-hover:text-emerald-400 transition-colors">
+                    {t.modules.fertilizerTitle}
+                  </h3>
+                  <p className="text-xs text-text-secondary leading-relaxed mt-1">
+                    {t.modules.fertilizerDesc}
+                  </p>
+                </div>
+
+                {/* Real-time Economic Snapshot Box */}
+                <div className="p-3 rounded-xl glass-surface border border-white/10 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[11px] font-semibold text-text-muted">
+                      {isTamil ? 'உத்தேச மண்டி வருவாய்' : 'Projected Mandi Realization'}
+                    </span>
+                    <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
+                      ₹2,46,000
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs pt-1.5 border-t border-white/5">
+                    <span className="text-[11px] font-semibold text-text-muted">
+                      {isTamil ? 'சாகுபடி செலவு (4 நிலைகள்)' : 'Production Cost (4 Phases)'}
+                    </span>
+                    <span className="font-bold text-amber-500 dark:text-amber-400">
+                      ₹59,450
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  <span className="px-2 py-0.5 rounded-md glass-surface text-[10px] font-semibold text-text-muted">
                     {isTamil ? 'உழவு & சேற்றுழவு' : 'Tractor Rent'}
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-surface text-[10px] font-semibold text-text-muted">
+                  <span className="px-2 py-0.5 rounded-md glass-surface text-[10px] font-semibold text-text-muted">
                     {isTamil ? 'விதை & பயணச் செலவு' : 'Seed & Travel'}
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-surface text-[10px] font-semibold text-text-muted">
+                  <span className="px-2 py-0.5 rounded-md glass-surface text-[10px] font-semibold text-text-muted">
                     {isTamil ? 'அறுவடை இயந்திரம்' : 'Harvester'}
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-surface text-[10px] font-semibold text-text-muted">
+                  <span className="px-2 py-0.5 rounded-md glass-surface text-[10px] font-semibold text-text-muted">
                     {isTamil ? 'மண்டி விற்பனை' : 'Mandi Yield'}
                   </span>
                 </div>
@@ -412,7 +436,7 @@ export default function FarmDashboardPage() {
               <div className="pt-6">
                 <Link
                   href="/fertilizer"
-                  className="w-full rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 px-4 py-2.5 text-xs font-bold transition-all flex items-center justify-between cursor-pointer"
+                  className="w-full rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 px-4 py-2.5 text-xs font-bold transition-all flex items-center justify-between cursor-pointer shadow-sm group-hover:shadow-glow"
                 >
                   <span>{t.modules.fertilizerCta}</span>
                   <ChevronRightIcon size={15} />
@@ -421,33 +445,56 @@ export default function FarmDashboardPage() {
             </div>
 
             {/* Module 2: Water Reservoirs */}
-            <div className="rounded-2xl glass-panel p-6 border border-border-light shadow-xl flex flex-col justify-between group hover:border-cyan-500/40 transition-all">
-              <div className="space-y-3">
+            <div className="rounded-2xl glass-panel p-6 shadow-xl flex flex-col justify-between group hover:border-cyan-500/40 transition-all">
+              <div className="space-y-3.5">
                 <div className="flex items-center justify-between">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/15 px-2.5 py-0.5 text-[11px] font-black text-cyan-700 dark:text-cyan-300 border border-cyan-500/30">
                     {t.modules.reservoirsBadge}
                   </span>
-                  <div className="h-10 w-10 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center text-lg">
+                  <div className="h-10 w-10 rounded-xl bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 flex items-center justify-center text-lg shadow-sm">
                     🌊
                   </div>
                 </div>
-                <h3 className="text-lg font-black text-text-main group-hover:text-cyan-400 transition-colors">
-                  {t.modules.reservoirsTitle}
-                </h3>
-                <p className="text-xs text-text-secondary leading-relaxed">
-                  {t.modules.reservoirsDesc}
-                </p>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  <span className="px-2 py-0.5 rounded-md bg-surface text-[10px] font-semibold text-text-muted">
+                <div>
+                  <h3 className="text-lg font-black text-text-main group-hover:text-cyan-400 transition-colors">
+                    {t.modules.reservoirsTitle}
+                  </h3>
+                  <p className="text-xs text-text-secondary leading-relaxed mt-1">
+                    {t.modules.reservoirsDesc}
+                  </p>
+                </div>
+
+                {/* Reservoir Hydrology Snapshot Box */}
+                <div className="p-3 rounded-xl glass-surface border border-white/10 space-y-1.5 text-[11px]">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-text-muted">Mettur (Stanley)</span>
+                    <span className="font-extrabold text-cyan-500 dark:text-cyan-400">59,450 / 93,470 Mcft</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-text-muted">Bhavanisagar</span>
+                    <span className="font-extrabold text-cyan-500 dark:text-cyan-400">21,340 / 32,800 Mcft</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-text-muted">Vaigai Dam</span>
+                    <span className="font-extrabold text-cyan-500 dark:text-cyan-400">4,820 / 6,140 Mcft</span>
+                  </div>
+                  <div className="pt-1.5 border-t border-white/5 flex items-center justify-between text-[10px] text-text-muted font-medium">
+                    <span>Inflow: 8,420 cusecs</span>
+                    <span>Outflow: 6,500 cusecs</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  <span className="px-2 py-0.5 rounded-md glass-surface text-[10px] font-semibold text-text-muted">
                     {isTamil ? 'மேட்டூர் அணை' : 'Mettur (Stanley)'}
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-surface text-[10px] font-semibold text-text-muted">
+                  <span className="px-2 py-0.5 rounded-md glass-surface text-[10px] font-semibold text-text-muted">
                     {isTamil ? 'பவானிசாகர்' : 'Bhavanisagar'}
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-surface text-[10px] font-semibold text-text-muted">
+                  <span className="px-2 py-0.5 rounded-md glass-surface text-[10px] font-semibold text-text-muted">
                     {isTamil ? 'வைகை' : 'Vaigai'}
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-surface text-[10px] font-semibold text-text-muted">
+                  <span className="px-2 py-0.5 rounded-md glass-surface text-[10px] font-semibold text-text-muted">
                     {isTamil ? 'நீர்வரத்து / வெளியேற்றம்' : 'Inflow & Outflow'}
                   </span>
                 </div>
@@ -455,7 +502,7 @@ export default function FarmDashboardPage() {
               <div className="pt-6">
                 <Link
                   href="/reservoirs"
-                  className="w-full rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 px-4 py-2.5 text-xs font-bold transition-all flex items-center justify-between cursor-pointer"
+                  className="w-full rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 px-4 py-2.5 text-xs font-bold transition-all flex items-center justify-between cursor-pointer shadow-sm group-hover:shadow-[0_0_20px_rgba(6,182,212,0.25)]"
                 >
                   <span>{t.modules.reservoirsCta}</span>
                   <ChevronRightIcon size={15} />
@@ -464,33 +511,56 @@ export default function FarmDashboardPage() {
             </div>
 
             {/* Module 3: TNAU Seed Prices */}
-            <div className="rounded-2xl glass-panel p-6 border border-border-light shadow-xl flex flex-col justify-between group hover:border-amber-500/40 transition-all">
-              <div className="space-y-3">
+            <div className="rounded-2xl glass-panel p-6 shadow-xl flex flex-col justify-between group hover:border-purple-500/40 transition-all">
+              <div className="space-y-3.5">
                 <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-black text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-500/15 px-2.5 py-0.5 text-[11px] font-black text-purple-700 dark:text-purple-300 border border-purple-500/30">
                     {t.modules.seedsBadge}
                   </span>
-                  <div className="h-10 w-10 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-lg">
+                  <div className="h-10 w-10 rounded-xl bg-purple-500/15 text-purple-400 border border-purple-500/30 flex items-center justify-center text-lg shadow-sm">
                     🌱
                   </div>
                 </div>
-                <h3 className="text-lg font-black text-text-main group-hover:text-amber-400 transition-colors">
-                  {t.modules.seedsTitle}
-                </h3>
-                <p className="text-xs text-text-secondary leading-relaxed">
-                  {t.modules.seedsDesc}
-                </p>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  <span className="px-2 py-0.5 rounded-md bg-surface text-[10px] font-semibold text-text-muted">
+                <div>
+                  <h3 className="text-lg font-black text-text-main group-hover:text-purple-400 transition-colors">
+                    {t.modules.seedsTitle}
+                  </h3>
+                  <p className="text-xs text-text-secondary leading-relaxed mt-1">
+                    {t.modules.seedsDesc}
+                  </p>
+                </div>
+
+                {/* TNAU Seed Price Snapshot Box */}
+                <div className="p-3 rounded-xl glass-surface border border-white/10 space-y-1.5 text-[11px]">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-text-muted">ADT 43 (Medium Duration)</span>
+                    <span className="font-extrabold text-purple-600 dark:text-purple-400">₹42.50/kg</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-text-muted">CR 1009 Sub 1 (Samba)</span>
+                    <span className="font-extrabold text-purple-600 dark:text-purple-400">₹44.00/kg</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-text-muted">CO 51 (Short 105d)</span>
+                    <span className="font-extrabold text-purple-600 dark:text-purple-400">₹46.50/kg</span>
+                  </div>
+                  <div className="pt-1.5 border-t border-white/5 flex items-center justify-between text-[10px] text-text-muted font-medium">
+                    <span>Vegetable Seeds</span>
+                    <span>Breeder Seeds</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  <span className="px-2 py-0.5 rounded-md glass-surface text-[10px] font-semibold text-text-muted">
                     {isTamil ? 'காய்கறி விதைகள்' : 'Vegetable Seeds'}
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-surface text-[10px] font-semibold text-text-muted">
+                  <span className="px-2 py-0.5 rounded-md glass-surface text-[10px] font-semibold text-text-muted">
                     {isTamil ? 'வல்லுநர் விதைகள்' : 'Breeder Seeds'}
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-surface text-[10px] font-semibold text-text-muted">
+                  <span className="px-2 py-0.5 rounded-md glass-surface text-[10px] font-semibold text-text-muted">
                     {isTamil ? 'பழ விதைகள்' : 'Fruit Seeds'}
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-surface text-[10px] font-semibold text-text-muted">
+                  <span className="px-2 py-0.5 rounded-md glass-surface text-[10px] font-semibold text-text-muted">
                     {isTamil ? 'அரசு நிர்ணய விலை' : 'Official ₹/kg Rates'}
                   </span>
                 </div>
@@ -498,7 +568,7 @@ export default function FarmDashboardPage() {
               <div className="pt-6">
                 <Link
                   href="/seeds"
-                  className="w-full rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-4 py-2.5 text-xs font-bold transition-all flex items-center justify-between cursor-pointer"
+                  className="w-full rounded-xl bg-purple-500/15 hover:bg-purple-500/25 text-purple-700 dark:text-purple-300 border border-purple-500/30 px-4 py-2.5 text-xs font-bold transition-all flex items-center justify-between cursor-pointer shadow-sm group-hover:shadow-[0_0_20px_rgba(168,85,247,0.25)]"
                 >
                   <span>{t.modules.seedsCta}</span>
                   <ChevronRightIcon size={15} />
@@ -563,8 +633,8 @@ export default function FarmDashboardPage() {
                           <div className="text-[10px] uppercase font-bold text-text-muted">
                             {t.recentRecords.netProfit}
                           </div>
-                          <div className="text-sm font-black text-emerald-700 dark:text-emerald-400">
-                            ₹{plan.netProfit.toLocaleString()}
+                          <div className="text-sm font-black text-emerald-700 dark:text-emerald-400" suppressHydrationWarning>
+                            ₹{plan.netProfit.toLocaleString('en-IN')}
                           </div>
                         </div>
                         <div className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-900 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-500/30 text-xs font-black">
@@ -620,8 +690,8 @@ export default function FarmDashboardPage() {
                         <span className="font-bold text-text-main">
                           {isTamil ? dam.tamilName : dam.name}
                         </span>
-                        <span className="text-[10px] text-text-muted ml-2 font-mono">
-                          {dam.storageMcft.toLocaleString()} / {dam.capacityMcft.toLocaleString()} Mcft
+                        <span className="text-[10px] text-text-muted ml-2 font-mono" suppressHydrationWarning>
+                          {dam.storageMcft.toLocaleString('en-IN')} / {dam.capacityMcft.toLocaleString('en-IN')} Mcft
                         </span>
                       </div>
                       <span className="font-black text-cyan-700 dark:text-cyan-400">

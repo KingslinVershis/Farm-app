@@ -381,7 +381,7 @@ export default function ReservoirsPage() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.08, ease: 'easeOut' }}
-          className="glass-surface p-3 sm:p-4 rounded-xl border border-border-light flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between"
+          className="glass-panel p-3.5 sm:p-5 rounded-2xl border border-border-light shadow-xl flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between"
         >
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
             {/* Ant Design DatePicker Component - Generous Width */}
@@ -567,14 +567,22 @@ export default function ReservoirsPage() {
           destroyOnClose
           styles={{
             mask: {
-              backdropFilter: 'blur(10px)',
-              backgroundColor: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(2px) saturate(170%)',
+              WebkitBackdropFilter: 'blur(2px) saturate(170%)',
+              backgroundColor: isDark ? 'rgba(0, 0, 0, 0.65)' : 'rgba(15, 23, 42, 0.40)',
             },
             body: {
               padding: '16px 20px',
               borderRadius: '1.25rem',
               maxHeight: '90vh',
               overflowY: 'auto',
+              backgroundColor: isDark ? 'rgba(11, 18, 32, 0.75)' : 'rgba(255, 255, 255, 0.94)',
+              backdropFilter: 'blur(2px) saturate(170%)',
+              WebkitBackdropFilter: 'blur(2px) saturate(170%)',
+              border: isDark ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid rgba(203, 213, 225, 0.85)',
+              boxShadow: isDark
+                ? '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
+                : '0 20px 40px -12px rgba(15, 23, 42, 0.18)',
             },
           }}
         >
@@ -591,16 +599,16 @@ export default function ReservoirsPage() {
                 <div>
                   <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                     {activeReservoir.basin && (
-                      <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                      <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
                         {activeReservoir.basin}
                       </span>
                     )}
                     {activeReservoir.district && (
-                      <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                      <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                         {activeReservoir.district}
                       </span>
                     )}
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-700 dark:text-purple-400 border border-purple-500/30">
                       {m.storageUtilization}: {storageFillPct}%
                     </span>
                   </div>
@@ -615,7 +623,7 @@ export default function ReservoirsPage() {
 
               {/* Quick Stats Grid with React Bits SpotlightCard & AnimatedCounter */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <SpotlightCard spotlightColor="rgba(6, 182, 212, 0.22)" className="p-3">
+                <SpotlightCard spotlightColor={isDark ? 'rgba(6, 182, 212, 0.22)' : 'rgba(6, 182, 212, 0.12)'} className="p-3">
                   <span className="text-[10px] font-bold uppercase text-text-muted block">
                     {m.statCurrentLevel}
                   </span>
@@ -627,11 +635,11 @@ export default function ReservoirsPage() {
                   </span>
                 </SpotlightCard>
 
-                <SpotlightCard spotlightColor="rgba(6, 182, 212, 0.25)" className="p-3">
+                <SpotlightCard spotlightColor={isDark ? 'rgba(6, 182, 212, 0.25)' : 'rgba(6, 182, 212, 0.12)'} className="p-3">
                   <span className="text-[10px] font-bold uppercase text-text-muted block">
                     {m.statCurrentStorage}
                   </span>
-                  <span className="text-lg font-black text-cyan-400 font-mono">
+                  <span className="text-lg font-black text-cyan-600 dark:text-cyan-400 font-mono">
                     <AnimatedCounter value={activeReservoir.currentStorageMcft} />
                   </span>
                   <span className="text-[10px] text-text-muted block mt-0.5">
@@ -639,21 +647,21 @@ export default function ReservoirsPage() {
                   </span>
                 </SpotlightCard>
 
-                <SpotlightCard spotlightColor="rgba(16, 185, 129, 0.22)" className="p-3">
+                <SpotlightCard spotlightColor={isDark ? 'rgba(16, 185, 129, 0.22)' : 'rgba(16, 185, 129, 0.12)'} className="p-3">
                   <span className="text-[10px] font-bold uppercase text-text-muted block">
                     {m.statInflow}
                   </span>
-                  <span className="text-lg font-black text-emerald-400 font-mono">
+                  <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 font-mono">
                     <AnimatedCounter value={activeReservoir.currentInflowCusecs} />
                   </span>
                   <span className="text-[10px] text-text-muted block mt-0.5">CuSecs</span>
                 </SpotlightCard>
 
-                <SpotlightCard spotlightColor="rgba(245, 158, 11, 0.22)" className="p-3">
+                <SpotlightCard spotlightColor={isDark ? 'rgba(245, 158, 11, 0.22)' : 'rgba(245, 158, 11, 0.12)'} className="p-3">
                   <span className="text-[10px] font-bold uppercase text-text-muted block">
                     {m.statOutflow}
                   </span>
-                  <span className="text-lg font-black text-amber-400 font-mono">
+                  <span className="text-lg font-black text-amber-600 dark:text-amber-400 font-mono">
                     <AnimatedCounter value={activeReservoir.currentOutflowCusecs} />
                   </span>
                   <span className="text-[10px] text-text-muted block mt-0.5">CuSecs</span>
@@ -664,7 +672,7 @@ export default function ReservoirsPage() {
               <div className="p-3.5 rounded-xl bg-surface border border-border-subtle flex flex-col gap-2">
                 <div className="flex items-center justify-between text-xs font-bold">
                   <span className="text-text-muted">{m.storageUtilization}</span>
-                  <span className="font-mono text-cyan-400">{storageFillPct}% ({activeReservoir.currentStorageMcft.toLocaleString()} / {activeReservoir.fullCapacityMcft.toLocaleString()} M.Cft)</span>
+                  <span className="font-mono text-cyan-600 dark:text-cyan-400">{storageFillPct}% ({activeReservoir.currentStorageMcft.toLocaleString()} / {activeReservoir.fullCapacityMcft.toLocaleString()} M.Cft)</span>
                 </div>
                 <Progress
                   percent={storageFillPct}
@@ -674,13 +682,13 @@ export default function ReservoirsPage() {
               </div>
 
               {/* Interactive Chart Tabs */}
-              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-surface border border-border-light">
+              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100/90 dark:bg-surface border border-slate-200 dark:border-border-light">
                 <button
                   type="button"
                   onClick={() => setChartTab('storage')}
                   className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${chartTab === 'storage'
                     ? 'bg-cyan-500 text-slate-950 shadow-md font-extrabold'
-                    : 'text-text-secondary hover:text-text-main hover:bg-surface-glass'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-text-secondary dark:hover:text-text-main hover:bg-slate-200/60 dark:hover:bg-surface-glass'
                     }`}
                 >
                   📊 {m.tabStorage}
@@ -690,7 +698,7 @@ export default function ReservoirsPage() {
                   onClick={() => setChartTab('levels')}
                   className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${chartTab === 'levels'
                     ? 'bg-cyan-500 text-slate-950 shadow-md font-extrabold'
-                    : 'text-text-secondary hover:text-text-main hover:bg-surface-glass'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-text-secondary dark:hover:text-text-main hover:bg-slate-200/60 dark:hover:bg-surface-glass'
                     }`}
                 >
                   📏 {m.tabWaterLevel}
@@ -700,7 +708,7 @@ export default function ReservoirsPage() {
                   onClick={() => setChartTab('flows')}
                   className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${chartTab === 'flows'
                     ? 'bg-cyan-500 text-slate-950 shadow-md font-extrabold'
-                    : 'text-text-secondary hover:text-text-main hover:bg-surface-glass'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-text-secondary dark:hover:text-text-main hover:bg-slate-200/60 dark:hover:bg-surface-glass'
                     }`}
                 >
                   🌊 {m.tabFlowRate}
@@ -710,7 +718,7 @@ export default function ReservoirsPage() {
                   onClick={() => setChartTab('overview')}
                   className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${chartTab === 'overview'
                     ? 'bg-cyan-500 text-slate-950 shadow-md font-extrabold'
-                    : 'text-text-secondary hover:text-text-main hover:bg-surface-glass'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-text-secondary dark:hover:text-text-main hover:bg-slate-200/60 dark:hover:bg-surface-glass'
                     }`}
                 >
                   🌐 {m.tabOverview}
@@ -999,8 +1007,8 @@ export default function ReservoirsPage() {
                   </span>
                   <span
                     className={`font-black font-mono ${activeReservoir.currentStorageMcft >= activeReservoir.lastYearStorageMcft
-                      ? 'text-emerald-400'
-                      : 'text-rose-400'
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-rose-600 dark:text-rose-400'
                       }`}
                   >
                     {activeReservoir.currentStorageMcft >= activeReservoir.lastYearStorageMcft ? '+' : ''}
@@ -1017,7 +1025,7 @@ export default function ReservoirsPage() {
                 <button
                   type="button"
                   onClick={() => setActiveReservoir(null)}
-                  className="w-full py-2.5 rounded-xl bg-surface hover:bg-surface-glass font-bold text-xs text-text-main border border-border-light transition-colors cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-surface dark:hover:bg-surface-glass font-bold text-xs text-slate-800 dark:text-text-main border border-slate-200 dark:border-border-light transition-colors cursor-pointer"
                 >
                   {m.close}
                 </button>

@@ -18,7 +18,7 @@ export interface SidebarProps {
 }
 
 export interface TopbarProps {
-  onOpenMobileMenu: () => void;
+  onOpenMobileMenu?: () => void;
 }
 
 // ─────────────────────────────────────────────────────────────

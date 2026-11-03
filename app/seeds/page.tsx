@@ -221,9 +221,9 @@ export default function TnauSeedsPage() {
         ),
       },
       {
-        title: '',
+        title: isTamil ? 'செயல்' : 'Action',
         key: 'action',
-        width: 80,
+        width: 100,
         align: 'center',
         render: (_, record) => (
           <button
@@ -232,10 +232,11 @@ export default function TnauSeedsPage() {
               e.stopPropagation();
               setActiveSeed(record);
             }}
-            className="p-1.5 rounded-lg text-text-muted hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
-            title="Inspect seed details"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 hover:border-emerald-400 transition-all cursor-pointer shadow-sm group whitespace-nowrap"
+            title={isTamil ? 'விவரங்களைக் காண்க' : 'View seed details'}
           >
-            <ChevronRightIcon size={16} />
+            <span className="text-xs group-hover:scale-110 transition-transform">👁️</span>
+            <span>{isTamil ? 'பார்' : 'View'}</span>
           </button>
         ),
       },
@@ -249,7 +250,7 @@ export default function TnauSeedsPage() {
       <div
         className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out scale-105"
         style={{
-          backgroundImage: `url('/images/fresh-green.jpg')`,
+          backgroundImage: `url('/images/green.png')`,
         }}
       />
       <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
@@ -302,7 +303,7 @@ export default function TnauSeedsPage() {
 
         {/* KPI Overview Strip */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="glass-surface p-4 rounded-xl border border-border-subtle shadow-sm flex items-center gap-3.5">
+          <div className="glass-panel p-4 rounded-2xl border border-border-light shadow-xl flex items-center gap-3.5">
             <div className="h-11 w-11 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xl shrink-0">
               🌱
             </div>
@@ -316,7 +317,7 @@ export default function TnauSeedsPage() {
             </div>
           </div>
 
-          <div className="glass-surface p-4 rounded-xl border border-border-subtle shadow-sm flex items-center gap-3.5">
+          <div className="glass-panel p-4 rounded-2xl border border-border-light shadow-xl flex items-center gap-3.5">
             <div className="h-11 w-11 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30 flex items-center justify-center text-xl shrink-0">
               🥦
             </div>
@@ -330,7 +331,7 @@ export default function TnauSeedsPage() {
             </div>
           </div>
 
-          <div className="glass-surface p-4 rounded-xl border border-border-subtle shadow-sm flex items-center gap-3.5">
+          <div className="glass-panel p-4 rounded-2xl border border-border-light shadow-xl flex items-center gap-3.5">
             <div className="h-11 w-11 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center text-xl shrink-0">
               🔬
             </div>
@@ -344,7 +345,7 @@ export default function TnauSeedsPage() {
             </div>
           </div>
 
-          <div className="glass-surface p-4 rounded-xl border border-border-subtle shadow-sm flex items-center gap-3.5">
+          <div className="glass-panel p-4 rounded-2xl border border-border-light shadow-xl flex items-center gap-3.5">
             <div className="h-11 w-11 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-xl shrink-0">
               🍎
             </div>
@@ -360,10 +361,10 @@ export default function TnauSeedsPage() {
         </div>
 
         {/* Filter and Search Control Bar */}
-        <div className="glass-surface p-3.5 sm:p-4 rounded-xl border border-border-light space-y-3.5">
+        <div className="glass-panel p-4 sm:p-5 rounded-2xl border border-border-light shadow-xl space-y-3.5">
           <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
             {/* Live Search Box */}
-            <div className="relative flex-1 min-w-[280px]">
+            <div className="relative w-full sm:w-80 md:w-96">
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -539,9 +540,8 @@ export default function TnauSeedsPage() {
                   pageSizeOptions: ['15', '30', '50', '100'],
                   className: 'px-4 py-2',
                 }}
-                onRow={(record) => ({
-                  onClick: () => setActiveSeed(record),
-                  className: 'cursor-pointer hover:bg-surface/60 transition-colors',
+                onRow={() => ({
+                  className: 'hover:bg-surface/50 transition-colors',
                 })}
               />
             </div>
@@ -609,9 +609,21 @@ export default function TnauSeedsPage() {
           centered
           width={480}
           styles={{
+            mask: {
+              backdropFilter: 'blur(2px) saturate(170%)',
+              WebkitBackdropFilter: 'blur(2px) saturate(170%)',
+              backgroundColor: isDark ? 'rgba(0, 0, 0, 0.65)' : 'rgba(15, 23, 42, 0.40)',
+            },
             body: {
-              backgroundColor: 'var(--bg-card, #121c2d)',
-              color: 'var(--text-main, #f1f5f9)',
+              backgroundColor: isDark ? 'rgba(11, 18, 32, 0.75)' : 'rgba(255, 255, 255, 0.94)',
+              backdropFilter: 'blur(2px) saturate(170%)',
+              WebkitBackdropFilter: 'blur(2px) saturate(170%)',
+              color: isDark ? '#f1f5f9' : '#0f172a',
+              borderRadius: '1.25rem',
+              border: isDark ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid rgba(203, 213, 225, 0.85)',
+              boxShadow: isDark
+                ? '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
+                : '0 20px 40px -12px rgba(15, 23, 42, 0.18)',
             },
           }}
         >
@@ -643,7 +655,7 @@ export default function TnauSeedsPage() {
               <div className="rounded-xl bg-surface/80 border border-border-subtle p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-text-secondary">Official TNAU Rate:</span>
-                  <span className="font-mono text-xl font-black text-emerald-400">
+                  <span className="font-mono text-xl font-black text-emerald-600 dark:text-emerald-400">
                     ₹{activeSeed.pricePerKg.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -662,7 +674,7 @@ export default function TnauSeedsPage() {
               </div>
 
               <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3.5 text-xs text-text-secondary leading-relaxed">
-                <p className="font-bold text-emerald-300 mb-1">📍 How to Purchase:</p>
+                <p className="font-bold text-emerald-700 dark:text-emerald-300 mb-1">📍 How to Purchase:</p>
                 These seeds can be directly purchased at the <strong>TNAU Seed Centre, Coimbatore - 641 003</strong> or through regional Agricultural Research Stations (ARS) and KVKs across Tamil Nadu.
               </div>
 
@@ -670,7 +682,7 @@ export default function TnauSeedsPage() {
                 <button
                   type="button"
                   onClick={() => setActiveSeed(null)}
-                  className="px-4 py-2 rounded-xl glass-surface text-xs font-bold text-text-secondary hover:text-text-main border border-border-light transition-all cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-surface dark:hover:bg-surface-glass text-xs font-bold text-slate-800 dark:text-text-main border border-slate-200 dark:border-border-light transition-all cursor-pointer"
                 >
                   Close
                 </button>

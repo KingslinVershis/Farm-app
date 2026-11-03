@@ -11,115 +11,86 @@ export default function SignInPage() {
   const { messages, locale } = useLanguage();
   const t = (messages as any).auth || {};
 
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!identifier.trim()) {
+    const formData = new FormData(e.currentTarget);
+    const useremail = String(formData.get('useremail') || '').trim();
+    const userpassword = String(formData.get('userpassword') || '');
+
+    if (!useremail) {
       setErrorMessage(locale === 'ta' ? 'மின்னஞ்சல் அல்லது கைபேசி எண்ணை உள்ளிடவும்' : 'Please enter your email or mobile number');
       return;
     }
-    if (!password) {
+    if (!userpassword) {
       setErrorMessage(locale === 'ta' ? 'கடவுச்சொல்லை உள்ளிடவும்' : 'Please enter your password');
       return;
     }
-    const formData = e.currentTarget as typeof e.currentTarget & {
-      useremail: { value: string };
-      userpassword: { value: string };
-    };
-
-    // Retrieve values using the "name" attribute of your input fields
-    const useremail = formData.useremail.value
-    const userpassword = formData.userpassword.value
-
 
     try {
       setIsLoading(true);
       setErrorMessage('');
-      fetch('/api/signin', {
+      const res = await fetch('/api/signin', {
         method: 'POST',
         headers: {
-          'Content-type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           useremail,
-          userpassword
-        })
+          userpassword,
+        }),
       });
-      router.push('/')
-    }
-    catch (err) {
-      setIsLoading(false);
-      console.error("ERROR", err)
-    }
 
+      const data = await res.json().catch(() => null);
 
-  };
-
-  const handleDemoLogin = () => {
-    setIdentifier('swaminathan@agripulse.in');
-    setPassword('agripulse2026');
-    setErrorMessage('');
-    setIsLoading(true);
-
-    setTimeout(() => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(
-          'agripulse_user',
-          JSON.stringify({
-            name: 'Dr. M. Swaminathan',
-            email: 'swaminathan@agripulse.in',
-            role: 'Head Agronomist',
-          })
-        );
+      if (!res.ok) {
+        setErrorMessage(data?.message || (locale === 'ta' ? 'உள்நுழைவு தோல்வியடைந்தது' : 'Invalid email or password'));
+        setIsLoading(false);
+        return;
       }
+
+      if (data?.token && typeof window !== 'undefined') {
+        document.cookie = `agripulse_token=${data.token}; path=/; max-age=604800; SameSite=Lax`;
+        if (data?.user) {
+          localStorage.setItem('agripulse_user', JSON.stringify(data.user));
+        }
+      }
+
       setIsLoading(false);
-      router.push('/');
-    }, 500);
+      const params = new URLSearchParams(window.location.search);
+      const redirectUrl = params.get('redirect') || '/';
+      // Hard navigation ensures full cookie synchronization, clean shell transition, and correct URL
+      window.location.href = redirectUrl;
+    } catch (err: any) {
+      setIsLoading(false);
+      setErrorMessage(locale === 'ta' ? 'சேவையக பிழை ஏற்பட்டது' : 'Server authentication error');
+      console.error("Auth signin error:", err);
+    }
   };
 
   return (
     <div className="w-full max-w-md">
-      <div className="rounded-3xl bg-[#060f0a]/90 p-6 sm:p-8 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.95),0_0_35px_rgba(16,185,129,0.16)] border border-emerald-500/30 backdrop-blur-2xl">
+      <div className="rounded-3xl glass-panel p-6 sm:p-8 shadow-2xl border border-slate-200 dark:border-emerald-500/30">
         {/* Card Header */}
-        <div className="text-center mb-5">
-          <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 mb-2.5 shadow-[0_0_15px_rgba(16,185,129,0.25)]">
+        <div className="text-center mb-6">
+          <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 mb-2.5 shadow-[0_0_15px_rgba(16,185,129,0.25)]">
             <Lock size={20} />
           </div>
-          <h2 className="text-2xl font-black tracking-tight text-white font-display">
+          <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white font-display">
             {t.signInTitle || 'Welcome Back'}
           </h2>
-          <p className="text-xs text-emerald-200/60 mt-0.5 leading-relaxed">
+          <p className="text-xs text-slate-600 dark:text-emerald-200/60 mt-0.5 leading-relaxed font-medium">
             {t.signInSubtitle || 'Precision Farm Advisory & IoT Intelligence Platform'}
           </p>
         </div>
 
-        {/* Quick Demo Button */}
-        <button
-          type="button"
-          id="btn-demo-login"
-          onClick={handleDemoLogin}
-          className="w-full mb-4 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500/20 via-teal-500/25 to-emerald-500/20 hover:from-emerald-500/35 hover:to-teal-500/35 border border-emerald-500/40 px-4 py-2 text-xs font-black text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.15)] transition-all cursor-pointer active:scale-98"
-        >
-          <span>{t.demoLogin || '⚡ Quick Demo: Dr. M. Swaminathan'}</span>
-        </button>
-
-        {/* Divider */}
-        <div className="relative flex items-center justify-center mb-4">
-          <div className="w-full border-t border-white/10" />
-          <span className="absolute bg-[#060f0a] px-3 text-[11px] font-bold text-emerald-300/70 uppercase tracking-wider rounded-full border border-emerald-500/25">
-            {locale === 'ta' ? 'அல்லது உங்கள் கணக்கில்' : 'Or with credentials'}
-          </span>
-        </div>
-
         {/* Error Alert */}
         {errorMessage && (
-          <div className="mb-3 rounded-xl bg-rose-500/20 border border-rose-500/40 px-3.5 py-2 text-xs font-bold text-rose-300">
+          <div className="mb-3.5 rounded-xl bg-rose-500/15 border border-rose-500/30 px-3.5 py-2 text-xs font-bold text-rose-600 dark:text-rose-300">
             ⚠️ {errorMessage}
           </div>
         )}
@@ -128,19 +99,20 @@ export default function SignInPage() {
         <form onSubmit={handleSignIn} className="space-y-3.5">
           {/* Email / Mobile */}
           <div>
-            <label className="block text-xs font-extrabold uppercase tracking-wider text-emerald-200/80 mb-1">
+            <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80 mb-1">
               {t.emailOrPhone || 'Email or Mobile Number'}
             </label>
             <div className="relative">
               <input
                 type="text"
                 id="useremail"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
+                name="useremail"
+                autoComplete="username"
+                required
                 placeholder={t.emailOrPhonePlaceholder || 'e.g. 9876543210 or agronomist@agripulse.in'}
-                className="w-full h-10 rounded-xl bg-black/60 border border-white/15 pl-10 pr-4 text-xs font-semibold text-white placeholder:text-white/35 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                className="w-full h-10 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-4 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/35 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
               />
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-300/60 pointer-events-none">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
                 <Mail size={16} />
               </span>
             </div>
@@ -149,7 +121,7 @@ export default function SignInPage() {
           {/* Password */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-extrabold uppercase tracking-wider text-emerald-200/80">
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80">
                 {t.password || 'Password'}
               </label>
               <a
@@ -158,7 +130,7 @@ export default function SignInPage() {
                   e.preventDefault();
                   alert(locale === 'ta' ? 'கடவுச்சொல் மீட்டமைப்பு உங்கள் பதிவுசெய்த கைபேசி எண்ணிற்கு அனுப்பப்படும்.' : 'Password reset link has been dispatched to your registered phone.');
                 }}
-                className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 hover:underline"
+                className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:underline"
               >
                 {t.forgotPassword || 'Forgot password?'}
               </a>
@@ -167,18 +139,19 @@ export default function SignInPage() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 id="userpassword"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                name="userpassword"
+                autoComplete="current-password"
+                required
                 placeholder={t.passwordPlaceholder || 'Enter your password'}
-                className="w-full h-10 rounded-xl bg-black/60 border border-white/15 pl-10 pr-10 text-xs font-semibold text-white placeholder:text-white/35 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                className="w-full h-10 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-10 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/35 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
               />
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-300/60 pointer-events-none">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
                 <Lock size={16} />
               </span>
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-emerald-300/60 hover:text-white transition-colors cursor-pointer"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:text-emerald-300/60 dark:hover:text-white transition-colors cursor-pointer"
                 aria-label="Toggle password visibility"
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -193,9 +166,9 @@ export default function SignInPage() {
               id="remember-me"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              className="h-4 w-4 rounded border-white/20 bg-black/60 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+              className="h-4 w-4 rounded border-slate-300 dark:border-white/20 bg-slate-50 dark:bg-black/60 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
             />
-            <label htmlFor="remember-me" className="text-xs font-semibold text-emerald-200/80 cursor-pointer select-none">
+            <label htmlFor="remember-me" className="text-xs font-semibold text-slate-600 dark:text-emerald-200/80 cursor-pointer select-none">
               {t.rememberMe || 'Remember this device'}
             </label>
           </div>
@@ -219,11 +192,11 @@ export default function SignInPage() {
         </form>
 
         {/* Footer Link to Sign Up */}
-        <div className="mt-5 text-center text-xs text-emerald-200/60 border-t border-white/10 pt-3.5">
+        <div className="mt-5 text-center text-xs text-slate-600 dark:text-emerald-200/60 border-t border-slate-200 dark:border-white/10 pt-3.5">
           <span>{t.noAccount || "Don't have an AgriPulse account?"} </span>
           <Link
             href="/signup"
-            className="font-extrabold text-emerald-400 hover:text-emerald-300 hover:underline inline-flex items-center gap-1"
+            className="font-extrabold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:underline inline-flex items-center gap-1"
           >
             {t.signUpLink || 'Create an Account'} →
           </Link>
@@ -232,4 +205,3 @@ export default function SignInPage() {
     </div>
   );
 }
-

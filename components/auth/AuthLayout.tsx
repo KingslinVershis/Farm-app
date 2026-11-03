@@ -14,19 +14,19 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   const { messages, locale, setLocale } = useLanguage();
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col justify-between items-center bg-black text-white selection:bg-emerald-500 selection:text-slate-950 overflow-x-hidden">
+    <div className="relative min-h-screen w-full flex flex-col justify-between items-center bg-slate-100 dark:bg-black text-slate-900 dark:text-white selection:bg-emerald-500 selection:text-slate-950 overflow-x-hidden transition-colors">
       {/* 100% Width Edge-to-Edge Topbar */}
-      <header className="w-full border-b border-white/10 bg-black/80 backdrop-blur-xl sticky top-0 z-50">
+      <header className="w-full border-b border-slate-200 dark:border-white/10 bg-white/80 dark:bg-[#090f1b]/75 backdrop-blur-2xl sticky top-0 z-50 shadow-sm dark:shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)]">
         <div className="w-full px-4 sm:px-8 lg:px-12 py-3 sm:py-3.5 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.35)] backdrop-blur-md transition-transform group-hover:scale-105">
+            <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.25)] backdrop-blur-md transition-transform group-hover:scale-105">
               <SproutIcon size={24} />
             </div>
             <div>
-              <h1 className="font-display text-base sm:text-lg font-black tracking-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">
+              <h1 className="font-display text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white">
                 {messages.common?.brandName || 'AgriPulse'}
               </h1>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                 {messages.common?.brandSubtitle || 'Precision Agriculture OS'}
               </p>
             </div>
@@ -34,14 +34,14 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
           {/* Language & Theme Controls */}
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="flex items-center rounded-xl border border-white/15 bg-black/60 p-1 shadow-lg backdrop-blur-md">
+            <div className="flex items-center rounded-xl border border-slate-200 dark:border-white/15 bg-white/80 dark:bg-black/60 p-1 shadow-sm dark:shadow-lg backdrop-blur-md">
               <button
                 type="button"
                 onClick={() => setLocale('en')}
                 className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
                   locale === 'en'
                     ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
-                    : 'text-white/70 hover:text-white'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white'
                 }`}
               >
                 EN
@@ -52,7 +52,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
                 className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
                   locale === 'ta'
                     ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
-                    : 'text-white/70 hover:text-white'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white'
                 }`}
               >
                 தமிழ்
@@ -69,7 +69,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       </main>
 
       {/* Footer */}
-      <footer className="w-full py-4 px-4 sm:px-8 border-t border-white/5 text-center text-white/40">
+      <footer className="w-full py-4 px-4 sm:px-8 border-t border-slate-200 dark:border-white/5 text-center text-slate-500 dark:text-white/40">
         <p className="text-[11px] font-semibold tracking-wide">
           © {new Date().getFullYear()} AgriPulse Kaveri Delta Farming Intelligence Network. All rights reserved.
         </p>
@@ -77,4 +77,3 @@ export function AuthLayout({ children }: AuthLayoutProps) {
     </div>
   );
 }
-

@@ -65,7 +65,7 @@ export const Step2CropSelection: React.FC<Step2CropSelectionProps> = ({
             <h3 className="font-display text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">
               {t.step2.paddy.title}
             </h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-6">
+            <p className="text-sm text-slate-700 dark:text-slate-200 font-medium leading-relaxed mb-6">
               {t.step2.paddy.desc}
             </p>
 

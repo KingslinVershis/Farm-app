@@ -489,7 +489,7 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
           <h2 className="text-lg font-bold text-text-main flex items-center gap-2">
             <span>📋</span> {t.step1.title}
           </h2>
-          <p className="text-xs text-text-muted mt-0.5">{t.step1.description}</p>
+          <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">{t.step1.description}</p>
         </div>
 
         {/* Action Buttons at Top of Form */}

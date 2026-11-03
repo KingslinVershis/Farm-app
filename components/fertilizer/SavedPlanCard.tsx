@@ -61,7 +61,7 @@ export const SavedPlanCard: React.FC<SavedPlanCardProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 dark:bg-black/75 backdrop-blur-[2px] saturate-[170%] p-4"
             onClick={(e) => {
               e.stopPropagation();
               setShowDeleteConfirm(false);
@@ -72,49 +72,49 @@ export const SavedPlanCard: React.FC<SavedPlanCardProps> = ({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: 15 }}
               transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className="bg-slate-900/95 border border-rose-500/30 rounded-3xl p-6 max-w-md w-full shadow-2xl shadow-rose-950/50 space-y-5 relative overflow-hidden"
+              className="bg-white/95 dark:bg-slate-900/95 border border-rose-200 dark:border-rose-500/30 backdrop-blur-[2px] saturate-[170%] rounded-3xl p-6 max-w-md w-full shadow-2xl shadow-slate-900/10 dark:shadow-rose-950/50 space-y-5 relative overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Subtle Ambient Red Glow */}
-              <div className="absolute -top-16 -right-16 w-36 h-36 rounded-full bg-rose-500/15 blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-16 -left-16 w-36 h-36 rounded-full bg-rose-500/10 blur-3xl pointer-events-none" />
+              <div className="absolute -top-16 -right-16 w-36 h-36 rounded-full bg-rose-500/10 dark:bg-rose-500/15 blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-16 -left-16 w-36 h-36 rounded-full bg-rose-500/5 dark:bg-rose-500/10 blur-3xl pointer-events-none" />
 
               {/* Header with Glowing Warning Icon */}
               <div className="flex items-start gap-4">
-                <div className="h-12 w-12 rounded-2xl bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center justify-center text-2xl shrink-0 shadow-lg shadow-rose-500/20">
+                <div className="h-12 w-12 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30 flex items-center justify-center text-2xl shrink-0 shadow-lg shadow-rose-500/10 dark:shadow-rose-500/20">
                   ⚠️
                 </div>
                 <div>
-                  <h4 className="font-display font-extrabold text-lg text-slate-100 tracking-tight">
+                  <h4 className="font-display font-extrabold text-lg text-slate-900 dark:text-slate-100 tracking-tight">
                     Delete Cultivation Record?
                   </h4>
-                  <p className="text-xs text-rose-300/80 font-medium mt-1">
+                  <p className="text-xs text-rose-600 dark:text-rose-300/80 font-semibold mt-1">
                     This action is permanent and cannot be undone.
                   </p>
                 </div>
               </div>
 
               {/* Record Summary Preview Box */}
-              <div className="rounded-2xl bg-white/[0.03] border border-white/10 p-3.5 space-y-2 text-xs">
+              <div className="rounded-2xl bg-slate-50/90 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 p-3.5 space-y-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Farmer:</span>
-                  <span className="font-bold text-slate-200">{plan.userDetails.name || 'Unnamed Farm Plot'}</span>
+                  <span className="text-slate-500 dark:text-slate-400">Farmer:</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{plan.userDetails.name || 'Unnamed Farm Plot'}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Land Cultivation:</span>
-                  <span className="font-bold text-emerald-400">{plan.userDetails.landSize} Cents ({plan.cultivation.toUpperCase()})</span>
+                  <span className="text-slate-500 dark:text-slate-400">Land Cultivation:</span>
+                  <span className="font-bold text-emerald-700 dark:text-emerald-400">{plan.userDetails.landSize} Cents ({plan.cultivation.toUpperCase()})</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Net Profit Estimate:</span>
-                  <span className="font-bold text-cyan-400">₹{fmt(plan.totals.netProfit)}</span>
+                  <span className="text-slate-500 dark:text-slate-400">Net Profit Estimate:</span>
+                  <span className="font-bold text-cyan-700 dark:text-cyan-400">₹{fmt(plan.totals.netProfit)}</span>
                 </div>
-                <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px]">
-                  <span className="text-slate-500">Saved Date:</span>
-                  <span className="text-slate-400">{plan.updated_at || plan.created_at}</span>
+                <div className="flex items-center justify-between pt-1 border-t border-slate-200/80 dark:border-white/5 text-[11px]">
+                  <span className="text-slate-500 dark:text-slate-500">Saved Date:</span>
+                  <span className="text-slate-700 dark:text-slate-400">{plan.updated_at || plan.created_at}</span>
                 </div>
               </div>
 
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                 Deleting this record will immediately remove all phase-wise budget allocations, seed telemetry, and harvest yield records from your account.
               </p>
 
@@ -128,7 +128,7 @@ export const SavedPlanCard: React.FC<SavedPlanCardProps> = ({
                     e.stopPropagation();
                     setShowDeleteConfirm(false);
                   }}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-slate-700/60 transition-colors cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 dark:bg-white/5 dark:hover:bg-white/10 dark:text-slate-300 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 transition-colors cursor-pointer"
                 >
                   Cancel
                 </motion.button>

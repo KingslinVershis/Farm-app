@@ -104,8 +104,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           },
           components: {
             Select: {
-              selectorBg: isDark ? '#121c2d' : '#ffffff',
-              colorBorder: isDark ? 'rgba(255, 255, 255, 0.15)' : '#cbd5e1',
+              selectorBg: isDark ? 'transparent' : '#ffffff',
+              colorBorder: isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1',
               colorText: isDark ? '#f1f5f9' : '#0f172a',
               colorTextPlaceholder: isDark ? '#94a3b8' : '#64748b',
               colorTextDisabled: '#64748b',
@@ -115,7 +115,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
               optionActiveBg: isDark ? 'rgba(255, 255, 255, 0.08)' : '#f1f5f9',
             },
             Input: {
-              colorBgContainer: isDark ? 'rgba(15, 23, 42, 0.9)' : '#ffffff',
+              colorBgContainer: isDark ? 'transparent' : '#ffffff',
               colorBorder: isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1',
               colorText: isDark ? '#f1f5f9' : '#0f172a',
               colorTextPlaceholder: isDark ? '#64748b' : '#94a3b8',
@@ -123,7 +123,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
               hoverBorderColor: '#10b981',
             },
             InputNumber: {
-              colorBgContainer: isDark ? 'rgba(15, 23, 42, 0.9)' : '#ffffff',
+              colorBgContainer: isDark ? 'transparent' : '#ffffff',
+              colorBorder: isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1',
+              colorText: isDark ? '#f1f5f9' : '#0f172a',
+              colorTextPlaceholder: isDark ? '#64748b' : '#94a3b8',
+              activeBorderColor: '#10b981',
+              hoverBorderColor: '#10b981',
+            },
+            DatePicker: {
+              colorBgContainer: isDark ? 'transparent' : '#ffffff',
               colorBorder: isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1',
               colorText: isDark ? '#f1f5f9' : '#0f172a',
               colorTextPlaceholder: isDark ? '#64748b' : '#94a3b8',

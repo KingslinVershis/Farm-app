@@ -114,15 +114,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={item.href}
               href={item.href}
               onClick={handleLinkClick}
-              className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-all ${
+              className={`group relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all ${
                 isActive
-                  ? 'bg-emerald-500/15 text-emerald-400 shadow-sm ring-1 ring-emerald-500/30'
-                  : 'text-text-secondary hover:bg-surface hover:text-text-main'
+                  ? 'bg-gradient-to-r from-emerald-500/25 to-teal-500/15 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.22)] border border-emerald-400/35 ring-1 ring-emerald-500/30'
+                  : 'text-text-secondary hover:bg-white/[0.06] hover:text-text-main'
               } ${isCollapsed ? 'justify-center px-0' : ''}`}
               title={isCollapsed ? item.title : undefined}
             >
               {isActive && (
-                <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-md bg-emerald-500 shadow-glow" />
+                <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-md bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.8)]" />
               )}
               <div
                 className={`transition-transform duration-200 group-hover:scale-110 ${
@@ -151,25 +151,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           );
         })}
       </nav>
-
-      {/* User / Farm Info Footer */}
-      <div className="border-t border-border-subtle p-3">
-        <div
-          className={`flex items-center gap-3 rounded-lg border border-border-subtle bg-surface/50 p-2.5 ${
-            isCollapsed ? 'justify-center p-2' : ''
-          }`}
-        >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-xs font-bold text-emerald-400">
-            GV
-          </div>
-          {!isCollapsed && (
-            <div className="flex flex-col overflow-hidden text-left text-xs leading-tight">
-              <span className="truncate font-bold text-text-main">Kaveri Delta Agri Farm</span>
-              <span className="truncate text-[11px] text-text-muted">Kumbakonam • Zone 4</span>
-            </div>
-          )}
-        </div>
-      </div>
     </aside>
   );
 };

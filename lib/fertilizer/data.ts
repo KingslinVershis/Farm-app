@@ -26,7 +26,6 @@ export const PADDY_PHASES: PhaseGroup[] = [
       },
       {
         id: 'p1_nursery',
-        isOptional: true,
         name: '2. Seed Cost & Travel Cost',
         phaseId: 'paddy_p1',
         dayRange: 'Days 1 – 20',

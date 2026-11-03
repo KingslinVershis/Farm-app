@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { RefreshCwIcon } from '@/components/icons/Icons';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { formatCurrency as fmt } from '@/lib/fertilizer/calc';
@@ -87,6 +88,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
   createNewPlan,
 }) => {
   const { messages } = useLanguage();
+  const router = useRouter();
   const t = messages.fertilizer;
   const isPhase5 = activePhaseIndex === currentPhases.length - 1;
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
@@ -94,7 +96,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
   return (
     <div className="animate-fade-in pb-36 sm:pb-48">
       {/* Sticky Header & 5-Phases Navigator — pinned while scrolling */}
-      <div className="sticky top-[70px] z-20 mb-6 bg-[var(--bg-app,#080d16)]/95 backdrop-blur-sm border border-white/10 px-3 py-3 rounded-2xl shadow-xl transition-all">
+      <div className="sticky top-[70px] z-20 mb-6 glass-panel border border-white/10 px-3.5 py-3.5 rounded-2xl shadow-2xl transition-all">
         {/* Header & View Switcher */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
           <div>
@@ -194,7 +196,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                   </div>
 
                   <div className="mt-2.5 pt-1.5 border-t border-border-subtle flex items-center justify-between text-[11px]">
-                    <span className="text-text-muted text-[10px] sm:text-[11px]">{pMeta.daySpan}</span>
+                    <span className="text-slate-600 dark:text-slate-300 font-semibold text-[10px] sm:text-[11px]">{pMeta.daySpan}</span>
                     <span className="font-extrabold" style={{ color: phase.color }}>
                       ₹{fmt(pTot.total)}
                     </span>
@@ -209,7 +211,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
       {/* VIEW MODE 1: INDIVIDUAL FOCUS PHASE TABLE */}
       {viewMode === 'individual' && (
         <>
-          <div className="rounded-2xl glass-table-panel overflow-hidden shadow-2xl mb-8">
+          <div className="rounded-2xl glass-table-panel border border-border-light overflow-hidden shadow-2xl mb-8">
             {/* Phase Banner */}
             <div
               className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 sm:px-6 py-4 border-b border-border-subtle gap-2"
@@ -230,7 +232,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
               </div>
 
               <div className="text-right">
-                <div className="text-xs text-text-muted uppercase">
+                <div className="text-xs text-slate-700 dark:text-slate-300 font-bold uppercase">
                   {activePhase.isProfitPhase ? t.step3.tableHeaders.grossRevenue : t.step3.tableHeaders.totalCost}
                 </div>
                 <div className="text-xl font-extrabold" style={{ color: activePhase.color }}>
@@ -258,7 +260,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] border-collapse text-left text-sm">
                 <thead>
-                  <tr className="border-b border-border-subtle bg-slate-900/5 dark:bg-black/25 text-xs font-bold uppercase tracking-wider text-text-muted">
+                  <tr className="border-b border-slate-300/80 dark:border-white/10 bg-slate-100/95 dark:bg-[#121c2d]/90 text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-[#94a3b8]">
                     <th className="py-3 px-6 w-4/12">
                       {activePhase.isProfitPhase ? t.step3.tableHeaders.profitStreams : t.step3.tableHeaders.operation}
                     </th>
@@ -330,7 +332,10 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                 <button
                   type="button"
                   id="btn-save-draft"
-                  onClick={() => saveCurrentPlan(true)}
+                  onClick={() => {
+                    saveCurrentPlan(true);
+                    router.push('/fertilizer');
+                  }}
                   className="rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 px-4 py-2 text-xs font-bold text-amber-700 dark:text-amber-300 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
                 >
                   <span>📝</span>
@@ -373,7 +378,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
           {currentPhases.map((phase) => {
             const pMeta = getPhaseMeta(phase);
             return (
-              <div key={phase.id} className="rounded-2xl glass-table-panel overflow-hidden shadow-2xl">
+              <div key={phase.id} className="rounded-2xl glass-table-panel border border-border-light overflow-hidden shadow-2xl">
                 <div
                   className="flex items-center justify-between px-6 py-3.5 border-b border-border-subtle"
                   style={{ backgroundColor: phase.bgSoft }}
@@ -392,7 +397,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[720px] border-collapse text-left text-sm">
                     <thead>
-                      <tr className="border-b border-border-subtle bg-slate-900/5 dark:bg-black/25 text-xs font-bold uppercase tracking-wider text-text-muted">
+                      <tr className="border-b border-slate-300/80 dark:border-white/10 bg-slate-100/95 dark:bg-[#121c2d]/90 text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-[#94a3b8]">
                         <th className="py-3 px-6 w-4/12">
                           {phase.isProfitPhase ? t.step3.tableHeaders.profitStreams : t.step3.tableHeaders.operation}
                         </th>
@@ -451,11 +456,14 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
           })}
 
           {/* Action Bar in View All Mode */}
-          <div className="flex flex-wrap items-center justify-end gap-3 rounded-2xl glass-table-panel p-4 shadow-xl">
+          <div className="flex flex-wrap items-center justify-end gap-3 rounded-2xl glass-panel border border-border-light p-4 shadow-xl">
             <button
               type="button"
               id="btn-all-save-draft"
-              onClick={() => saveCurrentPlan(true)}
+              onClick={() => {
+                saveCurrentPlan(true);
+                router.push('/fertilizer');
+              }}
               className="rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 px-4 py-2 text-xs font-bold text-amber-700 dark:text-amber-300 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
             >
               <span>📝</span>
@@ -477,30 +485,30 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
       {/* Complete Cultivation Plan Confirmation Modal */}
       {showCompleteConfirm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 dark:bg-black/75 backdrop-blur-[2px] saturate-[170%] animate-fade-in"
           onClick={() => setShowCompleteConfirm(false)}
         >
           <div
-            className="relative w-full max-w-md rounded-3xl border border-emerald-500/30 bg-[#0b1320] p-6 shadow-2xl overflow-hidden"
+            className="relative w-full max-w-md rounded-3xl border border-slate-200 dark:border-emerald-500/30 bg-white/95 dark:bg-[#0b1320]/95 backdrop-blur-[2px] saturate-[170%] p-6 shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="absolute -top-20 -left-20 w-44 h-44 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
             <div className="flex items-center gap-3.5 mb-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
                 <span className="text-2xl font-bold">✓</span>
               </div>
               <div>
-                <h3 className="text-base font-extrabold text-white">
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
                   {t.step3.completeModalTitle || 'Complete Cultivation Plan?'}
                 </h3>
-                <p className="text-xs text-text-muted mt-0.5">
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                   {t.step3.completeModalSubtitle || 'Finalize and lock this plan record'}
                 </p>
               </div>
             </div>
 
-            <div className="rounded-xl bg-surface/70 border border-white/5 p-4 mb-5 text-xs text-text-secondary leading-relaxed space-y-2">
-              <p className="text-amber-300 font-semibold flex items-center gap-1.5">
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 mb-5 text-xs text-slate-700 dark:text-slate-300 leading-relaxed space-y-2">
+              <p className="text-amber-700 dark:text-amber-300 font-bold flex items-center gap-1.5">
                 <span>⚠️</span>
                 <span>Important Notice:</span>
               </p>
@@ -513,15 +521,17 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
               <button
                 type="button"
                 onClick={() => setShowCompleteConfirm(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-text-secondary hover:text-white bg-surface hover:bg-surface/80 border border-white/10 transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-surface dark:hover:bg-surface/80 border border-slate-200 dark:border-white/10 transition-colors cursor-pointer"
               >
                 {messages.common.cancel || 'Cancel'}
               </button>
               <button
                 type="button"
+                id="btn-confirm-complete"
                 onClick={() => {
                   setShowCompleteConfirm(false);
                   saveCurrentPlan(false, true);
+                  router.push('/fertilizer');
                 }}
                 className="px-5 py-2 rounded-xl text-xs font-black text-slate-950 bg-gradient-to-r from-emerald-500 to-teal-400 shadow-glow hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
               >

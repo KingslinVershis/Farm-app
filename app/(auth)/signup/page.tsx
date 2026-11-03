@@ -35,7 +35,7 @@ export default function SignUpPage() {
       setErrorMessage(locale === 'ta' ? 'கடவுச்சொல் குறைந்தபட்சம் 6 எழுத்துகள் இருக்க வேண்டும்' : 'Password must be at least 6 characters');
       return;
     }
-    if (password !== confirmPassword) {
+    if (!password !== !confirmPassword && password !== confirmPassword) {
       setErrorMessage(locale === 'ta' ? 'கடவுச்சொற்கள் பொருந்தவில்லை' : 'Passwords do not match');
       return;
     }
@@ -75,23 +75,23 @@ export default function SignUpPage() {
 
   return (
     <div className="w-full max-w-lg">
-      <div className="rounded-3xl bg-[#060f0a]/90 p-6 sm:p-8 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.95),0_0_35px_rgba(16,185,129,0.16)] border border-emerald-500/30 backdrop-blur-2xl">
+      <div className="rounded-3xl glass-panel p-6 sm:p-8 shadow-2xl border border-slate-200 dark:border-emerald-500/30">
         {/* Card Header */}
         <div className="text-center mb-5">
-          <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 mb-2.5 shadow-[0_0_15px_rgba(16,185,129,0.25)]">
+          <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 mb-2.5 shadow-[0_0_15px_rgba(16,185,129,0.25)]">
             <User size={20} />
           </div>
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white font-display">
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white font-display">
             {t.signUpTitle || 'Create Account'}
           </h2>
-          <p className="text-xs text-emerald-200/60 mt-0.5 leading-relaxed">
+          <p className="text-xs text-slate-600 dark:text-emerald-200/60 mt-0.5 leading-relaxed font-medium">
             {t.signUpSubtitle || 'Join Kaveri Delta’s Precision Agriculture Network'}
           </p>
         </div>
 
         {/* Error Alert */}
         {errorMessage && (
-          <div className="mb-3.5 rounded-xl bg-rose-500/20 border border-rose-500/40 px-3.5 py-2 text-xs font-bold text-rose-300">
+          <div className="mb-3.5 rounded-xl bg-rose-500/15 border border-rose-500/30 px-3.5 py-2 text-xs font-bold text-rose-600 dark:text-rose-300">
             ⚠️ {errorMessage}
           </div>
         )}
@@ -101,7 +101,7 @@ export default function SignUpPage() {
           {/* Full Name & Email Address */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-200/80 mb-1">
+              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80 mb-1">
                 {t.fullName || 'Full Name'} *
               </label>
               <div className="relative">
@@ -111,16 +111,16 @@ export default function SignUpPage() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder={t.fullNamePlaceholder || 'e.g. R. Subramanian'}
-                  className="w-full h-10 rounded-xl bg-black/60 border border-white/15 pl-9 pr-3 text-xs font-semibold text-white placeholder:text-white/35 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                  className="w-full h-10 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-9 pr-3 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/35 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
                 />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-300/60 pointer-events-none">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
                   <User size={15} />
                 </span>
               </div>
             </div>
 
             <div>
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-200/80 mb-1">
+              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80 mb-1">
                 {t.email || 'Email Address'} *
               </label>
               <div className="relative">
@@ -130,9 +130,9 @@ export default function SignUpPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={t.emailPlaceholder || 'e.g. farmer@deltafarm.in'}
-                  className="w-full h-10 rounded-xl bg-black/60 border border-white/15 pl-9 pr-3 text-xs font-semibold text-white placeholder:text-white/35 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                  className="w-full h-10 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-9 pr-3 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/35 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
                 />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-300/60 pointer-events-none">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
                   <Mail size={15} />
                 </span>
               </div>
@@ -142,7 +142,7 @@ export default function SignUpPage() {
           {/* Password & Confirm Password */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-200/80 mb-1">
+              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80 mb-1">
                 {t.password || 'Password'} *
               </label>
               <div className="relative">
@@ -152,15 +152,15 @@ export default function SignUpPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={t.passwordPlaceholder || 'Min 6 characters'}
-                  className="w-full h-10 rounded-xl bg-black/60 border border-white/15 pl-9 pr-8 text-xs font-semibold text-white placeholder:text-white/35 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                  className="w-full h-10 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-9 pr-8 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/35 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
                 />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-300/60 pointer-events-none">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
                   <Lock size={15} />
                 </span>
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-300/60 hover:text-white cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:text-emerald-300/60 dark:hover:text-white cursor-pointer"
                 >
                   {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
@@ -168,7 +168,7 @@ export default function SignUpPage() {
             </div>
 
             <div>
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-200/80 mb-1">
+              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80 mb-1">
                 {t.confirmPassword || 'Confirm Password'} *
               </label>
               <div className="relative">
@@ -178,9 +178,9 @@ export default function SignUpPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder={t.confirmPasswordPlaceholder || 'Repeat password'}
-                  className="w-full h-10 rounded-xl bg-black/60 border border-white/15 pl-9 pr-3 text-xs font-semibold text-white placeholder:text-white/35 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                  className="w-full h-10 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-9 pr-3 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/35 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
                 />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-300/60 pointer-events-none">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
                   <Lock size={15} />
                 </span>
               </div>
@@ -194,9 +194,9 @@ export default function SignUpPage() {
               id="agree-terms"
               checked={agreeTerms}
               onChange={(e) => setAgreeTerms(e.target.checked)}
-              className="mt-0.5 h-3.5 w-3.5 rounded border-white/20 bg-black/60 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+              className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 dark:border-white/20 bg-slate-50 dark:bg-black/60 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
             />
-            <label htmlFor="agree-terms" className="text-[11px] text-emerald-200/75 leading-tight cursor-pointer select-none">
+            <label htmlFor="agree-terms" className="text-[11px] text-slate-600 dark:text-emerald-200/75 leading-tight cursor-pointer select-none">
               {t.termsNotice || 'I agree to AgriPulse Agricultural Intelligence Terms & Privacy Policy'}
             </label>
           </div>
@@ -220,11 +220,11 @@ export default function SignUpPage() {
         </form>
 
         {/* Footer Link to Sign In */}
-        <div className="mt-5 text-center text-xs text-emerald-200/60 border-t border-white/10 pt-3.5">
+        <div className="mt-5 text-center text-xs text-slate-600 dark:text-emerald-200/60 border-t border-slate-200 dark:border-white/10 pt-3.5">
           <span>{t.haveAccount || 'Already have an account?'} </span>
           <Link
             href="/signin"
-            className="font-extrabold text-emerald-400 hover:text-emerald-300 hover:underline inline-flex items-center gap-1"
+            className="font-extrabold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:underline inline-flex items-center gap-1"
           >
             {t.signInLink || 'Sign In here'} →
           </Link>
@@ -233,4 +233,3 @@ export default function SignUpPage() {
     </div>
   );
 }
-

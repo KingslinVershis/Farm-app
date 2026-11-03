@@ -54,12 +54,26 @@ export function useFertilizerPlanner() {
 
   // ─── API sync helper ────────────────────────────────────────────────────────
   // Syncs a plan to the server-side API and retrieves DB-assigned id & timestamps.
+  const getStorageKey = (userId?: string | null): string => {
+    let resolvedId = userId;
+    if (!resolvedId && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('agripulse_user');
+        if (stored) {
+          const u = JSON.parse(stored);
+          if (u?.id) resolvedId = String(u.id);
+        }
+      } catch (_) {}
+    }
+    return resolvedId ? `farm_app_saved_plans_${resolvedId}` : 'farm_app_saved_plans';
+  };
+
   const syncPlanToApi = async (
     planPayload: any
   ): Promise<SavedPlanRecord | null> => {
     if (typeof window === 'undefined') return null;
     try {
-      const res = await fetch('/api/fertilizer-plans', {
+      const res = await fetch('/api/user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(planPayload),
@@ -77,7 +91,7 @@ export function useFertilizerPlanner() {
   const deletePlanFromApi = async (planId: string) => {
     if (typeof window === 'undefined') return;
     try {
-      await fetch(`/api/fertilizer-plans?id=${encodeURIComponent(planId)}`, { method: 'DELETE' });
+      await fetch(`/api/user?id=${encodeURIComponent(planId)}`, { method: 'DELETE' });
     } catch (e) {
       console.warn('[FertilizerAPI] Could not delete plan from API:', e);
     }
@@ -122,47 +136,54 @@ export function useFertilizerPlanner() {
     };
   };
 
-  // Hydrate saved plans from localStorage on client mount & sync from DB
+  // Hydrate user-specific saved plans from /api/user and user-scoped storage
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('farm_app_saved_plans');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          const normalized: SavedPlanRecord[] = parsed.map(sanitizePlanRecord);
-          setSavedPlans(normalized);
-          // Immediately purge any legacy dirty keys from localStorage
-          try {
-            localStorage.setItem('farm_app_saved_plans', JSON.stringify(normalized));
-          } catch (_) {}
-        }
-      }
-    } catch (e) {
-      console.error('Failed to parse saved plans', e);
+    let active = true;
+
+    // Purge legacy unscoped key to prevent cross-account contamination
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('farm_app_saved_plans');
+      } catch (_) {}
     }
 
-    // Seamlessly sync plans from PostgreSQL table via API
-    fetch('/api/fertilizer-plans')
-      .then((res) => res.json())
+    // Authoritative fetch from /api/user which returns { success: true, user, plans }
+    fetch('/api/user')
+      .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          setSavedPlans((prev) => {
-            const planMap = new Map<string, SavedPlanRecord>();
-            // Add server plans
-            json.data.forEach((p: any) => planMap.set(p.id, sanitizePlanRecord(p)));
-            // Preserve any local plans
-            prev.forEach((p) => {
-              if (!planMap.has(p.id)) planMap.set(p.id, sanitizePlanRecord(p));
-            });
-            const merged = Array.from(planMap.values()).map(sanitizePlanRecord);
-            try {
-              localStorage.setItem('farm_app_saved_plans', JSON.stringify(merged));
-            } catch (_) {}
-            return merged;
-          });
+        if (!active || !json || !json.success) return;
+        const plansList = json.plans || [];
+        const sanitized: SavedPlanRecord[] = Array.isArray(plansList)
+          ? plansList.map(sanitizePlanRecord)
+          : [];
+        setSavedPlans(sanitized);
+
+        if (json.user?.id && typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(getStorageKey(json.user.id), JSON.stringify(sanitized));
+          } catch (_) {}
         }
       })
-      .catch((e) => console.warn('[FertilizerAPI] Initial DB sync error:', e));
+      .catch((e) => {
+        console.warn('[FertilizerAPI] Error fetching from /api/user:', e);
+        // Offline fallback to current user-scoped storage
+        if (typeof window !== 'undefined') {
+          try {
+            const key = getStorageKey();
+            const stored = localStorage.getItem(key);
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              if (Array.isArray(parsed)) {
+                setSavedPlans(parsed.map(sanitizePlanRecord));
+              }
+            }
+          } catch (_) {}
+        }
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const currentPhases = useMemo(
@@ -718,7 +739,7 @@ export function useFertilizerPlanner() {
 
       if (typeof window !== 'undefined') {
         try {
-          localStorage.setItem('farm_app_saved_plans', JSON.stringify(updatedPlans));
+          localStorage.setItem(getStorageKey(), JSON.stringify(updatedPlans));
         } catch (e) {
           console.error('Failed to save plans to localStorage', e);
         }
@@ -757,7 +778,7 @@ export function useFertilizerPlanner() {
       setActivePlanId(fallbackId);
       if (typeof window !== 'undefined') {
         try {
-          localStorage.setItem('farm_app_saved_plans', JSON.stringify(updatedPlans));
+          localStorage.setItem(getStorageKey(), JSON.stringify(updatedPlans));
         } catch (_) {}
       }
     }
@@ -843,7 +864,7 @@ export function useFertilizerPlanner() {
     }
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('farm_app_saved_plans', JSON.stringify(updatedPlans));
+        localStorage.setItem(getStorageKey(), JSON.stringify(updatedPlans));
       } catch (err) {
         console.error('Failed to update localStorage', err);
       }
