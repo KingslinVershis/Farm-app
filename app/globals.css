@@ -17,10 +17,10 @@
   --border-light: rgba(255, 255, 255, 0.12);
   --border-highlight: rgba(52, 211, 153, 0.35);
 
-  /* Typography */
-  --text-main: #f1f5f9;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
+  /* Typography - High Contrast Dark Theme */
+  --text-main: #ffffff;
+  --text-secondary: #e2e8f0;
+  --text-muted: #cbd5e1;
   --text-inverse: #020617;
 
   /* Accents - Agricultural Tech */
@@ -73,10 +73,10 @@ body[data-theme='light'],
   --border-light: rgba(203, 213, 225, 0.85);
   --border-highlight: rgba(16, 185, 129, 0.4);
 
-  /* Typography */
-  --text-main: #0f172a;
-  --text-secondary: #334155;
-  --text-muted: #475569;
+  /* Typography - High Contrast Light Theme */
+  --text-main: #090d16;
+  --text-secondary: #1e293b;
+  --text-muted: #334155;
   --text-inverse: #ffffff;
 
   /* Accents - Agricultural Tech */
@@ -332,6 +332,39 @@ button {
   background: transparent;
 }
 
+/* ───────────────────────────────────────────────────────────── */
+/* Browser Autofill Overrides for Dark & Light Themes */
+/* ───────────────────────────────────────────────────────────── */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #060e0a inset !important;
+  box-shadow: 0 0 0 1000px #060e0a inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  color: #ffffff !important;
+  caret-color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  transition: background-color 50000s ease-in-out 0s;
+}
+
+html[data-theme='light'] input:-webkit-autofill,
+html[data-theme='light'] input:-webkit-autofill:hover,
+html[data-theme='light'] input:-webkit-autofill:focus,
+html[data-theme='light'] input:-webkit-autofill:active,
+.light input:-webkit-autofill,
+.light input:-webkit-autofill:hover,
+.light input:-webkit-autofill:focus,
+.light input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #f8fafc inset !important;
+  box-shadow: 0 0 0 1000px #f8fafc inset !important;
+  -webkit-text-fill-color: #0f172a !important;
+  color: #0f172a !important;
+  caret-color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+  transition: background-color 50000s ease-in-out 0s;
+}
+
 .glass-dock {
   background: linear-gradient(180deg, rgba(10, 16, 28, 0.65) 0%, rgba(7, 12, 22, 0.75) 100%);
   backdrop-filter: blur(2px) saturate(170%);
@@ -361,9 +394,9 @@ body[data-theme='light'] {
   --border-light: rgba(226, 232, 240, 0.95);
   --border-highlight: rgba(16, 185, 129, 0.5);
 
-  --text-main: #0f172a;
-  --text-secondary: #334155;
-  --text-muted: #475569;
+  --text-main: #090d16;
+  --text-secondary: #1e293b;
+  --text-muted: #334155;
   --text-inverse: #ffffff;
 }
 
@@ -435,21 +468,46 @@ body[data-theme='light'] {
 
 /* Text Color Classes in Light Theme */
 [data-theme='light'] .text-text-main,
+[data-theme='light'] .text-main,
 [data-theme='light'] h1,
 [data-theme='light'] h2,
 [data-theme='light'] h3,
 [data-theme='light'] h4,
 [data-theme='light'] h5,
 [data-theme='light'] h6 {
-  color: #0f172a !important;
+  color: #090d16 !important;
 }
 
-[data-theme='light'] .text-text-secondary {
-  color: #475569 !important;
+[data-theme='light'] .text-text-secondary,
+[data-theme='light'] .text-secondary {
+  color: #1e293b !important;
 }
 
-[data-theme='light'] .text-text-muted {
-  color: #64748b !important;
+[data-theme='light'] .text-text-muted,
+[data-theme='light'] .text-muted {
+  color: #334155 !important;
+}
+
+/* Dark Theme High Contrast Explicit Enforcements */
+[data-theme='dark'] .text-text-main,
+[data-theme='dark'] .text-main,
+.dark .text-text-main,
+.dark .text-main {
+  color: #ffffff !important;
+}
+
+[data-theme='dark'] .text-text-secondary,
+[data-theme='dark'] .text-secondary,
+.dark .text-text-secondary,
+.dark .text-secondary {
+  color: #e2e8f0 !important;
+}
+
+[data-theme='dark'] .text-text-muted,
+[data-theme='dark'] .text-muted,
+.dark .text-text-muted,
+.dark .text-muted {
+  color: #cbd5e1 !important;
 }
 
 /* Surface & Card Classes in Light Theme */
@@ -667,13 +725,24 @@ body[data-theme='light'] {
 }
 
 .ant-modal-close {
-  top: 20px !important;
-  right: 20px !important;
-  color: var(--text-muted, #94a3b8) !important;
+  top: 16px !important;
+  right: 16px !important;
+  color: var(--text-secondary, #e2e8f0) !important;
+  z-index: 50 !important;
 }
 
 .ant-modal-close:hover {
   color: var(--text-main, #ffffff) !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme='light'] .ant-modal-close {
+  color: #334155 !important;
+}
+
+[data-theme='light'] .ant-modal-close:hover {
+  color: #090d16 !important;
+  background-color: rgba(0, 0, 0, 0.06) !important;
 }
 
 /* Ant Design Global Dark & Light Theme Integration for Inputs, Selects, & Tables */

@@ -1,9 +1,11 @@
 import jwt from 'jsonwebtoken';
+import type { NextRequest } from 'next/server';
 
-export const AUTH_COOKIE_NAME = 'agripulse_token';
+export const AUTH_COOKIE_NAME = 'farmhub_token';
+export const LEGACY_AUTH_COOKIE_NAME = 'agripulse_token';
 
 export const getSecretKey = () => {
-  return (process.env.JWT_SECRET || 'agripulse-super-secret-key-2026');
+  return (process.env.JWT_SECRET || 'farmhub-super-secret-key-2026');
 };
 
 export interface AuthUserPayload {
@@ -69,5 +71,31 @@ export async function verifyAuthToken(token: string): Promise<AuthUserPayload | 
   } catch (error) {
     return null;
   }
+}
+
+/**
+ * Helper: Extract and verify authenticated user from request (cookies, Bearer token, or middleware headers)
+ */
+export async function getAuthenticatedUser(request: NextRequest): Promise<AuthUserPayload | null> {
+  const token =
+    request.cookies.get(AUTH_COOKIE_NAME)?.value ||
+    request.cookies.get(LEGACY_AUTH_COOKIE_NAME)?.value ||
+    request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+
+  if (token) {
+    const payload = await verifyAuthToken(token);
+    if (payload?.id) return payload;
+  }
+
+  const headerUserId = request.headers.get('x-user-id');
+  if (headerUserId) {
+    return {
+      id: headerUserId,
+      email: request.headers.get('x-user-email') || '',
+      role: request.headers.get('x-user-role') || 'Farmer',
+    };
+  }
+
+  return null;
 }
 

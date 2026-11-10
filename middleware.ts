@@ -23,7 +23,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // 2. Extract Auth Token from Cookies or Authorization Bearer header
-  const cookieToken = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const cookieToken =
+    request.cookies.get(AUTH_COOKIE_NAME)?.value ||
+    request.cookies.get('agripulse_token')?.value;
   const headerToken = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
   const token = cookieToken || headerToken;
 

@@ -8,7 +8,16 @@ export async function POST() {
   );
 
   response.cookies.set({
-    name: AUTH_COOKIE_NAME,
+    name: "farmhub_token",
+    value: "",
+    httpOnly: false,
+    path: "/",
+    maxAge: 0,
+    expires: new Date(0),
+  });
+
+  response.cookies.set({
+    name: "agripulse_token",
     value: "",
     httpOnly: false,
     path: "/",

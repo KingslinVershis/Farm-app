@@ -178,11 +178,14 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
     }
 
     try {
-      localStorage.setItem('agripulse_farmer_location', JSON.stringify({
+      const locData = JSON.stringify({
         state: stateName,
         district: districtName,
         place: placeName,
-      }));
+      });
+      localStorage.setItem('farmhub_farmer_location', locData);
+      localStorage.setItem('farmhub_farmer_location', locData);
+      localStorage.setItem('agripulse_farmer_location', locData);
     } catch { }
 
     setGpsStatusError(false);
@@ -329,7 +332,7 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
       if (res.length > 0) {
         let savedState = '';
         try {
-          const saved = localStorage.getItem('agripulse_farmer_location');
+          const saved = localStorage.getItem('farmhub_farmer_location') || localStorage.getItem('agripulse_farmer_location');
           if (saved) savedState = JSON.parse(saved).state || '';
         } catch { }
 
@@ -359,7 +362,7 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
       if (res.length > 0) {
         let savedDistrict = '';
         try {
-          const saved = localStorage.getItem('agripulse_farmer_location');
+          const saved = localStorage.getItem('farmhub_farmer_location') || localStorage.getItem('agripulse_farmer_location');
           if (saved) {
             const parsed = JSON.parse(saved);
             savedDistrict = parsed.district || '';
@@ -396,7 +399,7 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
       if (res.length > 0) {
         let savedPlace = '';
         try {
-          const saved = localStorage.getItem('agripulse_farmer_location');
+          const saved = localStorage.getItem('farmhub_farmer_location') || localStorage.getItem('agripulse_farmer_location');
           if (saved) {
             const parsed = JSON.parse(saved);
             savedPlace = parsed.place || '';

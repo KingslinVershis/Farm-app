@@ -28,7 +28,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('agripulse_locale') as Locale;
+      const saved = (localStorage.getItem('farmhub_locale') || localStorage.getItem('agripulse_locale')) as Locale;
       if (saved === 'en' || saved === 'ta') {
         setLocaleState(saved);
       }
@@ -40,10 +40,20 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const setLocale = (newLocale: Locale) => {
     setLocaleState(newLocale);
     try {
+      localStorage.setItem('farmhub_locale', newLocale);
       localStorage.setItem('agripulse_locale', newLocale);
     } catch {
       // Ignore
     }
+
+    // Persist language to user account
+    try {
+      fetch('/api/user/language', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: newLocale }),
+      }).catch(() => {});
+    } catch {}
   };
 
   const toggleLocale = () => {

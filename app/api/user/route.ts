@@ -57,11 +57,26 @@ export async function GET(request: NextRequest) {
       username: authUser.username || (authUser.email ? authUser.email.split('@')[0] : 'User'),
       email: authUser.email || '',
       role: authUser.role || 'Farmer',
+      isactive: true,
+      theme: 'dark',
+      language: 'en',
+      state: '',
+      district: '',
+      city: '',
+      address: '',
+      phone_nun: '',
+      phone_number: '',
+      createdAt: null as any,
+      updatedAt: null as any,
     };
 
     try {
       const userRes = await pool.query(
-        'SELECT id, username, email, role, isactive FROM users_table WHERE id = $1',
+        `SELECT id, username, email, role, isactive, theme, language, created_at, updated_at,
+                state, district, city, address,
+                COALESCE(phone_nun, phone_number) as phone_nun,
+                COALESCE(phone_nun, phone_number) as phone_number
+         FROM users_table WHERE id = $1`,
         [userId]
       );
       if (userRes.rows.length > 0) {
@@ -71,6 +86,17 @@ export async function GET(request: NextRequest) {
           username: u.username || userDetails.username,
           email: u.email || userDetails.email,
           role: u.role || 'Farmer',
+          isactive: u.isactive !== false,
+          theme: u.theme || 'dark',
+          language: u.language || 'en',
+          state: u.state || '',
+          district: u.district || '',
+          city: u.city || '',
+          address: u.address || '',
+          phone_nun: u.phone_nun || u.phone_number || '',
+          phone_number: u.phone_nun || u.phone_number || '',
+          createdAt: u.created_at,
+          updatedAt: u.updated_at,
         };
       }
     } catch (dbErr) {

@@ -165,6 +165,9 @@ export default function ReservoirsPage() {
       key: 'currentStorageMcft',
       align: 'right',
       width: '17%',
+      responsive: ['md'],
+      className: 'hidden md:table-cell',
+      onHeaderCell: () => ({ className: 'hidden md:table-cell' }),
       render: (val: number, res) => {
         const percent = res.fullCapacityMcft > 0
           ? Math.min(100, Math.max(0, Math.round((val / res.fullCapacityMcft) * 100)))
@@ -196,6 +199,9 @@ export default function ReservoirsPage() {
       key: 'currentInflowCusecs',
       align: 'right',
       width: '8%',
+      responsive: ['md'],
+      className: 'hidden md:table-cell',
+      onHeaderCell: () => ({ className: 'hidden md:table-cell' }),
       render: (val: number) => (
         <span className="font-mono text-xs font-bold text-emerald-400 whitespace-nowrap">
           {val.toLocaleString()}
@@ -208,6 +214,9 @@ export default function ReservoirsPage() {
       key: 'currentOutflowCusecs',
       align: 'right',
       width: '8%',
+      responsive: ['md'],
+      className: 'hidden md:table-cell',
+      onHeaderCell: () => ({ className: 'hidden md:table-cell' }),
       render: (val: number) => (
         <span className="font-mono text-xs font-bold text-amber-400 whitespace-nowrap">
           {val.toLocaleString()}
@@ -220,6 +229,9 @@ export default function ReservoirsPage() {
       key: 'lastYearLevelFeet',
       align: 'right',
       width: '8%',
+      responsive: ['md'],
+      className: 'hidden md:table-cell',
+      onHeaderCell: () => ({ className: 'hidden md:table-cell' }),
       render: (val: number) => (
         <span className="font-mono text-xs text-text-muted whitespace-nowrap">
           {val > 0 ? val : '-'}
@@ -232,6 +244,9 @@ export default function ReservoirsPage() {
       key: 'lastYearStorageMcft',
       align: 'right',
       width: '9%',
+      responsive: ['md'],
+      className: 'hidden md:table-cell',
+      onHeaderCell: () => ({ className: 'hidden md:table-cell' }),
       render: (val: number) => (
         <span className="font-mono text-xs text-text-muted whitespace-nowrap">
           {val > 0 ? val.toLocaleString() : '-'}
@@ -530,7 +545,7 @@ export default function ReservoirsPage() {
               </p>
             </div>
           ) : (
-            <div className="w-full">
+            <div className="w-full overflow-x-auto scrollbar-thin">
               <Table<ReservoirRecord>
                 columns={columns}
                 dataSource={filteredReservoirs}

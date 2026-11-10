@@ -58,7 +58,7 @@ export function useFertilizerPlanner() {
     let resolvedId = userId;
     if (!resolvedId && typeof window !== 'undefined') {
       try {
-        const stored = localStorage.getItem('agripulse_user');
+        const stored = localStorage.getItem('farmhub_user') || localStorage.getItem('agripulse_user');
         if (stored) {
           const u = JSON.parse(stored);
           if (u?.id) resolvedId = String(u.id);

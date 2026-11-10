@@ -152,6 +152,9 @@ export default function TnauSeedsPage() {
         key: 'slNo',
         width: 80,
         align: 'center',
+        responsive: ['md'],
+        className: 'hidden md:table-cell',
+        onHeaderCell: () => ({ className: 'hidden md:table-cell' }),
         render: (val: string | number) => (
           <span className="font-mono text-xs text-text-muted font-bold">#{val}</span>
         ),
@@ -161,6 +164,9 @@ export default function TnauSeedsPage() {
         dataIndex: 'category',
         key: 'category',
         width: 170,
+        responsive: ['md'],
+        className: 'hidden md:table-cell',
+        onHeaderCell: () => ({ className: 'hidden md:table-cell' }),
         render: (cat: string) => {
           const t = getCategoryTheme(cat);
           return (
@@ -196,6 +202,9 @@ export default function TnauSeedsPage() {
         key: 'unit',
         width: 110,
         align: 'center',
+        responsive: ['md'],
+        className: 'hidden md:table-cell',
+        onHeaderCell: () => ({ className: 'hidden md:table-cell' }),
         render: (unit: string) => (
           <span className="text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-surface border border-border-subtle text-text-secondary">
             /{unit}
@@ -629,7 +638,7 @@ export default function TnauSeedsPage() {
         >
           {activeSeed && (
             <div className="space-y-4 pt-1">
-              <div className="flex items-center justify-between border-b border-border-subtle pb-3">
+              <div className="flex items-center justify-between border-b border-border-subtle pb-3 pr-10">
                 <span
                   className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${getCategoryTheme(activeSeed.category).bg
                     } ${getCategoryTheme(activeSeed.category).border} ${getCategoryTheme(activeSeed.category).text
@@ -638,7 +647,7 @@ export default function TnauSeedsPage() {
                   <span>{getCategoryTheme(activeSeed.category).icon}</span>
                   <span>{activeSeed.category}</span>
                 </span>
-                <span className="text-xs font-mono text-text-muted">
+                <span className="text-xs font-mono font-bold text-text-secondary bg-surface/80 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg border border-border-subtle shadow-sm">
                   Sl. #{activeSeed.slNo}
                 </span>
               </div>
@@ -647,26 +656,26 @@ export default function TnauSeedsPage() {
                 <h2 className="font-display text-xl font-black text-text-main leading-snug">
                   {activeSeed.particulars}
                 </h2>
-                <p className="text-xs text-text-secondary mt-1">
+                <p className="text-xs text-text-secondary mt-1 font-medium">
                   Official seed variety approved for commercial cultivation by TNAU.
                 </p>
               </div>
 
-              <div className="rounded-xl bg-surface/80 border border-border-subtle p-4 space-y-2">
+              <div className="rounded-xl bg-surface/80 border border-border-subtle p-4 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-text-secondary">Official TNAU Rate:</span>
+                  <span className="text-xs font-bold text-text-secondary">Official TNAU Rate:</span>
                   <span className="font-mono text-xl font-black text-emerald-600 dark:text-emerald-400">
                     ₹{activeSeed.pricePerKg.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-xs text-text-muted">
-                  <span>Sale Unit:</span>
+                <div className="flex items-center justify-between text-xs text-text-secondary">
+                  <span className="font-medium text-text-secondary">Sale Unit:</span>
                   <span className="font-bold text-text-main capitalize">Per {activeSeed.unit}</span>
                 </div>
                 {activeSeed.unit === 'kg' && activeSeed.pricePerKg > 0 && (
-                  <div className="flex items-center justify-between text-xs text-text-muted pt-1 border-t border-border-subtle/50">
-                    <span>Approx. 100g Seed Cost:</span>
-                    <span className="font-mono font-bold text-text-secondary">
+                  <div className="flex items-center justify-between text-xs text-text-secondary pt-2 border-t border-border-subtle/50">
+                    <span className="font-medium text-text-secondary">Approx. 100g Seed Cost:</span>
+                    <span className="font-mono font-bold text-text-main">
                       ₹{(activeSeed.pricePerKg / 10).toFixed(2)}
                     </span>
                   </div>

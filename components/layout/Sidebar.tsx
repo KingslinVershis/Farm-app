@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   SproutIcon,
@@ -33,9 +34,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems = [
     { key: 'dashboard', title: messages.sidebar.dashboard, href: '/', icon: LayoutDashboardIcon },
-    { key: 'fertilizer', title: messages.sidebar.fertilizer, href: '/fertilizer', icon: FlaskConicalIcon, badge: (messages.sidebar as any).fertilizerBadge || '5 Phases' },
-    { key: 'reservoirs', title: messages.sidebar.reservoirs, href: '/reservoirs', icon: WavesIcon, badge: (messages.sidebar as any).reservoirsBadge || 'Live Level' },
-    { key: 'seeds', title: (messages.sidebar as any).seeds || 'TNAU Seeds', href: '/seeds', icon: SproutIcon, badge: (messages.sidebar as any).seedsBadge || 'Govt Rates' },
+    { key: 'fertilizer', title: messages.sidebar.fertilizer, href: '/fertilizer', icon: FlaskConicalIcon },
+    { key: 'reservoirs', title: messages.sidebar.reservoirs, href: '/reservoirs', icon: WavesIcon },
+    { key: 'seeds', title: (messages.sidebar as any).seeds || 'TNAU Seeds', href: '/seeds', icon: SproutIcon },
     { key: 'settings', title: messages.sidebar.settings, href: '/settings', icon: SettingsIcon },
   ];
 
@@ -50,19 +51,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Brand Header */}
       <div className="flex h-[70px] items-center justify-between border-b border-border-subtle px-4">
         <Link href="/" className="flex items-center gap-3 overflow-hidden" onClick={handleLinkClick}>
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30">
-            <SproutIcon size={22} />
-          </div>
-          {!isCollapsed && (
-            <div className="flex flex-col">
-              <span className="font-display text-base font-extrabold tracking-tight text-text-main">
-                {messages.common.brandName}
-              </span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
-                {messages.common.brandSubtitle}
-              </span>
-            </div>
-          )}
+          <Image
+            src="/images/logo.png"
+            alt="FarmHub"
+            width={180}
+            height={55}
+            priority
+            className="h-11 sm:h-12 w-auto object-contain dark:hidden"
+          />
+          <Image
+            src="/images/dark_logo.png"
+            alt="FarmHub"
+            width={180}
+            height={55}
+            priority
+            className="h-11 sm:h-12 w-auto object-contain hidden dark:block"
+          />
         </Link>
 
         {/* Mobile close button or desktop collapse button */}
@@ -132,20 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Icon size={20} />
               </div>
               {!isCollapsed && (
-                <>
-                  <span className="truncate">{item.title}</span>
-                  {item.badge && (
-                    <span
-                      className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                        isActive
-                          ? 'bg-emerald-500 text-slate-950 font-extrabold'
-                          : 'bg-surface text-text-muted group-hover:text-text-secondary'
-                      }`}
-                    >
-                      {item.badge}
-                    </span>
-                  )}
-                </>
+                <span className="truncate">{item.title}</span>
               )}
             </Link>
           );

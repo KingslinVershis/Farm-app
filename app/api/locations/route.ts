@@ -25,7 +25,7 @@ import { NextRequest, NextResponse } from 'next/server';
  *     const timer = setTimeout(() => controller.abort(), 3500);
  *     const res = await fetch(`https://api.postalpincode.in/postoffice/${encodeURIComponent(query)}`, {
  *       signal: controller.signal,
- *       headers: { Accept: 'application/json', 'User-Agent': 'AgriPulse/1.0' },
+ *       headers: { Accept: 'application/json', 'User-Agent': 'FarmHub/1.0' },
  *       next: { revalidate: 3600 },
  *     });
  *     clearTimeout(timer);
@@ -193,7 +193,7 @@ export async function GET(request: NextRequest) {
         {
           signal: controller.signal,
           headers: {
-            'User-Agent': 'AgriPulse-FarmOS/1.0 (Farm Management OS; contact@agripulse.farm)',
+            'User-Agent': 'FarmHub-FarmOS/1.0 (Farm Management OS; contact@farmhub.farm)',
             Accept: 'application/json',
             'Accept-Language': 'en-IN,en;q=0.9',
           },
@@ -306,7 +306,7 @@ export async function GET(request: NextRequest) {
             {
               signal: controller.signal,
               headers: {
-                'User-Agent': 'AgriPulse-FarmOS/1.0 (Farm Management OS; contact@agripulse.farm)',
+                'User-Agent': 'FarmHub-FarmOS/1.0 (Farm Management OS; contact@farmhub.farm)',
                 Accept: 'application/json',
               },
             }

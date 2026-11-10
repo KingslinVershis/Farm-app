@@ -23,11 +23,11 @@ export async function POST(request: NextRequest) {
         createdAt: user.created_at,
         updatedAt: user.updated_at
     };
-    const secret = (process.env.JWT_SECRET || 'agripulse-super-secret-key-2026').trim();
+    const secret = (process.env.JWT_SECRET || 'farmhub-super-secret-key-2026').trim();
     if (!secret)
         throw Error("Secret Key is not defined");
     const token = jwt.sign(tokenPayload, secret, {
-        expiresIn: '1h'
+        expiresIn: '7d'
     });
     const userSafe = {
         id: user.id,
@@ -42,12 +42,15 @@ export async function POST(request: NextRequest) {
         message: "User logged in successfully"
     }, { status: 200 });
 
-    response.cookies.set('agripulse_token', token, {
+    const cookieOptions = {
         path: '/',
         maxAge: 604800,
-        sameSite: 'lax',
+        sameSite: 'lax' as const,
         httpOnly: false,
-    });
+    };
+
+    response.cookies.set('farmhub_token', token, cookieOptions);
+    response.cookies.set('agripulse_token', token, cookieOptions);
 
     return response;
 }

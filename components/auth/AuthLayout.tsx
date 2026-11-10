@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { SproutIcon } from '@/components/icons/Icons';
+import Image from 'next/image';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { ThemeSwitch } from '@/components/layout/ThemeSwitch';
 
@@ -18,18 +18,23 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       {/* 100% Width Edge-to-Edge Topbar */}
       <header className="w-full border-b border-slate-200 dark:border-white/10 bg-white/80 dark:bg-[#090f1b]/75 backdrop-blur-2xl sticky top-0 z-50 shadow-sm dark:shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)]">
         <div className="w-full px-4 sm:px-8 lg:px-12 py-3 sm:py-3.5 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.25)] backdrop-blur-md transition-transform group-hover:scale-105">
-              <SproutIcon size={24} />
-            </div>
-            <div>
-              <h1 className="font-display text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white">
-                {messages.common?.brandName || 'AgriPulse'}
-              </h1>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                {messages.common?.brandSubtitle || 'Precision Agriculture OS'}
-              </p>
-            </div>
+          <Link href="/" className="flex items-center group py-0.5">
+            <Image
+              src="/images/logo.png"
+              alt="FarmHub"
+              width={220}
+              height={68}
+              priority
+              className="h-11 sm:h-13 md:h-14 w-auto object-contain group-hover:scale-105 transition-transform drop-shadow-sm dark:hidden"
+            />
+            <Image
+              src="/images/dark_logo.png"
+              alt="FarmHub"
+              width={220}
+              height={68}
+              priority
+              className="h-11 sm:h-13 md:h-14 w-auto object-contain group-hover:scale-105 transition-transform drop-shadow-sm hidden dark:block"
+            />
           </Link>
 
           {/* Language & Theme Controls */}
@@ -71,7 +76,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       {/* Footer */}
       <footer className="w-full py-4 px-4 sm:px-8 border-t border-slate-200 dark:border-white/5 text-center text-slate-500 dark:text-white/40">
         <p className="text-[11px] font-semibold tracking-wide">
-          © {new Date().getFullYear()} AgriPulse Kaveri Delta Farming Intelligence Network. All rights reserved.
+          © {new Date().getFullYear()} FarmHub Kaveri Delta Farming Intelligence Network. All rights reserved.
         </p>
       </footer>
     </div>

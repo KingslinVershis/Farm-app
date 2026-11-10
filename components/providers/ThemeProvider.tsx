@@ -40,7 +40,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMounted(true);
     try {
-      const saved = localStorage.getItem('agripulse_theme') as Theme;
+      const saved = (localStorage.getItem('farmhub_theme') || localStorage.getItem('agripulse_theme')) as Theme;
       if (saved === 'dark' || saved === 'light') {
         setThemeState(saved);
         applyTheme(saved);
@@ -56,10 +56,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setThemeState(newTheme);
     applyTheme(newTheme);
     try {
+      localStorage.setItem('farmhub_theme', newTheme);
       localStorage.setItem('agripulse_theme', newTheme);
     } catch {
       // Ignore
     }
+
+    // Persist theme to user account
+    try {
+      fetch('/api/user/theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme: newTheme }),
+      }).catch(() => {});
+    } catch {}
   };
 
   const toggleTheme = () => {
@@ -69,10 +79,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setThemeState(nextTheme);
     applyTheme(nextTheme);
     try {
+      localStorage.setItem('farmhub_theme', nextTheme);
       localStorage.setItem('agripulse_theme', nextTheme);
     } catch {
       // Ignore
     }
+
+    // Persist theme to user account
+    try {
+      fetch('/api/user/theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme: nextTheme }),
+      }).catch(() => {});
+    } catch {}
   };
 
   useEffect(() => {

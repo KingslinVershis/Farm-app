@@ -29,7 +29,7 @@ export interface EmailValidationResult {
  */
 export async function validateUserEmail(
   email: string,
-  sender = 'verify@agripulse.in'
+  sender = 'verify@farmhub.in'
 ): Promise<EmailValidationResult> {
   const cleanEmail = (email || '').trim().toLowerCase();
 
@@ -128,7 +128,7 @@ export async function validateUserEmail(
       // Step 0: Server Greeting (220)
       if (step === 0 && msg.includes('220')) {
         step = 1;
-        socket.write('HELO agripulse.in\r\n');
+        socket.write('HELO farmhub.in\r\n');
       } else if (step === 1) {
         // Step 1: HELO response (250)
         if (msg.includes('250')) {

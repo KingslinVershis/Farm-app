@@ -8,7 +8,7 @@ import { Agentation } from "agentation";
 import { AntdRegistry } from '@ant-design/nextjs-registry';
 
 export const metadata: Metadata = {
-  title: 'AgriPulse | Precision Farm Management OS',
+  title: 'FarmHub | Precision Farm Management OS',
   description: 'Production-ready Next.js App Router farm dashboard with telemetry, IoT sensors, and smart irrigation.',
 };
 
@@ -24,7 +24,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                var savedTheme = localStorage.getItem('agripulse_theme');
+                var savedTheme = localStorage.getItem('farmhub_theme') || localStorage.getItem('agripulse_theme');
                 if (savedTheme === 'light' || savedTheme === 'dark') {
                   document.documentElement.setAttribute('data-theme', savedTheme);
                   document.documentElement.classList.remove('dark', 'light');
