@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuthToken, AUTH_COOKIE_NAME } from './lib/auth';
 
 // Public frontend pages
-const PUBLIC_PAGES = ['/signin', '/signup'];
+const PUBLIC_PAGES = ['/signin', '/signup', '/forgot-password', '/copy-otp'];
 
 // Public API endpoints
-const PUBLIC_APIS = ['/api/signin', '/api/signup', '/api/logout'];
+const PUBLIC_APIS = ['/api/signin', '/api/signup', '/api/logout', '/api/forgot-password'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -18,7 +18,6 @@ export async function middleware(request: NextRequest) {
     pathname.includes('.') ||
     pathname === '/favicon.ico'
   ) {
-    console.log('pathname', pathname)
     return NextResponse.next();
   }
 
@@ -40,7 +39,7 @@ export async function middleware(request: NextRequest) {
     }
 
     if (!isAuthenticated) {
-      return NextResponse.json(
+      const res = NextResponse.json(
         {
           success: false,
           error: 'Unauthorized: Valid authentication token required',
@@ -48,6 +47,11 @@ export async function middleware(request: NextRequest) {
         },
         { status: 401 }
       );
+      if (cookieToken) {
+        res.cookies.delete(AUTH_COOKIE_NAME);
+        res.cookies.delete('agripulse_token');
+      }
+      return res;
     }
 
     // Attach verified user info to request headers for downstream API handlers
@@ -67,12 +71,17 @@ export async function middleware(request: NextRequest) {
   const isPublicPage = PUBLIC_PAGES.some((page) => pathname === page || pathname.startsWith(`${page}/`));
 
   if (!isAuthenticated && !isPublicPage) {
-    // Unauthenticated user attempting to access protected route -> Redirect to /signin
+    // Unauthenticated or expired (>24h) user attempting to access protected route -> Clear cookies & redirect to /signin
     const loginUrl = new URL('/signin', request.url);
     if (pathname !== '/') {
       loginUrl.searchParams.set('redirect', pathname);
     }
-    return NextResponse.redirect(loginUrl);
+    const res = NextResponse.redirect(loginUrl);
+    if (cookieToken) {
+      res.cookies.delete(AUTH_COOKIE_NAME);
+      res.cookies.delete('agripulse_token');
+    }
+    return res;
   }
 
   if (isAuthenticated && isPublicPage) {

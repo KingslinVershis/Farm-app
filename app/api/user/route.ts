@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from '@/lib/db';
-import { verifyAuthToken, AUTH_COOKIE_NAME } from '@/lib/auth';
+import { getServerAuthenticatedUser as getAuthenticatedUser } from '@/lib/serverAuth';
 import {
   FormattedUserDetails,
   FormattedPlanRecord,
@@ -11,29 +11,6 @@ import {
 } from '@/lib/fertilizer/calc';
 
 export type { FormattedUserDetails, FormattedPlanRecord };
-
-// Helper: Extract and verify authenticated user from request
-async function getAuthenticatedUser(request: NextRequest) {
-  const token =
-    request.cookies.get(AUTH_COOKIE_NAME)?.value ||
-    request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-
-  if (token) {
-    const payload = await verifyAuthToken(token);
-    if (payload?.id) return payload;
-  }
-
-  const headerUserId = request.headers.get('x-user-id');
-  if (headerUserId) {
-    return {
-      id: headerUserId,
-      email: request.headers.get('x-user-email') || '',
-      role: request.headers.get('x-user-role') || 'Farmer',
-    };
-  }
-
-  return null;
-}
 
 /**
  * GET /api/user
@@ -70,50 +47,56 @@ export async function GET(request: NextRequest) {
       updatedAt: null as any,
     };
 
-    try {
-      const userRes = await pool.query(
-        `SELECT id, username, email, role, isactive, theme, language, created_at, updated_at,
-                state, district, city, address,
-                COALESCE(phone_nun, phone_number) as phone_nun,
-                COALESCE(phone_nun, phone_number) as phone_number
-         FROM users_table WHERE id = $1`,
-        [userId]
-      );
-      if (userRes.rows.length > 0) {
-        const u = userRes.rows[0];
-        userDetails = {
-          id: u.id,
-          username: u.username || userDetails.username,
-          email: u.email || userDetails.email,
-          role: u.role || 'Farmer',
-          isactive: u.isactive !== false,
-          theme: u.theme || 'dark',
-          language: u.language || 'en',
-          state: u.state || '',
-          district: u.district || '',
-          city: u.city || '',
-          address: u.address || '',
-          phone_nun: u.phone_nun || u.phone_number || '',
-          phone_number: u.phone_nun || u.phone_number || '',
-          createdAt: u.created_at,
-          updatedAt: u.updated_at,
-        };
-      }
-    } catch (dbErr) {
-      console.warn('[UserAPI] Failed to fetch user profile from DB:', dbErr);
+    // Fetch user profile and fertilizer plans concurrently
+    const [userQueryRes, plansQueryRes] = await Promise.all([
+      pool
+        .query(
+          `SELECT id, username, email, role, isactive, theme, language, created_at, updated_at,
+                  state, district, city, address,
+                  COALESCE(phone_nun, phone_number) as phone_nun,
+                  COALESCE(phone_nun, phone_number) as phone_number
+           FROM users_table WHERE id = $1`,
+          [userId]
+        )
+        .catch((dbErr) => {
+          console.warn('[UserAPI] Failed to fetch user profile from DB:', dbErr);
+          return null;
+        }),
+      pool
+        .query(
+          'SELECT id, created_at, updated_at, is_completed, cultivation, user_details, expense_map, totals FROM cultivation_plans WHERE user_id = $1 ORDER BY updated_at DESC',
+          [userId]
+        )
+        .catch((planErr) => {
+          console.warn('[UserAPI] Failed to fetch user plans from DB:', planErr);
+          return null;
+        }),
+    ]);
+
+    if (userQueryRes && userQueryRes.rows.length > 0) {
+      const u = userQueryRes.rows[0];
+      userDetails = {
+        id: u.id,
+        username: u.username || userDetails.username,
+        email: u.email || userDetails.email,
+        role: u.role || 'Farmer',
+        isactive: u.isactive !== false,
+        theme: u.theme || 'dark',
+        language: u.language || 'en',
+        state: u.state || '',
+        district: u.district || '',
+        city: u.city || '',
+        address: u.address || '',
+        phone_nun: u.phone_nun || u.phone_number || '',
+        phone_number: u.phone_nun || u.phone_number || '',
+        createdAt: u.created_at,
+        updatedAt: u.updated_at,
+      };
     }
 
-    // 2. Fetch fertilizer plans belonging strictly to this user
-    let userPlans: FormattedPlanRecord[] = [];
-    try {
-      const plansRes = await pool.query(
-        'SELECT id, created_at, updated_at, is_completed, cultivation, user_details, expense_map, totals FROM cultivation_plans WHERE user_id = $1 ORDER BY updated_at DESC',
-        [userId]
-      );
-      userPlans = plansRes.rows.map(mapRowToPlanRecord);
-    } catch (planErr) {
-      console.warn('[UserAPI] Failed to fetch user plans from DB:', planErr);
-    }
+    const userPlans: FormattedPlanRecord[] = plansQueryRes
+      ? plansQueryRes.rows.map(mapRowToPlanRecord)
+      : [];
 
     return NextResponse.json({
       success: true,

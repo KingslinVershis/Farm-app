@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLanguage } from '@/components/providers/LanguageProvider';
+import { useTheme } from '@/components/providers/ThemeProvider';
 import { ThemeSwitch } from '@/components/layout/ThemeSwitch';
 
 interface AuthLayoutProps {
@@ -12,6 +13,8 @@ interface AuthLayoutProps {
 
 export function AuthLayout({ children }: AuthLayoutProps) {
   const { messages, locale, setLocale } = useLanguage();
+  const { theme } = useTheme();
+  const logoSrc = theme === 'light' ? '/images/white_logo.png' : '/images/dark_logo.png';
 
   return (
     <div className="relative min-h-screen w-full flex flex-col justify-between items-center bg-slate-100 dark:bg-black text-slate-900 dark:text-white selection:bg-emerald-500 selection:text-slate-950 overflow-x-hidden transition-colors">
@@ -20,20 +23,14 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         <div className="w-full px-4 sm:px-8 lg:px-12 py-3 sm:py-3.5 flex items-center justify-between">
           <Link href="/" className="flex items-center group py-0.5">
             <Image
-              src="/images/logo.png"
+              key={logoSrc}
+              src={logoSrc}
               alt="FarmHub"
               width={220}
               height={68}
+              unoptimized
               priority
-              className="h-11 sm:h-13 md:h-14 w-auto object-contain group-hover:scale-105 transition-transform drop-shadow-sm dark:hidden"
-            />
-            <Image
-              src="/images/dark_logo.png"
-              alt="FarmHub"
-              width={220}
-              height={68}
-              priority
-              className="h-11 sm:h-13 md:h-14 w-auto object-contain group-hover:scale-105 transition-transform drop-shadow-sm hidden dark:block"
+              className="h-11 sm:h-12 md:h-14 w-auto object-contain group-hover:scale-105 transition-transform"
             />
           </Link>
 
@@ -45,7 +42,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
                 onClick={() => setLocale('en')}
                 className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
                   locale === 'en'
-                    ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
+                    ? 'bg-emerald-500 text-white keep-white font-black shadow-sm'
                     : 'text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white'
                 }`}
               >
@@ -56,7 +53,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
                 onClick={() => setLocale('ta')}
                 className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
                   locale === 'ta'
-                    ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
+                    ? 'bg-emerald-500 text-white keep-white font-black shadow-sm'
                     : 'text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white'
                 }`}
               >

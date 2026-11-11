@@ -125,15 +125,15 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
                   onClick={() => onLoadPlan(plan.id)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-2 border ${
                     isCurrent
-                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md font-black'
+                      ? 'bg-emerald-500 text-white keep-white border-emerald-400 shadow-md font-black'
                       : 'glass-surface text-text-secondary hover:text-text-main hover:bg-white/10 border-white/10'
                   }`}
                 >
                   <span>#{savedPlans.length - idx} {plan.userDetails.name || 'Plan'}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded font-extrabold ${isCurrent ? 'bg-slate-950/30 text-slate-950' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded font-extrabold ${isCurrent ? 'bg-black/25 text-white keep-white' : 'bg-emerald-500/20 text-emerald-400'}`}>
                     {plan.userDetails.landSize}c
                   </span>
-                  <span className={`text-[11px] ${isCurrent ? 'text-slate-900 font-extrabold' : 'text-emerald-700 dark:text-emerald-300'}`}>
+                  <span className={`text-[11px] ${isCurrent ? 'text-white keep-white font-extrabold' : 'text-emerald-700 dark:text-emerald-300'}`}>
                     ₹{fmt(plan.totals.netProfit)}
                   </span>
                 </button>
@@ -267,7 +267,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
                 type="button"
                 onClick={() => setSummaryView('all')}
                 className={`rounded-lg px-3 py-1 text-xs font-bold transition-all cursor-pointer ${
-                  summaryView === 'all' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-text-secondary hover:text-text-main'
+                  summaryView === 'all' ? 'bg-emerald-500 text-white keep-white shadow-sm' : 'text-text-secondary hover:text-text-main'
                 }`}
               >
                 All
@@ -276,7 +276,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
                 type="button"
                 onClick={() => setSummaryView('phase')}
                 className={`rounded-lg px-3 py-1 text-xs font-bold transition-all cursor-pointer ${
-                  summaryView === 'phase' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-text-secondary hover:text-text-main'
+                  summaryView === 'phase' ? 'bg-emerald-500 text-white keep-white shadow-sm' : 'text-text-secondary hover:text-text-main'
                 }`}
               >
                 Phases
@@ -386,9 +386,9 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
               {selectedPhase.tasks.map((task) => {
                 const tMeta = getTaskMeta(task);
                 const entry = expenseMap[task.id] || {
-                  ratePerCent: task.defaultRate,
+                  ratePerCent: 0,
                   days: task.defaultDays,
-                  totalCost: Math.round(task.defaultRate * (userDetails.landSize || 0)),
+                  totalCost: 0,
                   costPerDay: 0,
                 };
                 const isSkipped = task.isOptional && entry.isEnabled === false;
@@ -421,26 +421,28 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
                           </span>
                         ) : task.isLabour ? (
                           entry.isMachineMode ? (
-                            `🚜 Machine: ₹${fmt(entry.ratePerCent)} / ${messages.common.cents}`
+                            `🚜 Machine: ₹${fmt(entry.ratePerCent)}`
                           ) : (
-                            `${entry.labourCount ?? 4} workers × ₹${fmt(entry.labourWage ?? 500)}${
+                            `${entry.labourCount ?? 0} workers × ₹${fmt(entry.labourWage ?? 0)}${
                               task.hasSnacks && (entry.snackCost ?? 0) > 0 ? ` + ₹${fmt(entry.snackCost ?? 0)} snacks` : ''
                             }${task.hasTravel && (entry.travelCost ?? 0) > 0 ? ` + ₹${fmt(entry.travelCost ?? 0)} travel` : ''}`
                           )
                         ) : task.isGunnyBags ? (
-                          `${entry.bagCount ?? 120} ${entry.isPlasticBag !== false ? 'plastic' : 'traditional'} bags × ₹${fmt(entry.bagPrice ?? 20)}`
+                          `${entry.bagCount ?? 0} ${entry.isPlasticBag !== false ? 'plastic' : 'traditional'} bags × ₹${fmt(entry.bagPrice ?? 0)}`
                         ) : task.isTransportLoading ? (
-                          `Rent ₹${fmt(entry.transportRent ?? 1500)} + Load (${entry.loadingWorkers ?? 4} × ₹${fmt(entry.loadingWage ?? 350)}) + ₹${fmt(entry.loadingSnacks ?? 150)} snacks`
+                          `Rent ₹${fmt(entry.transportRent ?? 0)} + Load (${entry.loadingWorkers ?? 0} × ₹${fmt(entry.loadingWage ?? 0)}) + ₹${fmt(entry.loadingSnacks ?? 0)} snacks`
                         ) : task.isGrainYield ? (
                           entry.yieldMode !== 'bags'
-                            ? `${entry.yieldTons ?? 14} T → ${entry.grainBagCount ?? 186.67} bags (${entry.bagWeightKg ?? 75} kg/bag) × ₹${fmt(entry.grainBagPrice ?? 1650)}`
-                            : `${entry.grainBagCount ?? 186.67} bags × ₹${fmt(entry.grainBagPrice ?? 1650)}`
+                            ? `${entry.yieldTons ?? 0} T → ${entry.grainBagCount ?? 0} bags (${entry.bagWeightKg ?? 0} kg/bag) × ₹${fmt(entry.grainBagPrice ?? 0)}`
+                            : `${entry.grainBagCount ?? 0} bags × ₹${fmt(entry.grainBagPrice ?? 0)}`
                         ) : task.isStrawYield ? (
-                          `${entry.strawSackCount ?? 100} sacks × ₹${fmt(entry.strawPrice ?? 150)}`
+                          `${entry.strawSackCount ?? 0} sacks × ₹${fmt(entry.strawPrice ?? 0)}`
                         ) : task.isMandiTrip ? (
-                          `${entry.mandiCount ?? 2} trips × ₹${fmt(entry.mandiRate ?? 1500)}`
+                          `${entry.mandiCount ?? 0} trips × ₹${fmt(entry.mandiRate ?? 0)}`
+                        ) : task.id === 'p1_nursery' ? (
+                          `Seed: ₹${fmt(entry.ratePerCent)}${entry.hasTravelCost !== false && (entry.travelCost ?? 0) > 0 ? ` + ₹${fmt(entry.travelCost ?? 0)} travel` : ''}`
                         ) : (
-                          `Rate: ₹${fmt(entry.ratePerCent)} / ${messages.common.cents}`
+                          `Cost: ₹${fmt(entry.ratePerCent)}`
                         )}
                       </span>
                       <span
@@ -489,9 +491,9 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
                   {phase.tasks.map((task) => {
                     const tMeta = getTaskMeta(task);
                     const entry = expenseMap[task.id] || {
-                      ratePerCent: task.defaultRate,
+                      ratePerCent: 0,
                       days: task.defaultDays,
-                      totalCost: Math.round(task.defaultRate * (userDetails.landSize || 0)),
+                      totalCost: 0,
                       costPerDay: 0,
                     };
                     const isSkipped = task.isOptional && entry.isEnabled === false;

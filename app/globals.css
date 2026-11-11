@@ -469,12 +469,12 @@ body[data-theme='light'] {
 /* Text Color Classes in Light Theme */
 [data-theme='light'] .text-text-main,
 [data-theme='light'] .text-main,
-[data-theme='light'] h1,
-[data-theme='light'] h2,
-[data-theme='light'] h3,
-[data-theme='light'] h4,
-[data-theme='light'] h5,
-[data-theme='light'] h6 {
+[data-theme='light'] h1:not(.text-white):not(.keep-white),
+[data-theme='light'] h2:not(.text-white):not(.keep-white),
+[data-theme='light'] h3:not(.text-white):not(.keep-white),
+[data-theme='light'] h4:not(.text-white):not(.keep-white),
+[data-theme='light'] h5:not(.text-white):not(.keep-white),
+[data-theme='light'] h6:not(.text-white):not(.keep-white) {
   color: #090d16 !important;
 }
 
@@ -540,9 +540,41 @@ body[data-theme='light'] {
   background-color: #ffffff !important;
 }
 
-[data-theme='light'] input::placeholder,
-[data-theme='light'] textarea::placeholder {
+/* Global Input and Textarea Placeholders - High Contrast Dark Theme Default */
+input::placeholder,
+textarea::placeholder,
+.ant-input::placeholder,
+.ant-input-affix-wrapper input::placeholder {
   color: #94a3b8 !important;
+  opacity: 0.95 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+/* Explicit Dark Theme across all inputs, AntD, textareas */
+[data-theme='dark'] input::placeholder,
+[data-theme='dark'] textarea::placeholder,
+[data-theme='dark'] .ant-input::placeholder,
+[data-theme='dark'] .ant-input-affix-wrapper input::placeholder,
+.dark input::placeholder,
+.dark textarea::placeholder,
+.dark .ant-input::placeholder,
+.dark .ant-input-affix-wrapper input::placeholder {
+  color: #94a3b8 !important;
+  opacity: 0.95 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+[data-theme='light'] input::placeholder,
+[data-theme='light'] textarea::placeholder,
+[data-theme='light'] .ant-input::placeholder,
+[data-theme='light'] .ant-input-affix-wrapper input::placeholder,
+.light input::placeholder,
+.light textarea::placeholder,
+.light .ant-input::placeholder,
+.light .ant-input-affix-wrapper input::placeholder {
+  color: #64748b !important;
+  opacity: 0.95 !important;
+  -webkit-text-fill-color: #64748b !important;
 }
 
 [data-theme='light'] .glass-panel,
@@ -653,7 +685,7 @@ body[data-theme='light'] {
   border-color: rgba(226, 232, 240, 0.95) !important;
 }
 
-[data-theme='light'] .text-white {
+[data-theme='light'] .text-white:not(.keep-white) {
   color: #0f172a !important;
 }
 
@@ -686,14 +718,26 @@ body[data-theme='light'] {
   border-color: rgba(226, 232, 240, 0.95) !important;
 }
 
-/* Ensure action emerald buttons keep crisp text */
+/* Ensure solid emerald green buttons & CTAs always keep crisp white text across both light and dark themes */
+button.bg-emerald-500:not([class*='dark:bg-emerald-500/']),
+button.bg-emerald-600:not([class*='dark:bg-emerald-600/']),
 [data-theme='light'] button.bg-emerald-500,
-[data-theme='light'] .bg-gradient-to-r.from-emerald-500 {
+[data-theme='light'] button.bg-emerald-600,
+a.bg-emerald-500,
+a.bg-emerald-600,
+.bg-gradient-to-r.from-emerald-500,
+.bg-gradient-to-r.from-emerald-600 {
   color: #ffffff !important;
 }
 
+button.bg-emerald-500:not([class*='dark:bg-emerald-500/']) *,
+button.bg-emerald-600:not([class*='dark:bg-emerald-600/']) *,
 [data-theme='light'] button.bg-emerald-500 *,
-[data-theme='light'] .bg-gradient-to-r.from-emerald-500 * {
+[data-theme='light'] button.bg-emerald-600 *,
+a.bg-emerald-500 *,
+a.bg-emerald-600 *,
+.bg-gradient-to-r.from-emerald-500 *,
+.bg-gradient-to-r.from-emerald-600 * {
   color: #ffffff !important;
 }
 
@@ -1491,4 +1535,26 @@ body[data-theme='dark'] .ant-select-dropdown .ant-select-item-option-active,
   margin-bottom: 0 !important;
   gap: 6px !important;
   z-index: 30 !important;
+}
+
+/* Explicit Keep-White Override (always pure white across both light and dark themes) */
+.keep-white,
+.keep-white *,
+html[data-theme='light'] .keep-white,
+html[data-theme='light'] .keep-white *,
+body[data-theme='light'] .keep-white,
+body[data-theme='light'] .keep-white *,
+[data-theme='light'] .keep-white,
+[data-theme='light'] .keep-white *,
+.light .keep-white,
+.light .keep-white *,
+html[data-theme='light'] h1.keep-white,
+html[data-theme='light'] h2.keep-white,
+html[data-theme='light'] h3.keep-white,
+html[data-theme='light'] h4.keep-white,
+[data-theme='light'] h1.keep-white,
+[data-theme='light'] h2.keep-white,
+[data-theme='light'] h3.keep-white,
+[data-theme='light'] h4.keep-white {
+  color: #ffffff !important;
 }

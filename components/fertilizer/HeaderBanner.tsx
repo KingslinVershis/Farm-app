@@ -76,7 +76,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
             <button
               type="button"
               onClick={onCreateNewRecord}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3.5 py-1.5 text-xs font-black text-slate-950 shadow-glow hover:bg-emerald-400 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3.5 py-1.5 text-xs font-black text-white keep-white shadow-glow hover:bg-emerald-400 transition-all cursor-pointer"
             >
               <span>➕</span>
               <span>New Record</span>
@@ -95,7 +95,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
                 title={`Switch backdrop to ${theme.name}`}
                 className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
                   bgImage === theme.path
-                    ? 'bg-emerald-500 text-slate-950 shadow-md font-bold'
+                    ? 'bg-emerald-500 text-white keep-white shadow-md font-bold'
                     : 'text-text-secondary hover:text-text-main hover:bg-white/5'
                 }`}
               >

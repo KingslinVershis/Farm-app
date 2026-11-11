@@ -16,6 +16,7 @@ import {
 } from '../icons/Icons';
 import type { SidebarProps } from '@/types/components';
 import { useLanguage } from '@/components/providers/LanguageProvider';
+import { useTheme } from '@/components/providers/ThemeProvider';
 
 export const Sidebar: React.FC<SidebarProps> = ({
   isCollapsed,
@@ -25,6 +26,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const pathname = usePathname();
   const { messages } = useLanguage();
+  const { theme } = useTheme();
+  const logoSrc = theme === 'light' ? '/images/white_logo.png' : '/images/dark_logo.png';
 
   const handleLinkClick = () => {
     if (onCloseMobile) {
@@ -52,20 +55,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="flex h-[70px] items-center justify-between border-b border-border-subtle px-4">
         <Link href="/" className="flex items-center gap-3 overflow-hidden" onClick={handleLinkClick}>
           <Image
-            src="/images/logo.png"
+            key={logoSrc}
+            src={logoSrc}
             alt="FarmHub"
             width={180}
             height={55}
+            unoptimized
             priority
-            className="h-11 sm:h-12 w-auto object-contain dark:hidden"
-          />
-          <Image
-            src="/images/dark_logo.png"
-            alt="FarmHub"
-            width={180}
-            height={55}
-            priority
-            className="h-11 sm:h-12 w-auto object-contain hidden dark:block"
+            className="h-11 sm:h-12 w-auto object-contain"
           />
         </Link>
 

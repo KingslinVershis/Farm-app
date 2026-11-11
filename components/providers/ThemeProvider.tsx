@@ -52,6 +52,23 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const isPublicRoute = () =>
+    typeof window !== 'undefined' &&
+    ['/signin', '/signup', '/forgot-password'].some(
+      (route) => window.location.pathname === route || window.location.pathname.startsWith(`${route}/`)
+    );
+
+  const persistThemePreference = (nextTheme: Theme) => {
+    if (isPublicRoute()) return;
+    try {
+      fetch('/api/user/theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme: nextTheme }),
+      }).catch(() => {});
+    } catch {}
+  };
+
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
     applyTheme(newTheme);
@@ -62,20 +79,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       // Ignore
     }
 
-    // Persist theme to user account
-    try {
-      fetch('/api/user/theme', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ theme: newTheme }),
-      }).catch(() => {});
-    } catch {}
+    persistThemePreference(newTheme);
   };
 
   const toggleTheme = () => {
     const current = (typeof document !== 'undefined' ? (document.documentElement.getAttribute('data-theme') as Theme) : theme) || theme || 'dark';
     const nextTheme: Theme = current === 'dark' ? 'light' : 'dark';
-    console.log('[ThemeProvider] Switching theme from', current, 'to', nextTheme);
     setThemeState(nextTheme);
     applyTheme(nextTheme);
     try {
@@ -85,14 +94,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       // Ignore
     }
 
-    // Persist theme to user account
-    try {
-      fetch('/api/user/theme', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ theme: nextTheme }),
-      }).catch(() => {});
-    } catch {}
+    persistThemePreference(nextTheme);
   };
 
   useEffect(() => {
@@ -138,7 +140,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
               colorBgContainer: isDark ? 'transparent' : '#ffffff',
               colorBorder: isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1',
               colorText: isDark ? '#f1f5f9' : '#0f172a',
-              colorTextPlaceholder: isDark ? '#64748b' : '#94a3b8',
+              colorTextPlaceholder: isDark ? '#94a3b8' : '#64748b',
               activeBorderColor: '#10b981',
               hoverBorderColor: '#10b981',
             },
@@ -146,7 +148,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
               colorBgContainer: isDark ? 'transparent' : '#ffffff',
               colorBorder: isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1',
               colorText: isDark ? '#f1f5f9' : '#0f172a',
-              colorTextPlaceholder: isDark ? '#64748b' : '#94a3b8',
+              colorTextPlaceholder: isDark ? '#94a3b8' : '#64748b',
               activeBorderColor: '#10b981',
               hoverBorderColor: '#10b981',
             },
@@ -154,7 +156,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
               colorBgContainer: isDark ? 'transparent' : '#ffffff',
               colorBorder: isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1',
               colorText: isDark ? '#f1f5f9' : '#0f172a',
-              colorTextPlaceholder: isDark ? '#64748b' : '#94a3b8',
+              colorTextPlaceholder: isDark ? '#94a3b8' : '#64748b',
               activeBorderColor: '#10b981',
               hoverBorderColor: '#10b981',
             },

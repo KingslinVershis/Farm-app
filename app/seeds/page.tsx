@@ -422,7 +422,7 @@ export default function TnauSeedsPage() {
                   type="button"
                   onClick={() => setViewLayout('table')}
                   className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${viewLayout === 'table'
-                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                    ? 'bg-emerald-500 text-white keep-white shadow-sm'
                     : 'text-text-secondary hover:text-text-main'
                     }`}
                   title="Table View"
@@ -433,7 +433,7 @@ export default function TnauSeedsPage() {
                   type="button"
                   onClick={() => setViewLayout('grid')}
                   className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${viewLayout === 'grid'
-                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                    ? 'bg-emerald-500 text-white keep-white shadow-sm'
                     : 'text-text-secondary hover:text-text-main'
                     }`}
                   title="Card Grid View"
@@ -461,7 +461,7 @@ export default function TnauSeedsPage() {
                   type="button"
                   onClick={() => setSelectedCategory(cat.id)}
                   className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${isSelected
-                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md font-black scale-[1.02]'
+                    ? 'bg-emerald-500 text-white keep-white border-emerald-400 shadow-md font-black scale-[1.02]'
                     : 'glass-surface text-text-secondary border-border-subtle hover:text-text-main hover:border-border-light'
                     }`}
                 >
@@ -507,7 +507,7 @@ export default function TnauSeedsPage() {
             <button
               type="button"
               onClick={fetchSeedData}
-              className="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs shadow-md hover:bg-emerald-400 transition-all cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-emerald-500 text-white keep-white font-bold text-xs shadow-md hover:bg-emerald-400 transition-all cursor-pointer"
             >
               {isTamil ? 'மீண்டும் முயற்சிக்கவும்' : 'Retry'}
             </button>

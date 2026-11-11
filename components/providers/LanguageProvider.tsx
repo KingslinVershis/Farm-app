@@ -37,6 +37,12 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const isPublicRoute = () =>
+    typeof window !== 'undefined' &&
+    ['/signin', '/signup', '/forgot-password'].some(
+      (route) => window.location.pathname === route || window.location.pathname.startsWith(`${route}/`)
+    );
+
   const setLocale = (newLocale: Locale) => {
     setLocaleState(newLocale);
     try {
@@ -45,6 +51,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Ignore
     }
+
+    // On public routes, persist via localStorage only without calling /api/user/language
+    if (isPublicRoute()) return;
 
     // Persist language to user account
     try {

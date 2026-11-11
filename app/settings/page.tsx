@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { useTheme, type Theme } from '@/components/providers/ThemeProvider';
 import { useLocationSelector } from '@/lib/hooks/useLocationSelector';
@@ -27,8 +27,14 @@ import {
   Phone,
   MapPin,
   Home,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
-import { Input } from 'antd';
+import { Input, Modal, message } from 'antd';
+import { OtpVerificationModal } from '@/components/auth/OtpVerificationModal';
+import type { CodeSlotsStatus } from '@/components/auth/CodeSlots';
+import { clearClientSessionStorage } from '@/components/layout/AppShell';
+import HoldButton from '@/components/common/HoldButton';
 
 export type SettingsTab = 'user-profile' | 'security-password' | 'language-theme';
 
@@ -87,12 +93,64 @@ export default function SettingsPage() {
   const [savingPassword, setSavingPassword] = useState<boolean>(false);
   const [passwordFeedback, setPasswordFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Theme & Language feedback
-  const [themeFeedback, setThemeFeedback] = useState<string | null>(null);
-  const [langFeedback, setLangFeedback] = useState<string | null>(null);
+  // Change Password OTP modal states
+  const [passOtpOpen, setPassOtpOpen] = useState(false);
+  const [passOtpEmail, setPassOtpEmail] = useState('');
+  const [passOtpSeconds, setPassOtpSeconds] = useState(0);
+  const [passOtpStatus, setPassOtpStatus] = useState<CodeSlotsStatus>('idle');
+  const [passOtpLoading, setPassOtpLoading] = useState(false);
+  const [passOtpResending, setPassOtpResending] = useState(false);
+  const [passOtpError, setPassOtpError] = useState<string | null>(null);
+  const [passOtpPreviewUrl, setPassOtpPreviewUrl] = useState<string | null>(null);
+
+  // Delete Account state
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState<string>('');
+  const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
+  const [deletingAccount, setDeletingAccount] = useState<boolean>(false);
+
+  const expectedDeletePhrase = user?.email
+    ? `delete ${user.email.trim().toLowerCase()}`
+    : 'delete the account';
+
+  useEffect(() => {
+    if (!passOtpOpen || passOtpSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setPassOtpSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [passOtpOpen, passOtpSeconds]);
+
+  // Reset any unsaved edits across Profile/Location, Password, and Delete inputs when switching tabs
+  const resetUnsavedTabValues = () => {
+    setUsernameInput(user?.username || '');
+    setIsEditingUsername(false);
+    setPhoneInput(user?.phone_nun || user?.phone_number || '');
+    setAddressInput(user?.address || '');
+    location.applyDynamicLocation(user?.state || '', user?.district || '', user?.city || '');
+    setProfileFeedback(null);
+    setDeleteConfirmInput('');
+    setDeleteModalOpen(false);
+
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowCurrentPass(false);
+    setShowNewPass(false);
+    setShowConfirmPass(false);
+    setPasswordFeedback(null);
+    setPassOtpOpen(false);
+    setPassOtpError(null);
+    setPassOtpStatus('idle');
+  };
+
+  const resetFnRef = useRef<() => void>(() => {});
+  resetFnRef.current = resetUnsavedTabValues;
 
   // 1. Sync URL path like /settings?user-profile, /settings?security-password, /settings?language-theme
   const handleTabChange = (tab: SettingsTab) => {
+    if (tab !== activeTab) {
+      resetUnsavedTabValues();
+    }
     setActiveTab(tab);
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
@@ -122,6 +180,7 @@ export default function SettingsPage() {
       }
 
       const handlePopState = () => {
+        resetFnRef.current();
         setActiveTab(parseTabFromUrl());
       };
 
@@ -244,6 +303,11 @@ export default function SettingsPage() {
           ? 'சுயவிவரம், தொலைபேசி எண் மற்றும் பண்ணை இருப்பிட விவரங்கள் வெற்றிகரமாக சேமிக்கப்பட்டன!'
           : 'Profile, phone number, and location details saved successfully!',
       });
+      message.success(
+        isTamil
+          ? 'சுயவிவர அமைப்புகள் வெற்றிகரமாக சேமிக்கப்பட்டன!'
+          : 'Profile settings saved successfully!'
+      );
       setIsEditingUsername(false);
       setTimeout(() => setProfileFeedback(null), 4000);
     } catch (err: any) {
@@ -251,6 +315,7 @@ export default function SettingsPage() {
         type: 'error',
         message: err?.message || 'Error updating profile',
       });
+      message.error(err?.message || (isTamil ? 'சுயவிவரத்தை புதுப்பிக்க முடியவில்லை' : 'Failed to update profile'));
     } finally {
       setSavingProfile(false);
     }
@@ -266,6 +331,7 @@ export default function SettingsPage() {
         type: 'error',
         message: isTamil ? 'தற்போதைய கடவுச்சொல்லை உள்ளிடவும்' : 'Please enter your current password',
       });
+      message.error(isTamil ? 'தற்போதைய கடவுச்சொல்லை உள்ளிடவும்' : 'Please enter your current password');
       return;
     }
 
@@ -276,6 +342,11 @@ export default function SettingsPage() {
           ? 'புதிய கடவுச்சொல் குறைந்தபட்சம் 6 எழுத்துகள் இருக்க வேண்டும்'
           : 'New password must be at least 6 characters',
       });
+      message.error(
+        isTamil
+          ? 'புதிய கடவுச்சொல் குறைந்தபட்சம் 6 எழுத்துகள் இருக்க வேண்டும்'
+          : 'New password must be at least 6 characters'
+      );
       return;
     }
 
@@ -284,6 +355,7 @@ export default function SettingsPage() {
         type: 'error',
         message: isTamil ? 'புதிய கடவுச்சொற்கள் பொருந்தவில்லை' : 'New passwords do not match',
       });
+      message.error(isTamil ? 'புதிய கடவுச்சொற்கள் பொருந்தவில்லை' : 'New passwords do not match');
       return;
     }
 
@@ -304,6 +376,21 @@ export default function SettingsPage() {
         throw new Error(data?.error || 'Failed to update password');
       }
 
+      if (data?.otpRequired) {
+        setPassOtpEmail(data.email || user?.email || '');
+        setPassOtpSeconds(data.expiresInSeconds || 300);
+        setPassOtpPreviewUrl(data.previewUrl || null);
+        setPassOtpError(null);
+        setPassOtpStatus('idle');
+        setPassOtpOpen(true);
+        message.success(
+          isTamil
+            ? '6 இலக்க சரிபார்ப்பு குறியீடு உங்கள் மின்னஞ்சலுக்கு அனுப்பப்பட்டது!'
+            : '6-digit verification code sent to your registered email!'
+        );
+        return;
+      }
+
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -311,79 +398,159 @@ export default function SettingsPage() {
         type: 'success',
         message: isTamil ? 'கடவுச்சொல் வெற்றிகரமாக மாற்றப்பட்டது!' : 'Password changed successfully!',
       });
+      message.success(
+        isTamil ? 'கடவுச்சொல் வெற்றிகரமாக மாற்றப்பட்டது!' : 'Password changed successfully!'
+      );
       setTimeout(() => setPasswordFeedback(null), 4000);
     } catch (err: any) {
       setPasswordFeedback({
         type: 'error',
         message: err?.message || 'Error updating password',
       });
+      message.error(err?.message || (isTamil ? 'கடவுச்சொல்லை மாற்ற முடியவில்லை' : 'Error updating password'));
     } finally {
       setSavingPassword(false);
     }
   };
 
-  // 5. Handle Theme update via dedicated /api/user/theme API
-  const handleThemeChange = async (newTheme: Theme) => {
-    if (theme === newTheme && user?.theme === newTheme) return;
-
-    setTheme(newTheme);
-    setThemeFeedback(null);
-
+  const handleResendPasswordOtp = async () => {
+    setPassOtpResending(true);
+    setPassOtpError(null);
     try {
-      const res = await fetch('/api/user/theme', {
+      const res = await fetch('/api/user/password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ theme: newTheme }),
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+        }),
       });
       const data = await res.json().catch(() => null);
-
       if (!res.ok || !data?.success) {
-        throw new Error(data?.error || 'Failed to persist theme preference');
+        setPassOtpError(data?.error || 'Failed to resend verification code.');
+        return;
       }
-
-      setUser((prev) => (prev ? { ...prev, theme: newTheme } : null));
-      setThemeFeedback(
+      setPassOtpSeconds(data.expiresInSeconds || 300);
+      setPassOtpPreviewUrl(data.previewUrl || null);
+      message.success(
         isTamil
-          ? `${newTheme === 'dark' ? 'இருண்ட தீம் (Dark Theme)' : 'ஒளிர் தீம் (Light Theme)'} சேமிக்கப்பட்டது!`
-          : `${newTheme === 'dark' ? 'Dark Theme' : 'Light Theme'} applied & saved to account!`
+          ? 'புதிய 6 இலக்க குறியீடு உங்கள் மின்னஞ்சலுக்கு அனுப்பப்பட்டது!'
+          : 'A new 6-digit verification code was sent!'
       );
-      setTimeout(() => setThemeFeedback(null), 3500);
-    } catch (err: any) {
-      console.warn('[ThemeAPI] Error:', err);
-      setThemeFeedback(err?.message || 'Failed to save theme to account');
+    } catch {
+      setPassOtpError('Server error while resending code.');
+    } finally {
+      setPassOtpResending(false);
     }
   };
 
-  // 6. Handle Language update via dedicated /api/user/language API
-  const handleLanguageChange = async (newLang: 'en' | 'ta') => {
+  const handleVerifyPasswordOtp = async (otpCode: string) => {
+    setPassOtpError(null);
+    setPassOtpLoading(true);
+    try {
+      const res = await fetch('/api/user/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+          otp: otpCode.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        setPassOtpStatus('error');
+        setPassOtpError(
+          data?.error ||
+            (isTamil ? 'தவறான சரிபார்ப்பு குறியீடு.' : 'Invalid verification code.')
+        );
+        return;
+      }
+
+      setPassOtpStatus('success');
+      const okMsg = isTamil
+        ? 'கடவுச்சொல் மாற்றப்பட்டது! பாதுகாப்பு காரணத்திற்காக அனைத்து சாதனங்களிலிருந்தும் வெளியேற்றப்பட்டீர்கள்.'
+        : 'Password updated! All logged-in sessions were signed out for security purposes.';
+      message.success(okMsg, 4);
+
+      setTimeout(() => {
+        setPassOtpOpen(false);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        clearClientSessionStorage();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/signin';
+        }
+      }, 1100);
+    } catch {
+      setPassOtpStatus('error');
+      setPassOtpError('Server error while verifying OTP.');
+    } finally {
+      setPassOtpLoading(false);
+    }
+  };
+
+  // 4b. Handle Permanent Account Deletion
+  const handleDeleteAccount = async () => {
+    setDeletingAccount(true);
+    try {
+      const res = await fetch('/api/user/account', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          confirmation: deleteConfirmInput.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Failed to delete account');
+      }
+
+      setDeleteModalOpen(false);
+      message.success(
+        isTamil
+          ? 'உங்கள் கணக்கு நிரந்தரமாக நீக்கப்பட்டது.'
+          : 'Your account has been permanently deleted.',
+        3
+      );
+      clearClientSessionStorage();
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          window.location.href = '/signin';
+        }
+      }, 900);
+    } catch (err: any) {
+      message.error(err?.message || (isTamil ? 'கணக்கை நீக்க முடியவில்லை' : 'Failed to delete account'));
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
+  // 5. Handle Theme update (persisted via ThemeProvider -> /api/user/theme)
+  const handleThemeChange = (newTheme: Theme) => {
+    if (theme === newTheme && user?.theme === newTheme) return;
+
+    setTheme(newTheme);
+    setUser((prev) => (prev ? { ...prev, theme: newTheme } : null));
+    message.success(
+      isTamil
+        ? `${newTheme === 'dark' ? 'இருண்ட தீம் (Dark Theme)' : 'ஒளிர் தீம் (Light Theme)'} சேமிக்கப்பட்டது!`
+        : `${newTheme === 'dark' ? 'Dark Theme' : 'Light Theme'} applied & saved to account!`
+    );
+  };
+
+  // 6. Handle Language update (persisted via LanguageProvider -> /api/user/language)
+  const handleLanguageChange = (newLang: 'en' | 'ta') => {
     if (locale === newLang && user?.language === newLang) return;
 
     setLocale(newLang);
-    setLangFeedback(null);
-
-    try {
-      const res = await fetch('/api/user/language', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ language: newLang }),
-      });
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok || !data?.success) {
-        throw new Error(data?.error || 'Failed to persist language preference');
-      }
-
-      setUser((prev) => (prev ? { ...prev, language: newLang } : null));
-      setLangFeedback(
-        newLang === 'ta'
-          ? 'மொழி வெற்றிகரமாக தமிழாக மாற்றப்பட்டது!'
-          : 'Language successfully updated to English!'
-      );
-      setTimeout(() => setLangFeedback(null), 3500);
-    } catch (err: any) {
-      console.warn('[LanguageAPI] Error:', err);
-      setLangFeedback(err?.message || 'Failed to save language to account');
-    }
+    setUser((prev) => (prev ? { ...prev, language: newLang } : null));
+    message.success(
+      newLang === 'ta'
+        ? 'மொழி வெற்றிகரமாக தமிழாக மாற்றப்பட்டது!'
+        : 'Language successfully updated to English!'
+    );
   };
 
   // Format creation date
@@ -410,22 +577,21 @@ export default function SettingsPage() {
           backgroundImage: `url('/images/setting.png')`,
         }}
       />
-      {/* Ambient Contrast Scrim to Guarantee High Readability Across Themes */}
-      <div className="fixed inset-0 pointer-events-none z-0 bg-slate-950/75 dark:bg-slate-950/80 bg-slate-900/20 backdrop-blur-[2px]" />
+      <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
 
       {/* Main Content Area */}
       <div className="relative z-10 max-w-[1720px] w-full mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-7 pb-24 flex flex-col gap-6 fade-in">
-        {/* Page Header Banner */}
-        <div className="rounded-3xl bg-slate-900/90 dark:bg-slate-900/90 bg-white/95 backdrop-blur-2xl p-5 sm:p-7 shadow-2xl border border-white/15 dark:border-white/15 border-slate-200/90 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        {/* Page Header Banner (Transparent Glassmorphic Panel) */}
+        <div className="rounded-2xl glass-panel p-5 sm:p-7 shadow-xl border border-border-light flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-bold mb-2.5 border border-emerald-500/30">
               <Sparkles size={14} />
               <span>{isTamil ? 'பயனர் கணக்கு & பண்ணை மேலாண்மை' : 'User Account & Farm Preferences'}</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white dark:text-white text-slate-900 tracking-tight m-0 mb-1.5">
+            <h1 className="text-2xl sm:text-3xl font-black text-text-main tracking-tight m-0 mb-1.5">
               {isTamil ? 'கணக்கு அமைப்புகள் & விருப்பத்தேர்வுகள்' : 'Account Settings & Preferences'}
             </h1>
-            <p className="text-slate-300 dark:text-slate-300 text-slate-600 text-xs sm:text-sm m-0 max-w-2xl leading-relaxed font-medium">
+            <p className="text-text-secondary text-xs sm:text-sm m-0 max-w-2xl leading-relaxed font-medium">
               {isTamil
                 ? 'உங்கள் சுயவிவர விவரங்களை நிர்வகிக்கவும், பண்ணை இருப்பிடத்தை அமைக்கவும், கடவுச்சொல்லை மாற்றவும் மற்றும் காட்சி தீமை அமைக்கவும்.'
                 : 'Manage your profile details, farm location, contact number, update password, and customize UI theme & language.'}
@@ -434,15 +600,15 @@ export default function SettingsPage() {
 
           {/* Quick User Identity Badge */}
           {user && (
-            <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-950/80 dark:bg-slate-950/80 bg-slate-100 border border-white/15 dark:border-white/15 border-slate-200 shadow-md">
+            <div className="flex items-center gap-3 p-3 rounded-2xl glass-surface border border-border-light shadow-md">
               <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 font-black flex items-center justify-center text-sm shadow-md ring-2 ring-emerald-400/30">
                 {(user.username || user.email || 'U').charAt(0).toUpperCase()}
               </div>
               <div>
-                <div className="text-xs font-extrabold text-white dark:text-white text-slate-900 truncate max-w-[170px]">
+                <div className="text-xs font-extrabold text-text-main truncate max-w-[170px]">
                   {user.username || 'FarmHub User'}
                 </div>
-                <div className="text-[11px] text-slate-400 dark:text-slate-400 text-slate-500 truncate max-w-[170px] font-mono">
+                <div className="text-[11px] text-text-muted truncate max-w-[170px] font-mono">
                   {user.phone_nun || user.phone_number || user.email}
                 </div>
               </div>
@@ -467,232 +633,131 @@ export default function SettingsPage() {
                 key={tab.id}
                 type="button"
                 onClick={() => handleTabChange(tab.id)}
-                className={`inline-flex items-center gap-2 px-5 py-3 rounded-2xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer whitespace-nowrap shadow-md ${
+                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer whitespace-nowrap shadow-md ${
                   isActive
-                    ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-slate-950 shadow-emerald-500/30 scale-[1.02] ring-2 ring-emerald-400/40'
-                    : 'bg-slate-900/80 dark:bg-slate-900/85 bg-white/85 text-slate-300 dark:text-slate-300 text-slate-700 hover:text-white dark:hover:text-white hover:bg-slate-800/80 dark:hover:bg-slate-800/80 border border-white/10 dark:border-white/10 border-slate-200 backdrop-blur-xl'
+                    ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white keep-white shadow-emerald-500/30 scale-[1.02] border border-emerald-400/50'
+                    : 'glass-panel text-text-secondary hover:text-text-main hover:bg-surface/60 border border-border-light backdrop-blur-xl'
                 }`}
               >
-                <Icon size={17} className={isActive ? 'text-slate-950' : 'text-emerald-400'} />
+                <Icon size={17} className={isActive ? 'text-white keep-white' : 'text-emerald-400'} />
                 <span>{tab.label}</span>
               </button>
             );
           })}
         </div>
 
-        {/* SECTION 1: USER PROFILE & FARM LOCATION */}
+        {/* SECTION 1: USER PROFILE & FARM LOCATION (Transparent Glass Card Design) */}
         {activeTab === 'user-profile' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* User Profile Summary Card */}
-            <div className="lg:col-span-1 rounded-3xl bg-slate-900/90 dark:bg-slate-900/90 bg-white/95 backdrop-blur-2xl p-6 sm:p-7 flex flex-col items-center text-center shadow-2xl border border-white/15 dark:border-white/15 border-slate-200/90 relative overflow-hidden h-fit">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+            {/* Left Column: All User Details (except farm location) */}
+            <div className="lg:col-span-1 h-full rounded-2xl glass-panel p-6 sm:p-7 flex flex-col shadow-xl border border-border-light relative overflow-hidden">
               <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-emerald-500/20 via-teal-500/10 to-transparent pointer-events-none" />
 
-              <div className="relative mt-3 mb-4">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 p-1 shadow-2xl shadow-emerald-500/25">
-                  <div className="w-full h-full rounded-full bg-slate-950 flex items-center justify-center text-white text-3xl font-black">
-                    {(user?.username || user?.email || 'U').charAt(0).toUpperCase()}
+              {/* Avatar & Identity Header */}
+              <div className="flex flex-col items-center text-center relative">
+                <div className="relative mt-2 mb-3.5">
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 p-1 shadow-2xl shadow-emerald-500/25">
+                    <div className="w-full h-full rounded-full bg-slate-950/90 flex items-center justify-center text-white text-2xl font-black">
+                      {(user?.username || user?.email || 'U').charAt(0).toUpperCase()}
+                    </div>
                   </div>
-                </div>
-                <div
-                  className="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-slate-950 flex items-center justify-center text-xs text-slate-950 font-black shadow"
-                  title="Account Active"
-                >
-                  ✓
-                </div>
-              </div>
-
-              <h2 className="text-xl font-black text-white dark:text-white text-slate-900 m-0 mb-1">
-                {user?.username || (loadingUser ? 'Loading...' : 'User')}
-              </h2>
-              <p className="text-xs text-slate-300 dark:text-slate-300 text-slate-600 font-semibold m-0 mb-3 flex items-center gap-1.5">
-                <Mail size={13} className="text-emerald-400" />
-                <span>{user?.email || '---'}</span>
-              </p>
-
-              <div className="flex flex-wrap items-center justify-center gap-2 mb-6">
-                <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
-                  {user?.role || 'Farmer'}
-                </span>
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 flex items-center gap-1">
-                  <Activity size={12} />
-                  <span>{user?.isactive !== false ? (isTamil ? 'செயலில் உள்ளது' : 'Active Account') : 'Inactive'}</span>
-                </span>
-              </div>
-
-              {/* Account Meta & Location Summary List */}
-              <div className="w-full space-y-3 pt-4 border-t border-white/10 dark:border-white/10 border-slate-200 text-left">
-                {/* Phone */}
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-300 dark:text-slate-300 text-slate-600 font-semibold flex items-center gap-1.5">
-                    <Phone size={14} className="text-emerald-400" />
-                    <span>{isTamil ? 'தொலைபேசி எண்' : 'Phone Number'}</span>
-                  </span>
-                  <span className="font-extrabold text-white dark:text-white text-slate-900 font-mono">
-                    {user?.phone_nun || user?.phone_number || (isTamil ? 'இல்லை' : 'Not set')}
-                  </span>
-                </div>
-
-                {/* Farm Location (City, District, State) */}
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-300 dark:text-slate-300 text-slate-600 font-semibold flex items-center gap-1.5">
-                    <MapPin size={14} className="text-emerald-400" />
-                    <span>{isTamil ? 'இருப்பிடம்' : 'Location'}</span>
-                  </span>
-                  <span
-                    className="font-bold text-white dark:text-white text-slate-900 text-right truncate max-w-[170px]"
-                    title={[user?.city, user?.district, user?.state].filter(Boolean).join(', ')}
+                  <div
+                    className="absolute bottom-0.5 right-0.5 w-6 h-6 rounded-full bg-emerald-500 border-2 border-slate-950 flex items-center justify-center text-xs text-slate-950 font-black shadow"
+                    title="Account Active"
                   >
-                    {[user?.city, user?.district, user?.state].filter(Boolean).join(', ') || (isTamil ? 'குறிப்பிடப்படவில்லை' : 'Not set')}
-                  </span>
-                </div>
-
-                {/* Farm Address */}
-                {user?.address && (
-                  <div className="flex justify-between items-start text-xs pt-0.5">
-                    <span className="text-slate-300 dark:text-slate-300 text-slate-600 font-semibold flex items-center gap-1.5 shrink-0">
-                      <Home size={14} className="text-emerald-400" />
-                      <span>{isTamil ? 'முகவரி' : 'Address'}</span>
-                    </span>
-                    <span className="font-semibold text-white dark:text-white text-slate-900 text-right truncate max-w-[170px]" title={user.address}>
-                      {user.address}
-                    </span>
+                    ✓
                   </div>
-                )}
-
-                {/* Joined Date */}
-                <div className="flex justify-between items-center text-xs pt-1.5 border-t border-white/10 dark:border-white/10 border-slate-200">
-                  <span className="text-slate-300 dark:text-slate-300 text-slate-600 font-semibold flex items-center gap-1.5">
-                    <Calendar size={14} className="text-emerald-400" />
-                    <span>{isTamil ? 'பதிவு செய்த நாள்' : 'Joined Date'}</span>
-                  </span>
-                  <span className="font-extrabold text-white dark:text-white text-slate-900">
-                    {formatMemberDate(user?.createdAt)}
-                  </span>
                 </div>
 
-                {/* Account Status */}
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-300 dark:text-slate-300 text-slate-600 font-semibold flex items-center gap-1.5">
-                    <Shield size={14} className="text-emerald-400" />
-                    <span>{isTamil ? 'கணக்கு நிலை' : 'Account Status'}</span>
-                  </span>
-                  <span className="font-black text-emerald-400">
-                    {isTamil ? 'சரிபார்க்கப்பட்டது' : 'Verified'}
-                  </span>
-                </div>
-
-                {/* Default Language */}
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-300 dark:text-slate-300 text-slate-600 font-semibold flex items-center gap-1.5">
-                    <Globe size={14} className="text-emerald-400" />
-                    <span>{isTamil ? 'இயல்பு மொழி' : 'Default Language'}</span>
-                  </span>
-                  <span className="font-extrabold text-white dark:text-white text-slate-900 uppercase">
-                    {user?.language || locale}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Profile Information & Location Form */}
-            <div className="lg:col-span-2 rounded-3xl bg-slate-900/90 dark:bg-slate-900/90 bg-white/95 backdrop-blur-2xl p-6 sm:p-8 flex flex-col gap-6 shadow-2xl border border-white/15 dark:border-white/15 border-slate-200/90">
-              <div className="border-b border-white/10 dark:border-white/10 border-slate-200 pb-4">
-                <h2 className="text-lg font-black text-white dark:text-white text-slate-900 m-0 flex items-center gap-2">
-                  <User className="text-emerald-400" size={20} />
-                  <span>{isTamil ? 'பயனர் & பண்ணை இருப்பிட விவரங்கள்' : 'Profile & Farm Location Details'}</span>
+                <h2 className="text-lg font-black text-text-main m-0 mb-1">
+                  {user?.username || (loadingUser ? 'Loading...' : 'User')}
                 </h2>
-                <p className="text-xs text-slate-300 dark:text-slate-300 text-slate-600 font-medium mt-1 mb-0">
-                  {isTamil
-                    ? 'உங்கள் பெயர், தொடர்பு எண், மற்றும் பண்ணையின் மாநிலம், மாவட்டம், கிராமம், முகவரியை அமைக்கவும்.'
-                    : 'Manage your name, contact phone number, and official farm location (State, District, Village & Address).'}
+                <p className="text-xs text-text-secondary font-semibold m-0 mb-3 flex items-center gap-1.5">
+                  <Mail size={13} className="text-emerald-400" />
+                  <span>{user?.email || '---'}</span>
                 </p>
+
+                <div className="flex flex-wrap items-center justify-center gap-2 mb-5">
+                  <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
+                    {user?.role || 'Farmer'}
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-xs font-bold glass-surface text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 flex items-center gap-1">
+                    <Activity size={12} />
+                    <span>{user?.isactive !== false ? (isTamil ? 'செயலில் உள்ளது' : 'Active Account') : 'Inactive'}</span>
+                  </span>
+                </div>
               </div>
 
-              {profileFeedback && (
-                <div
-                  className={`p-4 rounded-2xl border text-xs font-bold flex items-center gap-2.5 animate-fade-in ${
-                    profileFeedback.type === 'success'
-                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                      : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
-                  }`}
-                >
-                  {profileFeedback.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-                  <span>{profileFeedback.message}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleUpdateProfile} className="space-y-6">
-                {/* Row 1: Username & Email */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {/* Username Field */}
-                  <div>
-                    <label className="block text-xs font-bold text-white dark:text-white text-slate-900 uppercase tracking-wider mb-2">
-                      {isTamil ? 'பயனர் பெயர் (Username)' : 'Username / Full Name'}
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <div className="relative flex-1">
-                        <input
-                          type="text"
-                          value={usernameInput}
-                          onChange={(e) => setUsernameInput(e.target.value)}
-                          placeholder={isTamil ? 'எ.கா. Dr. M. Swaminathan' : 'e.g. Dr. M. Swaminathan'}
-                          readOnly={!isEditingUsername}
-                          className={`w-full px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-inner pr-10 ${
-                            isEditingUsername
-                              ? 'bg-slate-950 dark:bg-slate-950 bg-white border-2 border-emerald-500 text-white dark:text-white text-slate-900 focus:outline-none ring-2 ring-emerald-500/25'
-                              : 'bg-slate-950/70 dark:bg-slate-950/70 bg-slate-100 border border-white/20 dark:border-white/20 border-slate-300 text-white dark:text-white text-slate-900 cursor-default select-all'
-                          }`}
-                          disabled={savingProfile || loadingUser}
-                          autoFocus={isEditingUsername}
-                        />
-                        <User className="absolute right-3.5 top-3 text-slate-400 pointer-events-none" size={17} />
-                      </div>
-
-                      {!isEditingUsername ? (
-                        <button
-                          type="button"
-                          onClick={() => setIsEditingUsername(true)}
-                          className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs transition-all cursor-pointer whitespace-nowrap active:scale-95 shadow-md flex items-center justify-center gap-1.5"
-                        >
-                          <span>{isTamil ? 'மாற்று' : 'Change'}</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setUsernameInput(user?.username || '');
-                            setIsEditingUsername(false);
-                          }}
-                          className="px-3.5 py-2.5 rounded-xl bg-slate-800 dark:bg-slate-800 bg-slate-200 border border-white/20 dark:border-white/20 border-slate-300 text-white dark:text-white text-slate-800 text-xs font-bold transition-all cursor-pointer active:scale-95"
-                        >
-                          {isTamil ? 'ரத்து' : 'Cancel'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Registered Email */}
-                  <div>
-                    <label className="block text-xs font-bold text-white dark:text-white text-slate-900 uppercase tracking-wider mb-2">
-                      {isTamil ? 'மின்னஞ்சல் முகவரி' : 'Registered Email Address'}
-                    </label>
-                    <div className="relative">
+              {/* Editable User Account Details Form */}
+              <form onSubmit={handleUpdateProfile} className="w-full flex-1 flex flex-col gap-4 pt-4 border-t border-border-subtle text-left">
+                {/* Username / Full Name */}
+                <div>
+                  <label className="block text-[11px] font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+                    {isTamil ? 'பயனர் பெயர் (Username)' : 'Username / Full Name'}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
                       <input
-                        type="email"
-                        value={user?.email || ''}
-                        readOnly
-                        className="w-full px-4 py-2.5 rounded-xl bg-slate-950/70 dark:bg-slate-950/70 bg-slate-100 border border-white/20 dark:border-white/20 border-slate-300 text-white dark:text-white text-slate-900 text-sm font-mono cursor-pointer hover:border-emerald-500/50 focus:outline-none focus:border-emerald-500 transition-colors shadow-inner pr-10"
-                        onClick={(e) => (e.target as HTMLInputElement).select()}
-                        title={isTamil ? 'மின்னஞ்சலைத் தேர்ந்தெடுக்க கிளிக் செய்யவும்' : 'Click to select or copy email'}
+                        type="text"
+                        value={usernameInput}
+                        onChange={(e) => setUsernameInput(e.target.value)}
+                        placeholder={isTamil ? 'எ.கா. Dr. M. Swaminathan' : 'e.g. Dr. M. Swaminathan'}
+                        readOnly={!isEditingUsername}
+                        className={`w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-inner pr-9 ${
+                          isEditingUsername
+                            ? 'glass-input border-2 border-emerald-500 text-text-main focus:outline-none ring-2 ring-emerald-500/25'
+                            : 'glass-surface border border-border-light text-text-main cursor-default select-all'
+                        }`}
+                        disabled={savingProfile || loadingUser}
+                        autoFocus={isEditingUsername}
                       />
-                      <Mail className="absolute right-3.5 top-3 text-slate-400 pointer-events-none" size={17} />
+                      <User className="absolute right-3 top-2.5 text-text-secondary pointer-events-none" size={16} />
                     </div>
+
+                    {!isEditingUsername ? (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingUsername(true)}
+                        className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white keep-white font-black text-xs transition-all cursor-pointer whitespace-nowrap active:scale-95 shadow-md"
+                      >
+                        {isTamil ? 'மாற்று' : 'Change'}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUsernameInput(user?.username || '');
+                          setIsEditingUsername(false);
+                        }}
+                        className="px-3 py-2 rounded-xl glass-surface border border-border-light text-text-secondary text-xs font-bold transition-all cursor-pointer active:scale-95 hover:text-text-main"
+                      >
+                        {isTamil ? 'ரத்து' : 'Cancel'}
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Row 2: Phone Number Field */}
-                <div className="max-w-md">
-                  <label className="block text-xs font-bold text-white dark:text-white text-slate-900 uppercase tracking-wider mb-2">
+                {/* Registered Email Address */}
+                <div>
+                  <label className="block text-[11px] font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+                    {isTamil ? 'மின்னஞ்சல் முகவரி' : 'Registered Email Address'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      value={user?.email || ''}
+                      readOnly
+                      className="w-full px-3.5 py-2 rounded-xl glass-surface border border-border-subtle text-text-main text-xs sm:text-sm font-mono cursor-pointer hover:border-emerald-500/50 focus:outline-none focus:border-emerald-500 transition-colors shadow-inner pr-9"
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                      title={isTamil ? 'மின்னஞ்சலைத் தேர்ந்தெடுக்க கிளிக் செய்யவும்' : 'Click to select or copy email'}
+                    />
+                    <Mail className="absolute right-3 top-2.5 text-text-secondary pointer-events-none" size={16} />
+                  </div>
+                </div>
+
+                {/* Mobile Phone Number */}
+                <div>
+                  <label className="block text-[11px] font-bold text-text-secondary uppercase tracking-wider mb-1.5">
                     {isTamil ? 'தொலைபேசி எண் (Mobile Number)' : 'Mobile Phone Number'}
                   </label>
                   <div className="relative">
@@ -702,34 +767,116 @@ export default function SettingsPage() {
                       value={phoneInput}
                       onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, '').slice(0, 10))}
                       placeholder={isTamil ? 'எ.கா. 9876543210' : 'e.g. 9876543210'}
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-950/70 dark:bg-slate-950/70 bg-slate-100 border border-white/20 dark:border-white/20 border-slate-300 text-white dark:text-white text-slate-900 text-sm font-mono font-bold focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all shadow-inner pr-10"
+                      className="w-full px-3.5 py-2 rounded-xl glass-surface border border-border-light text-text-main text-xs sm:text-sm font-mono font-bold focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all shadow-inner pr-9"
                       disabled={savingProfile || loadingUser}
                     />
-                    <Phone className="absolute right-3.5 top-3 text-slate-400 pointer-events-none" size={17} />
+                    <Phone className="absolute right-3 top-2.5 text-text-secondary pointer-events-none" size={16} />
                   </div>
-                  <span className="text-[11px] text-slate-300 dark:text-slate-300 text-slate-600 font-medium mt-1.5 block">
+                  <span className="text-[11px] text-text-secondary font-medium mt-1 block">
                     {isTamil
-                      ? '10 இலக்க இந்திய மொபைல் எண் (SMS மற்றும் விவசாய அறிவிப்புகளுக்கு).'
-                      : '10-digit mobile number for farm advisory and SMS telemetry alerts.'}
+                      ? '10 இலக்க மொபைல் எண் (SMS அறிவிப்புகளுக்கு).'
+                      : '10-digit mobile number for SMS advisory alerts.'}
                   </span>
                 </div>
 
-                {/* Row 3: Farm Location (State, District, City/Village via common LocationSelectorFields) */}
-                <div className="pt-3 border-t border-white/10 dark:border-white/10 border-slate-200">
-                  <LocationSelectorFields
-                    location={location}
-                    isTamil={isTamil}
-                    disabled={savingProfile || loadingUser}
-                  />
+                {/* Account Meta Summary (Non-Location) */}
+                <div className="space-y-2.5 pt-3 border-t border-border-subtle">
+                  <div className="flex justify-between items-center text-xs px-1">
+                    <span className="text-text-secondary font-medium flex items-center gap-1.5">
+                      <Calendar size={14} className="text-emerald-500 dark:text-emerald-400" />
+                      <span>{isTamil ? 'பதிவு செய்த நாள்' : 'Joined Date'}</span>
+                    </span>
+                    <span className="font-extrabold text-text-main">
+                      {formatMemberDate(user?.createdAt)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs px-1">
+                    <span className="text-text-secondary font-medium flex items-center gap-1.5">
+                      <Shield size={14} className="text-emerald-500 dark:text-emerald-400" />
+                      <span>{isTamil ? 'கணக்கு நிலை' : 'Account Status'}</span>
+                    </span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                      {isTamil ? 'சரிபார்க்கப்பட்டது' : 'Verified'}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs px-1">
+                    <span className="text-text-secondary font-medium flex items-center gap-1.5">
+                      <Globe size={14} className="text-emerald-500 dark:text-emerald-400" />
+                      <span>{isTamil ? 'இயல்பு மொழி' : 'Default Language'}</span>
+                    </span>
+                    <span className="font-extrabold text-text-main uppercase">
+                      {user?.language || locale}
+                    </span>
+                  </div>
                 </div>
 
-                {/* Row 4: Farm Street Address */}
+                {/* Save User Details Button */}
+                <div className="pt-2 mt-auto">
+                  <button
+                    type="submit"
+                    disabled={savingProfile || loadingUser}
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white keep-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer active:scale-98 disabled:opacity-50"
+                  >
+                    <Save size={16} />
+                    <span>
+                      {savingProfile
+                        ? isTamil
+                          ? 'சேமிக்கப்படுகிறது...'
+                          : 'Saving...'
+                        : isTamil
+                        ? 'பயனர் விவரங்களைச் சேமி'
+                        : 'Save User Details'}
+                    </span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Right Column: Farm Location Only (Transparent Glass Panel) */}
+            <div className="lg:col-span-2 h-full rounded-2xl glass-panel p-6 sm:p-8 flex flex-col gap-6 shadow-xl border border-border-light">
+              <div className="border-b border-border-subtle pb-4">
+                <h2 className="text-lg font-black text-text-main m-0 flex items-center gap-2">
+                  <MapPin className="text-emerald-400" size={20} />
+                  <span>{isTamil ? 'பண்ணை இருப்பிட விவரங்கள்' : 'Farm Location Details'}</span>
+                </h2>
+                <p className="text-xs text-text-secondary font-medium mt-1 mb-0">
+                  {isTamil
+                    ? 'உங்கள் பண்ணையின் மாநிலம், மாவட்டம், கிராமம் மற்றும் தெரு முகவரியை அமைக்கவும்.'
+                    : 'Manage your official farm location (State, District, City / Village & Street Address).'}
+                </p>
+              </div>
+
+              {profileFeedback && (
+                <div
+                  className={`p-4 rounded-xl border text-xs font-bold flex items-center gap-2.5 animate-fade-in ${
+                    profileFeedback.type === 'success'
+                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-600 dark:text-emerald-300'
+                      : 'bg-rose-500/20 border-rose-500/40 text-rose-600 dark:text-rose-300'
+                  }`}
+                >
+                  {profileFeedback.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                  <span>{profileFeedback.message}</span>
+                </div>
+              )}
+
+              <div className="flex-1 flex flex-col gap-6">
+              <form onSubmit={handleUpdateProfile} className="flex flex-col gap-6">
+                {/* Farm Location (State, District, City/Village via common LocationSelectorFields) */}
+                <LocationSelectorFields
+                  location={location}
+                  isTamil={isTamil}
+                  disabled={savingProfile || loadingUser}
+                />
+
+                {/* Farm Street Address */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="block text-xs font-bold text-white dark:text-white text-slate-900 uppercase tracking-wider">
+                    <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider">
                       {isTamil ? 'பண்ணை முகவரி (Farm Address)' : 'Farm Street Address'}
                     </label>
-                    <span className="text-[11px] text-slate-400 dark:text-slate-400 text-slate-500 font-mono font-bold">
+                    <span className="text-[11px] text-text-muted font-mono font-bold">
                       {addressInput.length}/40
                     </span>
                   </div>
@@ -744,50 +891,123 @@ export default function SettingsPage() {
                           ? 'எ.கா. 14, வடக்கு தெரு, கோவில்பட்டி'
                           : 'e.g. 14, North Street, Kovilpatti'
                       }
-                      className="w-full rounded-2xl px-4 py-2.5 text-sm font-semibold bg-slate-950/70 dark:bg-slate-950/70 bg-slate-100 border border-white/20 dark:border-white/20 border-slate-300 text-white dark:text-white text-slate-900 focus:border-emerald-500"
+                      className="w-full rounded-xl px-4 py-2.5 text-sm font-semibold glass-surface border border-border-light text-text-main focus:border-emerald-500"
                       disabled={savingProfile || loadingUser}
                     />
                   </div>
-                  <span className="text-[11px] text-slate-300 dark:text-slate-300 text-slate-600 font-medium mt-1.5 block">
+                  <span className="text-[11px] text-text-secondary font-medium mt-1.5 block">
                     {isTamil
                       ? 'அதிகபட்சம் 40 எழுத்துகள் (கள முகவரி).'
                       : 'Maximum 40 characters for field location / mailing delivery.'}
                   </span>
                 </div>
 
-                {/* Submit / Save Profile Button */}
-                <div className="pt-3 flex justify-start">
+                {/* Submit / Save Farm Location Button */}
+                <div className="pt-2 flex justify-start">
                   <button
                     type="submit"
                     disabled={savingProfile || loadingUser}
-                    className="px-7 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 font-black text-sm flex items-center gap-2.5 shadow-xl shadow-emerald-500/30 transition-all cursor-pointer active:scale-98 disabled:opacity-50"
+                    className="px-7 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white keep-white font-black text-sm flex items-center gap-2.5 shadow-xl shadow-emerald-500/25 transition-all cursor-pointer active:scale-98 disabled:opacity-50"
                   >
                     <Save size={17} />
                     <span>
                       {savingProfile
                         ? isTamil
                           ? 'சேமிக்கப்படுகிறது...'
-                          : 'Saving Profile...'
+                          : 'Saving Location...'
                         : isTamil
-                        ? 'சுயவிவரத்தைச் சேமி'
-                        : 'Save Profile & Location'}
+                        ? 'இருப்பிடத்தைச் சேமி'
+                        : 'Save Farm Location'}
                     </span>
                   </button>
                 </div>
               </form>
+
+              {/* Danger Zone: Delete Account */}
+              <div className="mt-auto pt-6 border-t border-rose-500/25">
+                <div className="rounded-2xl border border-rose-500/30 bg-rose-500/[0.06] p-4 sm:p-5 space-y-3">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle size={18} className="text-rose-500 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-sm font-black text-rose-600 dark:text-rose-400">
+                        {isTamil ? 'கணக்கை நிரந்தரமாக நீக்கு (Delete Account)' : 'Delete Account'}
+                      </div>
+                      <p className="text-xs text-text-secondary font-medium mt-1 mb-0 leading-relaxed">
+                        {isTamil
+                          ? `உங்கள் கணக்கு மற்றும் சேமிக்கப்பட்ட சாகுபடி திட்டங்களை நிரந்தரமாக நீக்க, கீழே "${expectedDeletePhrase}" என தட்டச்சு செய்யவும்.`
+                          : `Once deleted, your account and all saved cultivation plans cannot be recovered. Type "${expectedDeletePhrase}" below to enable account deletion.`}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+                    <input
+                      type="text"
+                      value={deleteConfirmInput}
+                      onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (deleteConfirmInput.trim() === expectedDeletePhrase && !loadingUser && !deletingAccount) {
+                            setDeleteModalOpen(true);
+                          }
+                        }
+                      }}
+                      placeholder={expectedDeletePhrase}
+                      disabled={loadingUser || deletingAccount}
+                      className="flex-1 px-4 py-2.5 rounded-xl glass-surface border border-rose-500/30 text-text-main text-xs sm:text-sm font-mono focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all"
+                    />
+                    <HoldButton
+                      doneLabel={isTamil ? 'நீக்கப்பட்டது' : 'Deleted'}
+                      icon={<Trash2 size={15} />}
+                      backgroundColor="#b91c1c"
+                      fillColor="#ef4444"
+                      textColor="#ffffff"
+                      fillTextColor="#ffffff"
+                      size="md"
+                      radius={14}
+                      fillDirection="right"
+                      holdTime={2000}
+                      releaseTime={200}
+                      pressScale={0.97}
+                      wave
+                      waveAmplitude={6}
+                      glow
+                      resetAfter={1200}
+                      disabled={
+                        loadingUser ||
+                        deletingAccount ||
+                        deleteConfirmInput.trim() !== expectedDeletePhrase
+                      }
+                      onHold={() => setDeleteModalOpen(true)}
+                      onTap={() =>
+                        message.info(
+                          isTamil
+                            ? 'கணக்கை நீக்க 2 வினாடிகள் அழுத்திப் பிடிக்கவும்.'
+                            : 'Press and hold for 2 seconds to delete your account.'
+                        )
+                      }
+                      className="keep-white whitespace-nowrap shrink-0"
+                    >
+                      {isTamil ? 'நீக்க அழுத்திப் பிடிக்கவும்' : 'Hold to delete'}
+                    </HoldButton>
+                  </div>
+                </div>
+              </div>
+              </div>
             </div>
           </div>
         )}
 
-        {/* SECTION 2: CHANGE PASSWORD */}
+        {/* SECTION 2: CHANGE PASSWORD (Transparent Glass Card Design) */}
         {activeTab === 'security-password' && (
-          <div className="max-w-3xl rounded-3xl bg-slate-900/90 dark:bg-slate-900/90 bg-white/95 backdrop-blur-2xl p-6 sm:p-8 flex flex-col gap-6 shadow-2xl border border-white/15 dark:border-white/15 border-slate-200/90">
-            <div className="border-b border-white/10 dark:border-white/10 border-slate-200 pb-4">
-              <h2 className="text-lg font-black text-white dark:text-white text-slate-900 m-0 flex items-center gap-2">
+          <div className="max-w-3xl rounded-2xl glass-panel p-6 sm:p-8 flex flex-col gap-6 shadow-xl border border-border-light">
+            <div className="border-b border-border-subtle pb-4">
+              <h2 className="text-lg font-black text-text-main m-0 flex items-center gap-2">
                 <KeyRound className="text-emerald-400" size={20} />
                 <span>{isTamil ? 'கடவுச்சொல்லை மாற்றவும்' : 'Change Password'}</span>
               </h2>
-              <p className="text-xs text-slate-300 dark:text-slate-300 text-slate-600 font-medium mt-1 mb-0">
+              <p className="text-xs text-text-secondary font-medium mt-1 mb-0">
                 {isTamil
                   ? 'உங்கள் தற்போதைய கடவுச்சொல்லை உள்ளிட்ட பின் புதிய வலுவான கடவுச்சொல்லை அமைக்கவும்.'
                   : 'Enter your current password followed by your new password to ensure maximum security.'}
@@ -796,10 +1016,10 @@ export default function SettingsPage() {
 
             {passwordFeedback && (
               <div
-                className={`p-4 rounded-2xl border text-xs font-bold flex items-center gap-2.5 animate-fade-in ${
+                className={`p-4 rounded-xl border text-xs font-bold flex items-center gap-2.5 animate-fade-in ${
                   passwordFeedback.type === 'success'
-                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                    : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-600 dark:text-emerald-300'
+                    : 'bg-rose-500/20 border-rose-500/40 text-rose-600 dark:text-rose-300'
                 }`}
               >
                 {passwordFeedback.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
@@ -810,7 +1030,7 @@ export default function SettingsPage() {
             <form onSubmit={handleUpdatePassword} className="space-y-5">
               {/* Current Password Field */}
               <div>
-                <label className="block text-xs font-bold text-white dark:text-white text-slate-900 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">
                   {isTamil ? 'தற்போதைய கடவுச்சொல்' : 'Current Password'}
                 </label>
                 <div className="relative max-w-md">
@@ -819,13 +1039,13 @@ export default function SettingsPage() {
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950/70 dark:bg-slate-950/70 bg-slate-100 border border-white/20 dark:border-white/20 border-slate-300 text-white dark:text-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-emerald-500 transition-colors shadow-inner pr-11"
+                    className="w-full px-4 py-2.5 rounded-xl glass-surface border border-border-light text-text-main text-sm font-semibold focus:outline-none focus:border-emerald-500 transition-colors shadow-inner pr-11"
                     disabled={savingPassword}
                   />
                   <button
                     type="button"
                     onClick={() => setShowCurrentPass(!showCurrentPass)}
-                    className="absolute right-3.5 top-3 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    className="absolute right-3.5 top-3 text-text-secondary hover:text-text-main transition-colors cursor-pointer"
                     aria-label="Toggle Current Password Visibility"
                   >
                     {showCurrentPass ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -835,7 +1055,7 @@ export default function SettingsPage() {
 
               {/* New Password Field */}
               <div>
-                <label className="block text-xs font-bold text-white dark:text-white text-slate-900 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">
                   {isTamil ? 'புதிய கடவுச்சொல் (குறைந்தபட்சம் 6 எழுத்துகள்)' : 'New Password (min 6 characters)'}
                 </label>
                 <div className="relative max-w-md">
@@ -844,13 +1064,13 @@ export default function SettingsPage() {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950/70 dark:bg-slate-950/70 bg-slate-100 border border-white/20 dark:border-white/20 border-slate-300 text-white dark:text-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-emerald-500 transition-colors shadow-inner pr-11"
+                    className="w-full px-4 py-2.5 rounded-xl glass-surface border border-border-light text-text-main text-sm font-semibold focus:outline-none focus:border-emerald-500 transition-colors shadow-inner pr-11"
                     disabled={savingPassword}
                   />
                   <button
                     type="button"
                     onClick={() => setShowNewPass(!showNewPass)}
-                    className="absolute right-3.5 top-3 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    className="absolute right-3.5 top-3 text-text-secondary hover:text-text-main transition-colors cursor-pointer"
                     aria-label="Toggle New Password Visibility"
                   >
                     {showNewPass ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -860,7 +1080,7 @@ export default function SettingsPage() {
 
               {/* Confirm New Password Field with Eye Icon */}
               <div>
-                <label className="block text-xs font-bold text-white dark:text-white text-slate-900 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">
                   {isTamil ? 'புதிய கடவுச்சொல்லை மீண்டும் உள்ளிடவும்' : 'Confirm New Password'}
                 </label>
                 <div className="relative max-w-md">
@@ -869,13 +1089,13 @@ export default function SettingsPage() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950/70 dark:bg-slate-950/70 bg-slate-100 border border-white/20 dark:border-white/20 border-slate-300 text-white dark:text-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-emerald-500 transition-colors shadow-inner pr-11"
+                    className="w-full px-4 py-2.5 rounded-xl glass-surface border border-border-light text-text-main text-sm font-semibold focus:outline-none focus:border-emerald-500 transition-colors shadow-inner pr-11"
                     disabled={savingPassword}
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPass(!showConfirmPass)}
-                    className="absolute right-3.5 top-3 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    className="absolute right-3.5 top-3 text-text-secondary hover:text-text-main transition-colors cursor-pointer"
                     aria-label="Toggle Confirm Password Visibility"
                   >
                     {showConfirmPass ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -883,12 +1103,12 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Submit Button with Dynamic Theme Text Color: white for dark theme, dark for white theme */}
+              {/* Submit Button */}
               <div className="pt-3 flex justify-start">
                 <button
                   type="submit"
                   disabled={savingPassword || !currentPassword || !newPassword}
-                  className="px-7 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 dark:text-white font-black text-sm flex items-center gap-2.5 shadow-xl shadow-emerald-500/30 transition-all cursor-pointer active:scale-98"
+                  className="px-7 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white keep-white font-black text-sm flex items-center gap-2.5 shadow-xl shadow-emerald-500/25 transition-all cursor-pointer active:scale-98"
                 >
                   <Lock size={17} />
                   <span>{savingPassword ? (isTamil ? 'மாற்றப்படுகிறது...' : 'Updating...') : isTamil ? 'கடவுச்சொல்லை மாற்று' : 'Update Password'}</span>
@@ -898,16 +1118,16 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* SECTION 3: LANGUAGE AND THEME */}
+        {/* SECTION 3: LANGUAGE AND THEME (Transparent Glass Card Design) */}
         {activeTab === 'language-theme' && (
-          <div className="max-w-4xl rounded-3xl bg-slate-900/90 dark:bg-slate-900/90 bg-white/95 backdrop-blur-2xl p-6 sm:p-8 flex flex-col gap-8 shadow-2xl border border-white/15 dark:border-white/15 border-slate-200/90">
+          <div className="max-w-4xl rounded-2xl glass-panel p-6 sm:p-8 flex flex-col gap-8 shadow-xl border border-border-light">
             {/* Header: Language and Theme */}
-            <div className="border-b border-white/10 dark:border-white/10 border-slate-200 pb-4">
-              <h2 className="text-lg font-black text-white dark:text-white text-slate-900 m-0 flex items-center gap-2">
+            <div className="border-b border-border-subtle pb-4">
+              <h2 className="text-lg font-black text-text-main m-0 flex items-center gap-2">
                 <Palette className="text-emerald-400" size={20} />
                 <span>{isTamil ? 'மொழி மற்றும் தீம்' : 'Language and Theme'}</span>
               </h2>
-              <p className="text-xs text-slate-300 dark:text-slate-300 text-slate-600 font-medium mt-1 mb-0">
+              <p className="text-xs text-text-secondary font-medium mt-1 mb-0">
                 {isTamil
                   ? 'உங்கள் காட்சி தீம் மற்றும் மொழியைத் தேர்ந்தெடுக்கவும். இவை உங்கள் கணக்கில் நேரடியாக சேமிக்கப்படும்.'
                   : 'Customize your visual theme and preferred system language. Preferences are instantly synced to your account.'}
@@ -917,30 +1137,23 @@ export default function SettingsPage() {
             {/* Sub-section 1: Theme Selection */}
             <div>
               <div className="mb-3.5">
-                <h3 className="text-sm font-bold text-white dark:text-white text-slate-900 m-0 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-text-main m-0 flex items-center gap-2">
                   <Sun className="text-emerald-400" size={16} />
                   <span>{isTamil ? 'தீம் தேர்வு (Theme Preferences)' : 'Theme Selection'}</span>
                 </h3>
-                <span className="text-xs text-slate-300 dark:text-slate-300 text-slate-600 font-medium">
+                <span className="text-xs text-text-secondary font-medium">
                   {isTamil ? 'இருண்ட அல்லது ஒளிர் இடைமுகத்தைத் தேர்ந்தெடுக்கவும்' : 'Switch between Dark Cosmos and Daylight crisp theme'}
                 </span>
               </div>
-
-              {themeFeedback && (
-                <div className="p-3.5 rounded-2xl border bg-emerald-500/20 border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2 mb-4 animate-fade-in">
-                  <CheckCircle2 size={16} />
-                  <span>{themeFeedback}</span>
-                </div>
-              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-1">
                 {/* Dark Theme Option */}
                 <div
                   onClick={() => handleThemeChange('dark')}
-                  className={`relative p-6 rounded-3xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${
+                  className={`relative p-6 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${
                     theme === 'dark'
-                      ? 'border-emerald-500 bg-slate-950 shadow-2xl shadow-emerald-500/25 ring-2 ring-emerald-500/40'
-                      : 'border-white/10 bg-slate-950/60 hover:border-emerald-500/50 hover:bg-slate-950/80'
+                      ? 'border-emerald-500 bg-emerald-500/10 shadow-xl shadow-emerald-500/20 ring-2 ring-emerald-500/30'
+                      : 'border-border-light glass-card hover:border-emerald-500/50 hover:bg-surface/60'
                   }`}
                 >
                   {theme === 'dark' && (
@@ -949,47 +1162,21 @@ export default function SettingsPage() {
                     </div>
                   )}
 
-                  <div className="flex items-center gap-3.5 mb-4">
-                    <div className="w-12 h-12 rounded-2xl bg-slate-900 text-cyan-400 flex items-center justify-center border border-white/15 shadow-inner">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-xl bg-slate-950/80 text-cyan-400 flex items-center justify-center border border-white/10 shadow-inner">
                       <Moon size={24} />
                     </div>
                     <div>
                       <h4
                         className={`text-base font-black m-0 ${
-                          theme === 'dark' ? 'text-white' : 'text-slate-200'
+                          theme === 'dark' ? 'text-white' : 'text-text-main'
                         }`}
                       >
                         {isTamil ? 'இருண்ட தீம் (Dark Theme)' : 'Dark Cosmos Theme'}
                       </h4>
-                      <span
-                        className={`text-xs font-medium ${
-                          theme === 'dark' ? 'text-slate-300' : 'text-slate-400'
-                        }`}
-                      >
+                      <span className="text-xs font-medium text-text-secondary">
                         {isTamil ? 'குறைந்த ஒளி, ஒளிரும் பச்சை நிறங்கள்' : 'Deep obsidian slate & emerald accents'}
                       </span>
-                    </div>
-                  </div>
-
-                  <div
-                    className={`p-3 rounded-2xl border space-y-2 mt-auto ${
-                      theme === 'dark'
-                        ? 'bg-slate-900 border-white/15'
-                        : 'bg-slate-900/50 border-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400" />
-                      <span
-                        className={`text-xs font-mono font-bold ${
-                          theme === 'dark' ? 'text-slate-200' : 'text-slate-400'
-                        }`}
-                      >
-                        FarmHub Emerald #10b981
-                      </span>
-                    </div>
-                    <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-emerald-500 to-cyan-400 w-3/4" />
                     </div>
                   </div>
                 </div>
@@ -997,10 +1184,10 @@ export default function SettingsPage() {
                 {/* Light Theme Option */}
                 <div
                   onClick={() => handleThemeChange('light')}
-                  className={`relative p-6 rounded-3xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${
+                  className={`relative p-6 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${
                     theme === 'light'
-                      ? 'border-emerald-500 bg-white shadow-2xl shadow-emerald-500/25 ring-2 ring-emerald-500/40'
-                      : 'border-white/10 bg-slate-950/60 hover:border-emerald-500/50 hover:bg-slate-950/80'
+                      ? 'border-emerald-500 bg-emerald-500/10 shadow-xl shadow-emerald-500/20 ring-2 ring-emerald-500/30'
+                      : 'border-border-light glass-card hover:border-emerald-500/50 hover:bg-surface/60'
                   }`}
                 >
                   {theme === 'light' && (
@@ -1009,47 +1196,21 @@ export default function SettingsPage() {
                     </div>
                   )}
 
-                  <div className="flex items-center gap-3.5 mb-4">
-                    <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center border border-amber-200 shadow-sm">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-xl bg-amber-50/90 text-amber-500 flex items-center justify-center border border-amber-200 shadow-sm">
                       <Sun size={24} />
                     </div>
                     <div>
                       <h4
                         className={`text-base font-black m-0 ${
-                          theme === 'light' ? 'text-slate-950' : 'text-slate-200'
+                          theme === 'light' ? 'text-slate-950' : 'text-text-main'
                         }`}
                       >
                         {isTamil ? 'ஒளிர் தீம் (Light Theme)' : 'Daylight Emerald Theme'}
                       </h4>
-                      <span
-                        className={`text-xs font-medium ${
-                          theme === 'light' ? 'text-slate-700' : 'text-slate-400'
-                        }`}
-                      >
+                      <span className="text-xs font-medium text-text-secondary">
                         {isTamil ? 'பகல் நேர தெளிவான பார்வை' : 'Clean daytime high-contrast clarity'}
                       </span>
-                    </div>
-                  </div>
-
-                  <div
-                    className={`p-3 rounded-2xl border space-y-2 mt-auto ${
-                      theme === 'light'
-                        ? 'bg-slate-100 border-slate-200'
-                        : 'bg-slate-900/50 border-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm" />
-                      <span
-                        className={`text-xs font-mono font-bold ${
-                          theme === 'light' ? 'text-slate-900' : 'text-slate-400'
-                        }`}
-                      >
-                        Daylight Crisp Emerald
-                      </span>
-                    </div>
-                    <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 w-3/4" />
                     </div>
                   </div>
                 </div>
@@ -1057,34 +1218,27 @@ export default function SettingsPage() {
             </div>
 
             {/* Sub-section 2: Language Selection */}
-            <div className="pt-6 border-t border-white/10 dark:border-white/10 border-slate-200">
+            <div className="pt-6 border-t border-border-subtle">
               <div className="mb-3.5">
-                <h3 className="text-sm font-bold text-white dark:text-white text-slate-900 m-0 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-text-main m-0 flex items-center gap-2">
                   <Globe className="text-emerald-400" size={16} />
                   <span>{isTamil ? 'மொழி விருப்பத்தேர்வு (Language Selection)' : 'Language Selection'}</span>
                 </h3>
-                <span className="text-xs text-slate-300 dark:text-slate-300 text-slate-600 font-medium">
+                <span className="text-xs text-text-secondary font-medium">
                   {isTamil
                     ? 'முழு அமைப்பின் மொழியைத் தேர்ந்தெடுக்கவும் (தமிழ் அல்லது ஆங்கிலம்)'
                     : 'Choose your application language. All modules, reports, and alerts will reflect this language.'}
                 </span>
               </div>
 
-              {langFeedback && (
-                <div className="p-3.5 rounded-2xl border bg-emerald-500/20 border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2 mb-4 animate-fade-in">
-                  <CheckCircle2 size={16} />
-                  <span>{langFeedback}</span>
-                </div>
-              )}
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-1">
                 {/* English Option */}
                 <div
                   onClick={() => handleLanguageChange('en')}
-                  className={`relative p-6 rounded-3xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${
+                  className={`relative p-6 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${
                     locale === 'en'
-                      ? 'border-emerald-500 bg-emerald-500/15 shadow-2xl shadow-emerald-500/20 ring-2 ring-emerald-500/40'
-                      : 'border-white/10 bg-slate-950/60 hover:border-emerald-500/50 hover:bg-slate-950/80'
+                      ? 'border-emerald-500 bg-emerald-500/15 shadow-xl shadow-emerald-500/20 ring-2 ring-emerald-500/30'
+                      : 'border-border-light glass-card hover:border-emerald-500/50 hover:bg-surface/60'
                   }`}
                 >
                   {locale === 'en' && (
@@ -1093,32 +1247,28 @@ export default function SettingsPage() {
                     </div>
                   )}
 
-                  <div className="flex items-center gap-3.5 mb-3">
-                    <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 text-cyan-400 font-black text-base flex items-center justify-center border border-cyan-500/40">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-xl bg-cyan-500/20 text-cyan-400 font-black text-base flex items-center justify-center border border-cyan-500/30">
                       EN
                     </div>
                     <div>
-                      <h4 className="text-base font-black text-white dark:text-white text-slate-900 m-0">
+                      <h4 className="text-base font-black text-text-main m-0">
                         English (Global)
                       </h4>
-                      <span className="text-xs text-slate-300 dark:text-slate-300 text-slate-600 font-medium">
+                      <span className="text-xs text-text-secondary font-medium">
                         Default international agricultural & agronomic terminology
                       </span>
                     </div>
-                  </div>
-
-                  <div className="mt-4 p-3.5 rounded-2xl bg-slate-950/60 dark:bg-slate-950/60 bg-slate-100 border border-white/10 dark:border-white/10 border-slate-200 text-xs text-slate-300 dark:text-slate-300 text-slate-700 font-medium">
-                    &quot;Empowering farmers with hydrology telemetry, certified seed databases, and 5-phase agronomy audit.&quot;
                   </div>
                 </div>
 
                 {/* Tamil Option */}
                 <div
                   onClick={() => handleLanguageChange('ta')}
-                  className={`relative p-6 rounded-3xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${
+                  className={`relative p-6 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${
                     locale === 'ta'
-                      ? 'border-emerald-500 bg-emerald-500/15 shadow-2xl shadow-emerald-500/20 ring-2 ring-emerald-500/40'
-                      : 'border-white/10 bg-slate-950/60 hover:border-emerald-500/50 hover:bg-slate-950/80'
+                      ? 'border-emerald-500 bg-emerald-500/15 shadow-xl shadow-emerald-500/20 ring-2 ring-emerald-500/30'
+                      : 'border-border-light glass-card hover:border-emerald-500/50 hover:bg-surface/60'
                   }`}
                 >
                   {locale === 'ta' && (
@@ -1127,22 +1277,18 @@ export default function SettingsPage() {
                     </div>
                   )}
 
-                  <div className="flex items-center gap-3.5 mb-3">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 font-black text-base flex items-center justify-center border border-emerald-500/40">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 font-black text-base flex items-center justify-center border border-emerald-500/30">
                       தமிழ்
                     </div>
                     <div>
-                      <h4 className="text-base font-black text-white dark:text-white text-slate-900 m-0">
+                      <h4 className="text-base font-black text-text-main m-0">
                         தமிழ் (Tamil)
                       </h4>
-                      <span className="text-xs text-slate-300 dark:text-slate-300 text-slate-600 font-medium">
+                      <span className="text-xs text-text-secondary font-medium">
                         காவிரி டெல்டா மற்றும் தமிழ்நாடு விவசாயிகளுக்கான நேரடி தமிழ் பதிப்பு
                       </span>
                     </div>
-                  </div>
-
-                  <div className="mt-4 p-3.5 rounded-2xl bg-slate-950/60 dark:bg-slate-950/60 bg-slate-100 border border-white/10 dark:border-white/10 border-slate-200 text-xs text-slate-300 dark:text-slate-300 text-slate-700 font-medium leading-relaxed">
-                    &quot;5-நிலை சாகுபடி மேலாண்மை, நேரடி அணை நீர்மட்ட அளவீடு மற்றும் வேளாண் நுண்ணறிவு தளம்.&quot;
                   </div>
                 </div>
               </div>
@@ -1150,6 +1296,62 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
+
+      {/* Change Password OTP Verification Modal Popup */}
+      <OtpVerificationModal
+        open={passOtpOpen}
+        email={passOtpEmail}
+        title={isTamil ? 'கடவுச்சொல் மாற்றத்தை உறுதிப்படுத்து' : 'Confirm Password Change'}
+        subtitle={
+          isTamil
+            ? 'பாதுகாப்பு உறுதிப்படுத்தலுக்கு, உங்கள் பதிவுசெய்த மின்னஞ்சலுக்கு அனுப்பப்பட்ட 6 இலக்க குறியீட்டை உள்ளிடவும்.'
+            : 'For your security, enter the 6-digit verification code sent to your email address to apply your new password.'
+        }
+        confirmLabel={isTamil ? 'சரிபார்த்து கடவுச்சொல்லை மாற்று' : 'Verify & Update Password'}
+        loading={passOtpLoading}
+        resending={passOtpResending}
+        errorMsg={passOtpError}
+        secondsLeft={passOtpSeconds}
+        status={passOtpStatus}
+        onStatusChange={setPassOtpStatus}
+        onVerify={handleVerifyPasswordOtp}
+        onResend={handleResendPasswordOtp}
+        onCancel={() => {
+          setPassOtpOpen(false);
+          setPassOtpError(null);
+        }}
+        isTamil={isTamil}
+        previewUrl={passOtpPreviewUrl}
+      />
+
+      {/* Permanent Account Deletion Confirmation Popup */}
+      <Modal
+        open={deleteModalOpen}
+        onCancel={() => {
+          if (!deletingAccount) setDeleteModalOpen(false);
+        }}
+        onOk={handleDeleteAccount}
+        confirmLoading={deletingAccount}
+        centered
+        title={
+          <div className="flex items-center gap-2 text-rose-500 font-black">
+            <AlertTriangle size={18} />
+            <span>
+              {isTamil ? 'கணக்கை நிரந்தரமாக நீக்கவா?' : 'Confirm Permanent Account Deletion'}
+            </span>
+          </div>
+        }
+        okText={isTamil ? 'ஆம், கணக்கை நீக்கு' : 'Yes, Delete Permanently'}
+        cancelText={isTamil ? 'ரத்து' : 'Cancel'}
+        okButtonProps={{ danger: true, className: 'font-bold rounded-xl' }}
+        cancelButtonProps={{ disabled: deletingAccount, className: 'font-bold rounded-xl' }}
+      >
+        <p className="text-sm text-slate-600 dark:text-slate-300 m-0 py-2 leading-relaxed">
+          {isTamil
+            ? 'இந்த செயலைத் திரும்பப் பெற முடியாது. உங்கள் சுயவிவரம், சாகுபடி திட்டங்கள் மற்றும் அனைத்து செயலில் உள்ள அமர்வுகளும் நிரந்தரமாக நீக்கப்படும்.'
+            : 'This action cannot be undone. Your user profile, saved cultivation plans, and all active sessions will be permanently deleted.'}
+        </p>
+      </Modal>
     </div>
   );
 }

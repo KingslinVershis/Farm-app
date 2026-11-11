@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
+import { getServerAuthenticatedUser, clearAuthCookies } from '@/lib/serverAuth';
 
 export interface ReservoirRecord {
   id: string;
@@ -54,6 +55,16 @@ function parseNum(val: string): number {
 }
 
 export async function GET(request: NextRequest) {
+  const authUser = await getServerAuthenticatedUser(request);
+  if (!authUser?.id) {
+    const res = NextResponse.json(
+      { success: false, error: 'Session invalidated or expired', code: 'SESSION_INVALIDATED' },
+      { status: 401 }
+    );
+    clearAuthCookies(res);
+    return res;
+  }
+
   const { searchParams } = new URL(request.url);
   const dateParam = searchParams.get('date')?.trim();
 

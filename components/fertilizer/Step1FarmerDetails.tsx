@@ -329,18 +329,12 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
   useEffect(() => {
     fetchLgdStates().then((res) => {
       setStatesList(res);
-      if (res.length > 0) {
-        let savedState = '';
-        try {
-          const saved = localStorage.getItem('farmhub_farmer_location') || localStorage.getItem('agripulse_farmer_location');
-          if (saved) savedState = JSON.parse(saved).state || '';
-        } catch { }
-
-        const targetStateName = savedState || userDetails.state;
-        const found = targetStateName
-          ? res.find((s) => s.name.toLowerCase() === targetStateName.toLowerCase() || s.name.toLowerCase().includes(targetStateName.toLowerCase()))
-          : res.find((s) => s.name.toLowerCase().includes('tamil')) || res[0];
-
+      if (res.length > 0 && userDetails.state) {
+        const found = res.find(
+          (s) =>
+            s.name.toLowerCase() === userDetails.state!.toLowerCase() ||
+            s.name.toLowerCase().includes(userDetails.state!.toLowerCase())
+        );
         if (found) {
           setSelectedStateCode(found.code);
           setSelectedStateName(found.name);
@@ -359,17 +353,8 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
     fetchLgdDistricts(selectedStateCode).then((res) => {
       setDistrictsList(res);
       setLoadingDistricts(false);
-      if (res.length > 0) {
-        let savedDistrict = '';
-        try {
-          const saved = localStorage.getItem('farmhub_farmer_location') || localStorage.getItem('agripulse_farmer_location');
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            savedDistrict = parsed.district || '';
-          }
-        } catch { }
-
-        const targetDistName = savedDistrict || userDetails.district;
+      if (res.length > 0 && (userDetails.district || selectedDistrictName)) {
+        const targetDistName = selectedDistrictName || userDetails.district || '';
         const found = targetDistName ? matchDistrict(res, targetDistName) : null;
 
         if (found) {
@@ -378,9 +363,6 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
         } else if (targetDistName) {
           setSelectedDistrictCode(targetDistName);
           setSelectedDistrictName(targetDistName);
-        } else if (res[0]) {
-          setSelectedDistrictCode(res[0].code);
-          setSelectedDistrictName(res[0].name);
         }
       }
     });
@@ -397,22 +379,12 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
       setPlacesList(res);
       setLoadingPlaces(false);
       if (res.length > 0) {
-        let savedPlace = '';
-        try {
-          const saved = localStorage.getItem('farmhub_farmer_location') || localStorage.getItem('agripulse_farmer_location');
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            savedPlace = parsed.place || '';
+        const currentName = manualPlaceName || selectedPlace || userDetails.village || userDetails.city || '';
+        if (currentName) {
+          const found = res.find((p) => p.name.toLowerCase() === currentName.toLowerCase());
+          if (found) {
+            setSelectedPlace(found.name);
           }
-        } catch { }
-
-        const currentName = savedPlace || manualPlaceName || selectedPlace;
-        const found = currentName ? res.find((p) => p.name.toLowerCase() === currentName.toLowerCase()) : null;
-
-        if (found) {
-          setSelectedPlace(found.name);
-        } else if (!isManualInput && !manualPlaceName) {
-          setSelectedPlace(res[0].name);
         }
       }
     });
@@ -561,7 +533,7 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
                     type="button"
                     onClick={() => updateField('landSize', preset)}
                     className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${userDetails.landSize === preset
-                      ? 'bg-emerald-500 text-slate-950'
+                      ? 'bg-emerald-500 text-white keep-white'
                       : 'glass-surface text-text-muted hover:text-text-main'
                       }`}
                   >
@@ -944,7 +916,7 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
                       <button
                         type="button"
                         onClick={handleFocusCityVillageInput}
-                        className="px-3 py-1.5 text-xs font-bold text-slate-950 bg-emerald-500 rounded-lg hover:bg-emerald-400 transition-colors cursor-pointer"
+                        className="px-3 py-1.5 text-xs font-bold text-white keep-white bg-emerald-500 rounded-lg hover:bg-emerald-400 transition-colors cursor-pointer"
                       >
                         {t.step1.enterExactPlaceBtn}
                       </button>
@@ -993,7 +965,7 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
           <button
             type="submit"
             id="btn-continue-step1"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-2.5 text-sm font-extrabold text-slate-950 shadow-glow transition-all hover:bg-emerald-400 active:scale-95 cursor-pointer"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-2.5 text-sm font-extrabold text-white keep-white shadow-glow transition-all hover:bg-emerald-400 active:scale-95 cursor-pointer"
           >
             {t.step1.submitBtn} →
           </button>

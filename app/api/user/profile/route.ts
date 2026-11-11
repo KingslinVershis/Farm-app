@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
-import { getAuthenticatedUser, createAuthToken, AUTH_COOKIE_NAME, LEGACY_AUTH_COOKIE_NAME } from '@/lib/auth';
+import { createAuthToken, AUTH_COOKIE_NAME, LEGACY_AUTH_COOKIE_NAME, SESSION_MAX_AGE_SECONDS } from '@/lib/auth';
+import { getServerAuthenticatedUser } from '@/lib/serverAuth';
 
 /**
  * POST /api/user/profile or PATCH /api/user/profile
@@ -8,7 +9,7 @@ import { getAuthenticatedUser, createAuthToken, AUTH_COOKIE_NAME, LEGACY_AUTH_CO
  */
 export async function POST(request: NextRequest) {
   try {
-    const authUser = await getAuthenticatedUser(request);
+    const authUser = await getServerAuthenticatedUser(request);
     if (!authUser || !authUser.id) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized: Valid authentication required' },
@@ -115,9 +116,19 @@ export async function POST(request: NextRequest) {
 
     const updated = result.rows[0];
 
-    // Refresh JWT token with updated profile
+    // Refresh JWT token with updated profile while strictly preserving the original 24h login deadline
+    const loginAt = typeof authUser.loginAt === 'number'
+      ? authUser.loginAt
+      : typeof authUser.iat === 'number'
+      ? authUser.iat * 1000
+      : Date.now();
+    const elapsedSec = Math.floor((Date.now() - loginAt) / 1000);
+    const remainingSec = Math.max(60, SESSION_MAX_AGE_SECONDS - elapsedSec);
+
     const tokenPayload = {
       id: updated.id,
+      jti: authUser.jti,
+      loginAt,
       isActive: updated.isactive,
       role: updated.role || 'Farmer',
       username: updated.username,
@@ -126,7 +137,7 @@ export async function POST(request: NextRequest) {
       updatedAt: updated.updated_at,
     };
 
-    const token = await createAuthToken(tokenPayload, '7d');
+    const token = await createAuthToken(tokenPayload, remainingSec);
 
     const response = NextResponse.json({
       success: true,
@@ -149,7 +160,7 @@ export async function POST(request: NextRequest) {
 
     const cookieOptions = {
       path: '/',
-      maxAge: 604800,
+      maxAge: remainingSec,
       sameSite: 'lax' as const,
       httpOnly: false,
     };

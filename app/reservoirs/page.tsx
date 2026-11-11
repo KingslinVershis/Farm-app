@@ -529,7 +529,7 @@ export default function ReservoirsPage() {
               <p className="text-xs text-text-muted max-w-md">{error}</p>
               <button
                 onClick={() => fetchReservoirData()}
-                className="mt-2 px-4 py-2 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs shadow-md cursor-pointer hover:bg-emerald-400 transition-all"
+                className="mt-2 px-4 py-2 rounded-lg bg-emerald-500 text-white keep-white font-bold text-xs shadow-md cursor-pointer hover:bg-emerald-400 transition-all"
               >
                 {m.retryFetch}
               </button>

@@ -329,7 +329,7 @@ export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
                   <button
                     type="button"
                     onClick={handleFocusCityVillageInput}
-                    className="px-3 py-1 text-xs font-bold text-slate-950 bg-emerald-500 rounded-lg hover:bg-emerald-400 transition-colors cursor-pointer"
+                    className="px-3 py-1 text-xs font-bold text-white keep-white bg-emerald-500 rounded-lg hover:bg-emerald-400 transition-colors cursor-pointer"
                   >
                     {isTamil ? 'ஊர் பெயரை தட்டச்சு செய்' : 'Enter Exact Place'}
                   </button>
