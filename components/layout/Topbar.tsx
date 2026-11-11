@@ -19,15 +19,14 @@ import {
   LogOut,
   Clock,
   CloudSun,
-  Globe,
-  Sparkles,
-  Check,
   ShieldCheck,
 } from 'lucide-react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { ThemeSwitch } from './ThemeSwitch';
+import { clearClientSessionStorage } from './AppShell';
 import type { TopbarProps } from '@/types/components';
+import { message, Modal } from 'antd';
 
 export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
   const router = useRouter();
@@ -35,11 +34,14 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
   const [timeStr, setTimeStr] = useState<string>('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const mobileNavRef = useRef<HTMLDivElement>(null);
 
   const { locale, setLocale, messages } = useLanguage();
   const { theme } = useTheme();
+  const logoSrc = theme === 'light' ? '/images/white_logo.png' : '/images/dark_logo.png';
 
   // Navigation Items (clean tabs without extra badge chips)
   const navItems = [
@@ -99,16 +101,19 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
         }
       }
 
-      // 3. Authoritative sync from /api/user
-      fetch('/api/user')
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (data?.success && data?.user) {
-            applyUser(data.user);
-            localStorage.setItem('farmhub_user', JSON.stringify(data.user));
-          }
-        })
-        .catch(() => { });
+      // 3. Sync from /api/user once per session if not already hydrated
+      if (!(window as any).__farmhubUserSynced) {
+        (window as any).__farmhubUserSynced = true;
+        fetch('/api/user')
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data?.success && data?.user) {
+              applyUser(data.user);
+              localStorage.setItem('farmhub_user', JSON.stringify(data.user));
+            }
+          })
+          .catch(() => { });
+      }
 
       const handleUserUpdated = (e: any) => {
         if (e?.detail) {
@@ -170,38 +175,28 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
     };
   }, []);
 
-  // Logout handler: clears cookie + localStorage, redirects to /signin
+  // Logout handler: revokes session on server, clears cookies + localStorage, redirects to /signin
   const handleLogout = async () => {
+    setLoggingOut(true);
     try {
-      await fetch('/api/logout', { method: 'POST' });
-    } catch (e) { }
-
-    if (typeof window !== 'undefined') {
-      document.cookie = 'farmhub_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;';
-      document.cookie = 'agripulse_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;';
-      localStorage.removeItem('farmhub_user');
-      localStorage.removeItem('agripulse_user');
-      localStorage.removeItem('farm_app_saved_plans');
-      localStorage.removeItem('farm_app_current_user_id');
-      try {
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-          const key = localStorage.key(i);
-          if (
-            key &&
-            (key.startsWith('farm_app_saved_plans') ||
-              key.startsWith('farmhub_') ||
-              key.startsWith('agripulse_'))
-          ) {
-            localStorage.removeItem(key);
-          }
-        }
-      } catch (_) { }
+      await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+    } catch (e) {
+      console.warn('[Logout] Server logout request error:', e);
     }
 
+    clearClientSessionStorage();
+
+    setLoggingOut(false);
+    setLogoutModalOpen(false);
     setIsDropdownOpen(false);
     setMobileNavOpen(false);
-    router.push('/signin');
-    router.refresh();
+    message.success(locale === 'ta' ? 'வெற்றிகரமாக வெளியேறிவிட்டீர்கள்!' : 'Signed out successfully!');
+    if (typeof window !== 'undefined') {
+      window.location.href = '/signin';
+    } else {
+      router.push('/signin');
+      router.refresh();
+    }
   };
 
   const initials =
@@ -217,17 +212,20 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
         : 'U';
 
   return (
-    <header className="app-topbar sticky top-0 z-40 flex w-full items-center justify-between border-b border-border-subtle bg-topbar text-text-main px-3 sm:px-5 lg:px-7 transition-all backdrop-blur-xl">
+    <>
+      <header className="app-topbar sticky top-0 z-40 flex w-full items-center justify-between border-b border-border-subtle bg-topbar text-text-main px-3 sm:px-5 lg:px-7 transition-all backdrop-blur-xl">
       {/* Left Section: Brand Logo */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         <Link href="/" className="flex items-center group py-1" onClick={() => setMobileNavOpen(false)}>
           <Image
-            src="/images/dark_logo.png"
+            key={logoSrc}
+            src={logoSrc}
             alt="FarmHub"
             width={220}
             height={68}
+            unoptimized
             priority
-            className="h-9 sm:h-13 lg:h-9 w-auto object-contain group-hover:scale-105 transition-transform drop-shadow-sm"
+            className="h-9 sm:h-12 lg:h-9 w-auto object-contain group-hover:scale-105 transition-transform"
           />
         </Link>
       </div>
@@ -257,8 +255,44 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
         })}
       </nav>
 
-      {/* Right Section: Theme Switch, Notifications, User Profile & Mobile Toggle */}
+      {/* Right Section: Language Switch, Theme Switch, Notifications, User Profile & Mobile Toggle */}
       <div className="flex items-center gap-1.5 sm:gap-2.5 lg:gap-3 shrink-0">
+        {/* Global Language Switch (same style as login/signup topbar) */}
+        <div className="flex items-center rounded-xl border border-slate-200 dark:border-white/15 bg-white/80 dark:bg-black/60 p-0.5 sm:p-1 shadow-sm dark:shadow-lg backdrop-blur-md">
+          <button
+            type="button"
+            onClick={() => {
+              if (locale !== 'en') {
+                setLocale('en');
+                message.success('Language updated to English');
+              }
+            }}
+            className={`rounded-lg px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
+              locale === 'en'
+                ? 'bg-emerald-500 text-white keep-white font-black shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white'
+            }`}
+          >
+            EN
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (locale !== 'ta') {
+                setLocale('ta');
+                message.success('மொழி தமிழாக மாற்றப்பட்டது!');
+              }
+            }}
+            className={`rounded-lg px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
+              locale === 'ta'
+                ? 'bg-emerald-500 text-white keep-white font-black shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white'
+            }`}
+          >
+            தமிழ்
+          </button>
+        </div>
+
         {/* Global Theme Switch */}
         <ThemeSwitch id="topbar-theme-switch" className="scale-90 sm:scale-100 origin-right" />
 
@@ -383,54 +417,15 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
                 </div>
               </div>
 
-              {/* SECTION 4: Language Switcher */}
-              <div className="py-3 border-b dark:border-white/10 border-slate-200">
-                <div className="flex items-center gap-2 text-xs font-bold dark:text-white/70 text-slate-600 mb-2">
-                  <Globe size={14} className="text-emerald-500 dark:text-emerald-400" />
-                  <span>{locale === 'ta' ? 'மொழியை மாற்றுக' : 'Language Selection'}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setLocale('en')}
-                    className={`flex items-center justify-center gap-1.5 rounded-xl py-1.5 px-3 text-xs font-extrabold transition-all cursor-pointer border ${locale === 'en'
-                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.35)]'
-                      : 'dark:bg-white/5 bg-slate-100 text-slate-700 dark:text-white/70 border-slate-200 dark:border-white/10 hover:bg-slate-200/70 dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-white'
-                      }`}
-                  >
-                    <span>English</span>
-                    {locale === 'en' && <Check size={13} className="stroke-[3]" />}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setLocale('ta')}
-                    className={`flex items-center justify-center gap-1.5 rounded-xl py-1.5 px-3 text-xs font-extrabold transition-all cursor-pointer border ${locale === 'ta'
-                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.35)]'
-                      : 'dark:bg-white/5 bg-slate-100 text-slate-700 dark:text-white/70 border-slate-200 dark:border-white/10 hover:bg-slate-200/70 dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-white'
-                      }`}
-                  >
-                    <span>தமிழ்</span>
-                    {locale === 'ta' && <Check size={13} className="stroke-[3]" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* SECTION 5: Theme Switch */}
-              <div className="py-2.5 flex items-center justify-between border-b dark:border-white/10 border-slate-200">
-                <div className="flex items-center gap-2 text-xs font-bold dark:text-white/70 text-slate-600">
-                  <Sparkles size={14} className="text-emerald-500 dark:text-emerald-400" />
-                  <span>{locale === 'ta' ? 'காட்சி முறை' : 'Theme Appearance'}</span>
-                </div>
-                <ThemeSwitch id="dropdown-theme-toggle" />
-              </div>
-
-              {/* SECTION 6: Logout Button */}
+              {/* Logout Button */}
               <div className="pt-3">
                 <button
                   type="button"
                   id="btn-topbar-logout"
-                  onClick={handleLogout}
+                  onClick={() => {
+                    setIsDropdownOpen(false);
+                    setLogoutModalOpen(true);
+                  }}
                   className="w-full flex items-center justify-center gap-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-600 dark:text-rose-300 hover:text-rose-700 dark:hover:text-rose-200 py-2.5 px-4 text-xs font-extrabold transition-all cursor-pointer active:scale-98 shadow-sm"
                 >
                   <LogOut size={15} />
@@ -495,6 +490,34 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
         </div>
       </div>
     </header>
+
+      {/* Sign Out Confirmation Modal */}
+      <Modal
+        open={logoutModalOpen}
+        onCancel={() => {
+          if (!loggingOut) setLogoutModalOpen(false);
+        }}
+        onOk={handleLogout}
+        confirmLoading={loggingOut}
+        centered
+        title={
+          <div className="flex items-center gap-2 text-rose-500 font-black">
+            <LogOut size={18} />
+            <span>{locale === 'ta' ? 'கணக்கிலிருந்து வெளியேறவா?' : 'Confirm Sign Out'}</span>
+          </div>
+        }
+        okText={locale === 'ta' ? 'வெளியேறு' : 'Sign Out'}
+        cancelText={locale === 'ta' ? 'ரத்து' : 'Cancel'}
+        okButtonProps={{ danger: true, className: 'font-bold rounded-xl' }}
+        cancelButtonProps={{ disabled: loggingOut, className: 'font-bold rounded-xl' }}
+      >
+        <p className="text-sm text-slate-600 dark:text-slate-300 m-0 py-2 leading-relaxed">
+          {locale === 'ta'
+            ? 'உங்கள் FarmHub கணக்கிலிருந்து வெளியேற விரும்புகிறீர்களா? உங்கள் சர்வர் அமர்வு உடனடியாக முடிவுக்கு வரும்.'
+            : 'Are you sure you want to sign out of your FarmHub account? Your server session will be immediately ended.'}
+        </p>
+      </Modal>
+    </>
   );
 };
 

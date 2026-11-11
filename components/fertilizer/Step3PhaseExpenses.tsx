@@ -2,9 +2,11 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { message } from 'antd';
 import { RefreshCwIcon } from '@/components/icons/Icons';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { formatCurrency as fmt } from '@/lib/fertilizer/calc';
+import { isTaskEntryFilled } from '@/lib/fertilizer/useFertilizerPlanner';
 import { BorderBeam, OCEAN_GRADIENT } from '@/components/reactbits/BorderBeam';
 import type {
   CultivationType,
@@ -47,9 +49,13 @@ interface Step3PhaseExpensesProps {
   savedPlans: SavedPlanRecord[];
   activePlanId: string | null;
   saveCurrentPlan: (isDraft?: boolean, isCompleted?: boolean) => void;
+  savePhaseProgress?: () => Promise<string | null | undefined>;
   loadPlanAndShowSummary: (planId: string) => void;
   deletePlan: (planId: string, e?: React.MouseEvent) => void;
   createNewPlan: () => void;
+  highestUnlockedPhaseIndex?: number;
+  phaseCompletionMap?: boolean[];
+  allPhasesComplete?: boolean;
 }
 
 export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
@@ -83,15 +89,53 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
   savedPlans,
   activePlanId,
   saveCurrentPlan,
+  savePhaseProgress,
   loadPlanAndShowSummary,
   deletePlan,
   createNewPlan,
+  highestUnlockedPhaseIndex = currentPhases.length - 1,
+  phaseCompletionMap,
+  allPhasesComplete = true,
 }) => {
-  const { messages } = useLanguage();
+  const { messages, locale } = useLanguage();
+  const isTamil = locale === 'ta';
   const router = useRouter();
   const t = messages.fertilizer;
   const isPhase5 = activePhaseIndex === currentPhases.length - 1;
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
+  const [savingNextPhase, setSavingNextPhase] = useState(false);
+
+  const isPhaseDone = (idx: number) =>
+    phaseCompletionMap ? Boolean(phaseCompletionMap[idx]) : true;
+
+  const showIncompletePhaseWarning = (phaseIdx: number) => {
+    const targetPhase = currentPhases[phaseIdx];
+    if (!targetPhase) return;
+    const pMeta = getPhaseMeta(targetPhase);
+    const missingTask = targetPhase.tasks.find(
+      (task) => !isTaskEntryFilled(task, expenseMap[task.id])
+    );
+    const missingLabel = missingTask ? getTaskMeta(missingTask).name : '';
+    message.warning(
+      isTamil
+        ? `${pMeta.month} விவரங்களை முழுமையாக நிரப்பவும்${missingLabel ? `: ${missingLabel}` : ''}`
+        : `Please fill values for all required tasks in ${pMeta.month} first${missingLabel ? ` (${missingLabel})` : ''}.`
+    );
+  };
+
+  const handleOpenCompleteConfirm = () => {
+    if (!allPhasesComplete) {
+      const firstIncompleteIdx = currentPhases.findIndex((_, idx) => !isPhaseDone(idx));
+      if (firstIncompleteIdx >= 0) {
+        if (viewMode === 'individual' && firstIncompleteIdx <= highestUnlockedPhaseIndex) {
+          setActivePhaseIndex(firstIncompleteIdx);
+        }
+        showIncompletePhaseWarning(firstIncompleteIdx);
+        return;
+      }
+    }
+    setShowCompleteConfirm(true);
+  };
 
   return (
     <div className="animate-fade-in pb-36 sm:pb-48">
@@ -119,7 +163,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
               <button
                 type="button"
                 onClick={() => setViewMode('individual')}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${viewMode === 'individual' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-text-secondary hover:text-text-main'
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${viewMode === 'individual' ? 'bg-emerald-500 text-white keep-white shadow-sm' : 'text-text-secondary hover:text-text-main'
                   }`}
               >
                 {t.step3.focusMode}
@@ -127,7 +171,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
               <button
                 type="button"
                 onClick={() => setViewMode('all')}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${viewMode === 'all' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-text-secondary hover:text-text-main'
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${viewMode === 'all' ? 'bg-emerald-500 text-white keep-white shadow-sm' : 'text-text-secondary hover:text-text-main'
                   }`}
               >
                 {t.step3.viewAll}
@@ -150,6 +194,8 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3.5 animate-fade-in">
             {currentPhases.map((phase, idx) => {
               const isActive = activePhaseIndex === idx;
+              const isLocked = idx > highestUnlockedPhaseIndex;
+              const isCompletedPhase = isPhaseDone(idx);
               const pMeta = getPhaseMeta(phase);
               const pTot = phaseTotals[phase.id] || { total: 0, daily: 0 };
               const isLastOnMobile = idx === 4;
@@ -159,13 +205,20 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                   key={phase.id}
                   id={`phase-tab-${idx}`}
                   type="button"
+                  aria-disabled={isLocked}
                   onClick={() => {
+                    if (isLocked) {
+                      showIncompletePhaseWarning(Math.max(0, highestUnlockedPhaseIndex));
+                      return;
+                    }
                     setActivePhaseIndex(idx);
                   }}
-                  className={`relative flex flex-col justify-between text-left p-2.5 sm:p-3.5 rounded-xl glass-card glass-card-hover transition-all duration-200 cursor-pointer overflow-hidden ${isLastOnMobile ? 'col-span-2 sm:col-span-1' : ''
-                    } ${isActive
-                      ? 'border border-transparent bg-white/[0.04] shadow-xl'
-                      : 'border border-border-subtle hover:border-border-light'
+                  className={`relative flex flex-col justify-between text-left p-2.5 sm:p-3.5 rounded-xl glass-card transition-all duration-200 overflow-hidden ${isLastOnMobile ? 'col-span-2 sm:col-span-1' : ''
+                    } ${isLocked
+                      ? 'opacity-55 cursor-not-allowed border border-border-subtle'
+                      : isActive
+                        ? 'glass-card-hover cursor-pointer border border-transparent bg-white/[0.04] shadow-xl'
+                        : 'glass-card-hover cursor-pointer border border-border-subtle hover:border-border-light'
                     }`}
                   style={{
                     boxShadow: isActive ? `0 12px 28px -6px ${phase.borderSoft}` : undefined,
@@ -187,7 +240,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                         {pMeta.month}
                       </span>
                       <span className="text-[10px] rounded px-1.5 py-0.5 glass-surface text-text-muted font-medium border border-white/5">
-                        {phase.tasks.length} items
+                        {isLocked ? '🔒' : isCompletedPhase ? '✓' : `${phase.tasks.length} items`}
                       </span>
                     </div>
                     <div className="text-xs font-bold text-text-main line-clamp-1 leading-snug">
@@ -279,9 +332,9 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                   {activePhase.tasks.map((task, idx) => {
                     const tMeta = getTaskMeta(task);
                     const entry = expenseMap[task.id] || {
-                      ratePerCent: task.defaultRate,
+                      ratePerCent: 0,
                       days: task.defaultDays,
-                      totalCost: Math.round(task.defaultRate * (userDetails.landSize || 0)),
+                      totalCost: 0,
                       costPerDay: 0,
                       isEnabled: true,
                     };
@@ -347,8 +400,10 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                   <button
                     type="button"
                     id="btn-save-plan"
-                    onClick={() => setShowCompleteConfirm(true)}
-                    className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 px-5 py-2 text-xs font-black text-slate-950 shadow-glow hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+                    onClick={handleOpenCompleteConfirm}
+                    className={`rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 px-5 py-2 text-xs font-black text-white keep-white shadow-glow transition-all flex items-center gap-1.5 ${
+                      !allPhasesComplete ? 'opacity-60 cursor-not-allowed' : 'hover:brightness-110 active:scale-95 cursor-pointer'
+                    }`}
                   >
                     <span>✓</span>
                     <span>{t.step3.completeBtn || 'Complete'}</span>
@@ -360,10 +415,35 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                   <button
                     type="button"
                     id="btn-next-phase"
-                    onClick={() => setActivePhaseIndex((prev) => Math.min(currentPhases.length - 1, prev + 1))}
-                    className="rounded-lg bg-surface px-5 py-2 text-xs font-bold text-text-main hover:bg-emerald-500 hover:text-slate-950 transition-colors cursor-pointer flex items-center gap-1"
+                    disabled={savingNextPhase}
+                    onClick={async () => {
+                      if (!isPhaseDone(activePhaseIndex)) {
+                        showIncompletePhaseWarning(activePhaseIndex);
+                        return;
+                      }
+                      if (savePhaseProgress) {
+                        setSavingNextPhase(true);
+                        try {
+                          await savePhaseProgress();
+                        } finally {
+                          setSavingNextPhase(false);
+                        }
+                      }
+                      setActivePhaseIndex((prev) => Math.min(currentPhases.length - 1, prev + 1));
+                    }}
+                    className={`rounded-lg px-5 py-2 text-xs font-bold transition-colors flex items-center gap-1 ${
+                      isPhaseDone(activePhaseIndex)
+                        ? 'bg-emerald-500 text-white keep-white hover:bg-emerald-400 cursor-pointer'
+                        : 'bg-surface text-text-muted opacity-65 cursor-not-allowed'
+                    } disabled:opacity-70`}
                   >
-                    <span>{t.step3.navStepper.nextPhase}</span>
+                    <span>
+                      {savingNextPhase
+                        ? isTamil
+                          ? 'சேமிக்கப்படுகிறது...'
+                          : 'Saving...'
+                        : t.step3.navStepper.nextPhase}
+                    </span>
                   </button>
                 )}
               </div>
@@ -375,12 +455,13 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
       {/* VIEW MODE 2: ALL PHASES EXPENSES TABLE */}
       {viewMode === 'all' && (
         <div className="space-y-6 mb-8">
-          {currentPhases.map((phase) => {
+          {currentPhases.map((phase, phaseIdx) => {
             const pMeta = getPhaseMeta(phase);
+            const isPhaseLocked = phaseIdx > highestUnlockedPhaseIndex;
             return (
               <div key={phase.id} className="rounded-2xl glass-table-panel border border-border-light overflow-hidden shadow-2xl">
                 <div
-                  className="flex items-center justify-between px-6 py-3.5 border-b border-border-subtle"
+                  className="flex flex-wrap items-center justify-between gap-2 px-6 py-3.5 border-b border-border-subtle"
                   style={{ backgroundColor: phase.bgSoft }}
                 >
                   <div className="flex items-center gap-3">
@@ -388,13 +469,18 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                       {pMeta.month}
                     </span>
                     <h4 className="font-display text-base font-bold text-text-main">{pMeta.name}</h4>
+                    {isPhaseLocked && (
+                      <span className="rounded-full bg-slate-500/20 border border-slate-500/30 px-2.5 py-0.5 text-[11px] font-bold text-text-muted">
+                        🔒 {isTamil ? `நிலை ${phaseIdx} ஐ நிரப்பி திறக்கவும்` : `Complete Phase ${phaseIdx} to unlock`}
+                      </span>
+                    )}
                   </div>
                   <span className="font-extrabold text-base" style={{ color: phase.color }}>
                     ₹{fmt(phaseTotals[phase.id]?.total || 0)}
                   </span>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className={`overflow-x-auto ${isPhaseLocked ? 'pointer-events-none opacity-55 select-none' : ''}`} aria-disabled={isPhaseLocked}>
                   <table className="w-full min-w-[720px] border-collapse text-left text-sm">
                     <thead>
                       <tr className="border-b border-slate-300/80 dark:border-white/10 bg-slate-100/95 dark:bg-[#121c2d]/90 text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-[#94a3b8]">
@@ -416,9 +502,9 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                       {phase.tasks.map((task, idx) => {
                         const tMeta = getTaskMeta(task);
                         const entry = expenseMap[task.id] || {
-                          ratePerCent: task.defaultRate,
+                          ratePerCent: 0,
                           days: task.defaultDays,
-                          totalCost: Math.round(task.defaultRate * (userDetails.landSize || 0)),
+                          totalCost: 0,
                           costPerDay: 0,
                           isEnabled: true,
                         };
@@ -472,8 +558,10 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
             <button
               type="button"
               id="btn-all-save-plan"
-              onClick={() => setShowCompleteConfirm(true)}
-              className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 px-5 py-2 text-xs font-black text-slate-950 shadow-glow hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+              onClick={handleOpenCompleteConfirm}
+              className={`rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 px-5 py-2 text-xs font-black text-white keep-white shadow-glow transition-all flex items-center gap-1.5 ${
+                !allPhasesComplete ? 'opacity-60 cursor-not-allowed' : 'hover:brightness-110 active:scale-95 cursor-pointer'
+              }`}
             >
               <span>✓</span>
               <span>{t.step3.completeBtn || 'Complete'}</span>
@@ -533,7 +621,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                   saveCurrentPlan(false, true);
                   router.push('/fertilizer');
                 }}
-                className="px-5 py-2 rounded-xl text-xs font-black text-slate-950 bg-gradient-to-r from-emerald-500 to-teal-400 shadow-glow hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+                className="px-5 py-2 rounded-xl text-xs font-black text-white keep-white bg-gradient-to-r from-emerald-500 to-teal-400 shadow-glow hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
               >
                 <span>✓</span>
                 <span>{t.step3.confirmCompleteBtn || 'Yes, Complete Plan'}</span>

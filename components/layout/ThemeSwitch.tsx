@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useTheme } from '@/components/providers/ThemeProvider';
+import { message } from 'antd';
 
 interface ThemeSwitchProps {
   id?: string;
@@ -21,8 +22,8 @@ export const ThemeSwitch: React.FC<ThemeSwitchProps> = ({ id = 'theme-toggle-swi
       aria-label={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
       onClick={(e) => {
         e.preventDefault();
-        console.log('[ThemeSwitch] Clicked! Current theme:', theme);
         toggleTheme();
+        message.success(isDark ? 'Light theme activated' : 'Dark theme activated');
       }}
       className={`relative inline-flex h-7 w-14 shrink-0 items-center rounded-full border-2 transition-all duration-300 ease-in-out cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
         isDark

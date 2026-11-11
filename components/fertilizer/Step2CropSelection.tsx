@@ -28,7 +28,7 @@ export const Step2CropSelection: React.FC<Step2CropSelectionProps> = ({
     [userDetails.village || userDetails.city, userDetails.district, userDetails.state]
       .filter(Boolean)
       .join(', ') ||
-    'Tamil Nadu';
+    '---';
 
   return (
     <div>
@@ -41,7 +41,7 @@ export const Step2CropSelection: React.FC<Step2CropSelectionProps> = ({
           <strong className="text-emerald-600 dark:text-emerald-400 font-bold">
             {displayLocation}
           </strong>{' '}
-          ({userDetails.landSize || 100} {messages.common.cents}). {t.step2.chooseCrop}
+          ({userDetails.landSize || 0} {messages.common.cents}). {t.step2.chooseCrop}
         </p>
       </div>
 
@@ -92,7 +92,7 @@ export const Step2CropSelection: React.FC<Step2CropSelectionProps> = ({
               e.stopPropagation();
               onConfigureCrop('paddy');
             }}
-            className="w-full rounded-xl py-3 text-sm font-black transition-all cursor-pointer flex items-center justify-center gap-2 bg-emerald-500 text-slate-950 shadow-glow hover:bg-emerald-400"
+            className="w-full rounded-xl py-3 text-sm font-black transition-all cursor-pointer flex items-center justify-center gap-2 bg-emerald-500 text-white keep-white shadow-glow hover:bg-emerald-400"
           >
             <span>{t.step2.paddy.btnText}</span>
             <span>→</span>
@@ -112,7 +112,7 @@ export const Step2CropSelection: React.FC<Step2CropSelectionProps> = ({
         <button
           type="button"
           onClick={() => onConfigureCrop('paddy')}
-          className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-2.5 text-sm font-black text-slate-950 shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-400 transition-all cursor-pointer flex items-center justify-center gap-2"
+          className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-2.5 text-sm font-black text-white keep-white shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-400 transition-all cursor-pointer flex items-center justify-center gap-2"
         >
           <span>{t.step2.paddy.btnText || 'Configure Paddy Cultivation Expenses'}</span>
           <span>→</span>

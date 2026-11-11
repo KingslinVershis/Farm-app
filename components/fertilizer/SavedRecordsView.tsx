@@ -54,7 +54,7 @@ export const SavedRecordsView: React.FC<SavedRecordsViewProps> = ({
               type="button"
               id="btn-create-new-record-main"
               onClick={onCreateNewRecord}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 px-6 py-3 text-sm font-black text-slate-950 shadow-[0_10px_30px_rgba(16,185,129,0.4)] hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 px-6 py-3 text-sm font-black text-white keep-white shadow-[0_10px_30px_rgba(16,185,129,0.4)] hover:brightness-110 active:scale-95 transition-all cursor-pointer"
             >
               <span className="text-base font-black">➕</span>
               <span>{t.step3.createNewRecordBtn || '+ Create New Record'}</span>
@@ -90,7 +90,7 @@ export const SavedRecordsView: React.FC<SavedRecordsViewProps> = ({
             <button
               type="button"
               onClick={onCreateNewRecord}
-              className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-black text-slate-950 shadow-glow hover:bg-emerald-400 active:scale-95 transition-all cursor-pointer"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-black text-white keep-white shadow-glow hover:bg-emerald-400 active:scale-95 transition-all cursor-pointer"
             >
               <span>➕</span>
               <span>Create Your First Cultivation Record</span>

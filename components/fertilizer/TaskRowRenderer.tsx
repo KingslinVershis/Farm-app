@@ -134,8 +134,8 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                 onChange={(checked) =>
                   handleRateChange(
                     task.id,
-                    entry.ratePerCent !== 0 ? entry.ratePerCent : task.defaultRate,
-                    entry.travelCost && entry.travelCost > 0 ? entry.travelCost : 100,
+                    entry.ratePerCent ?? 0,
+                    entry.travelCost ?? 0,
                     checked
                   )
                 }
@@ -524,8 +524,8 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                   const kg = parseFloat(e.target.value) || 0;
                   handleGrainYieldChange(task.id, {
                     yieldKg: kg,
-                    bagWeightKg: entry.bagWeightKg ?? 75,
-                    bagPrice: entry.grainBagPrice ?? 1650,
+                    bagWeightKg: entry.bagWeightKg ?? 0,
+                    bagPrice: entry.grainBagPrice ?? 0,
                   });
                 }}
                 className="w-full rounded-lg text-xs font-bold text-emerald-400"
@@ -537,15 +537,15 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               </label>
               <Input
                 type="number"
-                min="1"
-                placeholder="75"
+                min="0"
+                placeholder="0"
                 value={entry.bagWeightKg !== undefined && entry.bagWeightKg !== 0 ? entry.bagWeightKg : ''}
                 onChange={(e) => {
-                  const bw = parseFloat(e.target.value) || 75;
+                  const bw = parseFloat(e.target.value) || 0;
                   handleGrainYieldChange(task.id, {
-                    yieldKg: entry.yieldKg ?? ((entry.yieldTons ?? 14) * 1000),
+                    yieldKg: entry.yieldKg ?? ((entry.yieldTons ?? 0) * 1000),
                     bagWeightKg: bw,
-                    bagPrice: entry.grainBagPrice ?? 1650,
+                    bagPrice: entry.grainBagPrice ?? 0,
                   });
                 }}
                 className="w-full rounded-lg text-xs font-bold text-text-main"
@@ -563,8 +563,8 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                 onChange={(e) => {
                   const price = parseFloat(e.target.value) || 0;
                   handleGrainYieldChange(task.id, {
-                    yieldKg: entry.yieldKg ?? ((entry.yieldTons ?? 14) * 1000),
-                    bagWeightKg: entry.bagWeightKg ?? 75,
+                    yieldKg: entry.yieldKg ?? ((entry.yieldTons ?? 0) * 1000),
+                    bagWeightKg: entry.bagWeightKg ?? 0,
                     bagPrice: price,
                   });
                 }}
@@ -685,7 +685,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                     entry.hasTravelCost !== false
                   )
                 }
-                suffix={<span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">/{messages.common.cents}</span>}
+                suffix={<span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">₹</span>}
                 className={`w-full rounded-lg text-xs font-bold text-text-main outline-none transition-all ${
                   isSkipped ? 'bg-slate-900/50 cursor-not-allowed opacity-50' : 'focus:border-emerald-500'
                 }`}
@@ -731,7 +731,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               onChange={(e) => handleRateChange(task.id, parseFloat(e.target.value) || 0)}
               suffix={
                 <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                  {`/${messages.common.cents}`}
+                  ₹
                 </span>
               }
               className={`w-full rounded-lg text-xs font-bold text-text-main outline-none transition-all ${
@@ -755,9 +755,9 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               ₹{fmt(entry.totalCost)}
             </div>
             <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
-              <span>{t.step3.tableHeaders.fertMaterial || 'Fert'}: ₹{fmt((entry.fertQty ?? 50) * (entry.fertPrice ?? 25))}</span>
+              <span>{t.step3.tableHeaders.fertMaterial || 'Fert'}: ₹{fmt((entry.fertQty ?? 0) * (entry.fertPrice ?? 0))}</span>
               <span className="mx-1">•</span>
-              <span>{t.step3.tableHeaders.fertLabour || 'Labour'}: ₹{fmt((entry.labourCount ?? 2) * (entry.labourWage ?? 500))}</span>
+              <span>{t.step3.tableHeaders.fertLabour || 'Labour'}: ₹{fmt((entry.labourCount ?? 0) * (entry.labourWage ?? 0))}</span>
               <span className="block text-[10px] text-slate-600 dark:text-slate-400 mt-0.5 font-medium">
                 (~₹{fmt(entry.ratePerCent)}/{t.step3.centsUnit})
               </span>
@@ -769,7 +769,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               ₹{fmt(entry.totalCost)}
             </div>
             <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
-              <span>{entry.labourCount ?? 4} × ₹{fmt(entry.labourWage ?? 500)}</span>
+              <span>{entry.labourCount ?? 0} × ₹{fmt(entry.labourWage ?? 0)}</span>
               {(entry.snackCost ?? 0) > 0 && <span> + ₹{fmt(entry.snackCost ?? 0)}</span>}
               {(entry.travelCost ?? 0) > 0 && <span> + ₹{fmt(entry.travelCost ?? 0)}</span>}
               <span className="block text-[10px] text-slate-600 dark:text-slate-400 mt-0.5 font-medium">
@@ -783,7 +783,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               ₹{fmt(entry.totalCost)}
             </div>
             <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
-              <span>{entry.bagCount ?? 120} bags × ₹{fmt(entry.bagPrice ?? 20)}</span>
+              <span>{entry.bagCount ?? 0} bags × ₹{fmt(entry.bagPrice ?? 0)}</span>
               <span className="block text-[10px] text-slate-600 dark:text-slate-400 font-medium">
                 (~₹{fmt(entry.ratePerCent)}/{t.step3.centsUnit})
               </span>
@@ -795,8 +795,8 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               ₹{fmt(entry.totalCost)}
             </div>
             <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
-              <span>Rent ₹{fmt(entry.transportRent ?? 1500)}</span>
-              <span> + Load ₹{fmt((entry.loadingWorkers ?? 4) * (entry.loadingWage ?? 350))}</span>
+              <span>Rent ₹{fmt(entry.transportRent ?? 0)}</span>
+              <span> + Load ₹{fmt((entry.loadingWorkers ?? 0) * (entry.loadingWage ?? 0))}</span>
               {(entry.loadingSnacks ?? 0) > 0 && <span> + ₹{fmt(entry.loadingSnacks ?? 0)}</span>}
               <span className="block text-[10px] text-slate-600 dark:text-slate-400 font-medium">
                 (~₹{fmt(entry.ratePerCent)}/{t.step3.centsUnit})
@@ -810,10 +810,10 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
             </div>
             <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
               <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                {entry.grainBagCount ?? 140} {t.step3.centsUnit === 'சென்ட்' ? 'மூட்டை' : 'bags'}
+                {entry.grainBagCount ?? 0} {t.step3.centsUnit === 'சென்ட்' ? 'மூட்டை' : 'bags'}
               </span>
               <span className="block text-[10px] text-slate-600 dark:text-slate-400 font-medium">
-                ({fmt(entry.yieldKg ?? ((entry.yieldTons ?? 14) * 1000))} KG ÷ {entry.bagWeightKg ?? 75}kg) × ₹{fmt(entry.grainBagPrice ?? 1650)}
+                ({fmt(entry.yieldKg ?? ((entry.yieldTons ?? 0) * 1000))} KG ÷ {entry.bagWeightKg ?? 0}kg) × ₹{fmt(entry.grainBagPrice ?? 0)}
               </span>
             </div>
           </div>
@@ -823,8 +823,8 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               ₹{fmt(entry.totalCost)}
             </div>
             <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
-              <span className="font-semibold text-amber-700 dark:text-amber-300">{entry.strawSackCount ?? 100} sacks</span>
-              <span> × ₹{fmt(entry.strawPrice ?? 150)}</span>
+              <span className="font-semibold text-amber-700 dark:text-amber-300">{entry.strawSackCount ?? 0} sacks</span>
+              <span> × ₹{fmt(entry.strawPrice ?? 0)}</span>
               <span className="block text-[10px] text-slate-600 dark:text-slate-400 font-medium">
                 (~₹{fmt(entry.ratePerCent)}/{t.step3.centsUnit})
               </span>
@@ -846,7 +846,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                 <span className="text-slate-500 font-semibold">{t.step3.skipped || 'Skipped (₹0)'}</span>
               ) : (
                 <>
-                  <span>₹{fmt(entry.ratePerCent)} × {userDetails.landSize} {t.step3.centsUnit}</span>
+                  <span>{isTamil ? 'விதை' : 'Seed'}: ₹{fmt(entry.ratePerCent)}</span>
                   {entry.hasTravelCost !== false && (entry.travelCost ?? 0) > 0 && (
                     <span className="text-amber-600 dark:text-amber-300"> + ₹{fmt(entry.travelCost ?? 0)} travel</span>
                   )}
@@ -871,9 +871,9 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               {isSkipped ? (
                 <span className="text-slate-500 font-semibold">{t.step3.skipped || 'Skipped (₹0)'}</span>
               ) : (
-                <>
-                  ₹{fmt(entry.ratePerCent)} {t.step3.perCentMultiplication} {userDetails.landSize} {t.step3.centsUnit}
-                </>
+                <span>
+                  {isTamil ? 'நேரடி தொகை' : 'Total Cost'}: ₹{fmt(entry.ratePerCent)}
+                </span>
               )}
             </div>
           </div>

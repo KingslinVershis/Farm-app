@@ -1,6 +1,8 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import './globals.css';
 import { AppShell } from '@/components/layout/AppShell';
+import { TopProgressBar } from '@/components/layout/TopProgressBar';
 import { LanguageProvider } from '@/components/providers/LanguageProvider';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { Agentation } from "agentation";
@@ -36,6 +38,9 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-app text-text-main antialiased selection:bg-emerald-500 selection:text-slate-950">
+        <Suspense fallback={null}>
+          <TopProgressBar />
+        </Suspense>
         <AntdRegistry>
           <ThemeProvider>
             <LanguageProvider>

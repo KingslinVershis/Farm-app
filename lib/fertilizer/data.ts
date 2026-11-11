@@ -101,27 +101,10 @@ export const PADDY_PHASES: PhaseGroup[] = [
       },
       {
         id: 'p2_bund_labour',
-        name: '7. Field Bund Trimming & Strengthening Labour',
+        name: '7. Field Bund Trimming & Main Field Plotting',
         phaseId: 'paddy_p2',
         dayRange: 'Days 20 – 30',
-        description: 'Secondary bund plastering, water retaining seal, and crab/rat hole plugging prior to flooding (including snacks & travel).',
-        costEstimateHint: '₹400 – ₹600 / person + Snacks + Travel',
-        defaultRate: 10,
-        defaultDays: 10,
-        isLabour: true,
-        defaultLabourCount: 4,
-        defaultLabourWage: 500,
-        hasSnacks: true,
-        defaultSnackCost: 200,
-        hasTravel: true,
-        defaultTravelCost: 150,
-      },
-      {
-        id: 'p2_plotting_labour',
-        name: '8. Main Field Plotting & Levelling Labour',
-        phaseId: 'paddy_p2',
-        dayRange: 'Days 20 – 30',
-        description: 'Final wooden plank levelling, corner plot finishing, and sapling row plotting (including snacks & travel).',
+        description: 'Secondary bund plastering, water retaining seal, final wooden plank levelling, corner plot finishing, sapling row plotting, and crab/rat hole plugging prior to flooding (including snacks & travel).',
         costEstimateHint: '₹400 – ₹600 / person + Snacks + Travel',
         defaultRate: 10,
         defaultDays: 10,
@@ -135,7 +118,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
       },
       {
         id: 'p2_fert_labour',
-        name: '9. Pre-Transplanting Fertilizer Application Labour',
+        name: '8. Pre-Transplanting Fertilizer Application Labour',
         phaseId: 'paddy_p2',
         dayRange: 'Days 20 – 25',
         description: 'Broadcasting basal fertilizers, organic compost, and manure across puddled plots before transplanting (including snacks & travel).',
@@ -152,7 +135,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
       },
       {
         id: 'p2_labour',
-        name: '10. Transplanting & Field Labour Cost',
+        name: '9. Transplanting & Field Labour Cost',
         phaseId: 'paddy_p2',
         dayRange: 'Days 20 – 30',
         description: 'Field workforce for sapling pulling, bund distribution, line transplanting, and field tending (including snacks & travel).',
@@ -171,7 +154,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
       },
       {
         id: 'p3_water',
-        name: '11. Field Water Cycling & Irrigation',
+        name: '10. Field Water Cycling & Irrigation',
         phaseId: 'paddy_p2',
         dayRange: 'Days 20 – 50',
         description: 'Maintaining 2–5 cm standing water through tillering; alternating wet/dry cycle.',
@@ -193,7 +176,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
     tasks: [
       {
         id: 'p3_herbicide',
-        name: '12. Herbicide Application (Scheduled 3 Days After Transplanting)',
+        name: '11. Herbicide Application (Scheduled 3 Days After Transplanting)',
         phaseId: 'paddy_p3',
         dayRange: '3 Days After Transplanting (Days 28 – 30)',
         description: 'Pre-emergence herbicide spraying scheduled strictly 3 days after transplanting with standing water (including labour, snacks & travel).',
@@ -210,7 +193,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
       },
       {
         id: 'p1_weed',
-        name: '13. Early Gap Filling & Replanting Labour',
+        name: '12. Early Gap Filling & Replanting Labour',
         phaseId: 'paddy_p3',
         dayRange: 'Days 30 – 35',
         description: 'Manual replanting of missing hills and damaged seedlings to maintain optimal plant population (including snacks & travel).',
@@ -227,7 +210,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
       },
       {
         id: 'p3_deweeding',
-        name: '14. Manual Weeding & De-weeding Labour',
+        name: '13. Manual Weeding & De-weeding Labour',
         phaseId: 'paddy_p3',
         dayRange: 'Days 32 – 40',
         description: 'Manual hand weeding, rogue elimination, and secondary de-weeding between paddy rows (including snacks & travel).',
@@ -244,7 +227,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
       },
       {
         id: 'p1_fert',
-        name: '15. Pesticide (Dose 1 - Scheduled 15 Days After Transplanting)',
+        name: '14. Pesticide (Dose 1 - Scheduled 15 Days After Transplanting)',
         phaseId: 'paddy_p3',
         dayRange: 'Scheduled 15 Days After Transplanting (Days 35 – 45)',
         description: 'First targeted pesticide spray scheduled 15 days after transplanting against stem borer and whorl maggot.',
@@ -259,7 +242,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
       },
       {
         id: 'p2_tillering',
-        name: '16. Pesticide (Dose 2)',
+        name: '15. Pesticide (Dose 2)',
         phaseId: 'paddy_p3',
         dayRange: 'Days 45 – 50',
         description: 'Secondary protective pesticide spray (e.g., Cartap Hydrochloride / Chlorantraniliprole) during tillering.',
@@ -275,7 +258,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
       },
       {
         id: 'p3_fert_dose3',
-        name: '17. Panicle Initiation Fertilizer (Scheduled 3 Days After Pesticide)',
+        name: '16. Panicle Initiation Fertilizer (Scheduled 3 Days After Pesticide)',
         phaseId: 'paddy_p3',
         dayRange: 'Scheduled 3 Days After Pesticide (Days 48 – 55)',
         description: 'Booster fertilizer top-dress (Potash + Urea) for robust panicle initiation scheduled 3 days after pesticide application.',
@@ -290,7 +273,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
       },
       {
         id: 'p3_potash_sulphide',
-        name: '18. Potash & Sulphide Fertilizer (Optional)',
+        name: '17. Potash & Sulphide Fertilizer (Optional)',
         phaseId: 'paddy_p3',
         dayRange: 'Days 65 – 75',
         description: 'Optional top-dressing of Muriate of Potash (MOP) and elemental sulphur / zinc sulphate for superior grain filling and grain weight.',
@@ -317,7 +300,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
     tasks: [
       {
         id: 'p4_harvest',
-        name: '19. Harvesting & Threshing',
+        name: '18. Harvesting & Threshing',
         phaseId: 'paddy_p4',
         dayRange: 'Days 110 – 115',
         description: 'Combined harvester rental or manual cutting + power mechanical thresher.',
@@ -327,7 +310,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
       },
       {
         id: 'p4_gunny_bags',
-        name: '20. Packaging Gunny Bags (Plastic / Traditional Jute)',
+        name: '19. Packaging Gunny Bags (Plastic / Traditional Jute)',
         phaseId: 'paddy_p4',
         dayRange: 'Days 110 – 118',
         description: 'Paddy grain packing sacks; switch between modern HDPE woven plastic bags or traditional jute gunny bags.',
@@ -342,7 +325,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
       },
       {
         id: 'p4_labour',
-        name: '21. Winnowing & Bagging Labour Cost',
+        name: '20. Winnowing & Bagging Labour Cost',
         phaseId: 'paddy_p4',
         dayRange: 'Days 110 – 118',
         description: 'Manual winnowing, grain cleaning, drying floor attendants, and bagging into gunny sacks (including snacks).',
@@ -357,7 +340,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
       },
       {
         id: 'p4_sack_stitcher',
-        name: '22. Sack Stitcher & Bag Sealing Labour Cost',
+        name: '21. Sack Stitcher & Bag Sealing Labour Cost',
         phaseId: 'paddy_p4',
         dayRange: 'Days 110 – 118',
         description: 'Specialized workers for manual sack mouth stitching or portable electric sewing machine bag sealing (including snacks & travel).',
@@ -374,7 +357,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
       },
       {
         id: 'p4_transport',
-        name: '23. Transport & Mandi Logistics',
+        name: '22. Transport & Mandi Logistics',
         phaseId: 'paddy_p4',
         dayRange: 'Days 115 – 120',
         description: 'Tractor trailer/lorry transport rent plus bag lifting workers, loading labour wages, and refreshments for Mandi hauling.',
@@ -401,7 +384,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
     tasks: [
       {
         id: 'p5_grain_yield',
-        name: '24. Main Paddy Grain Yield Sale (MSP / Mandi)',
+        name: '23. Main Paddy Grain Yield Sale (MSP / Mandi)',
         phaseId: 'paddy_p5',
         dayRange: 'Days 120 – 130',
         description: 'Estimated grain yield calculated directly in KG, bag weight capacity, and price per bag.',
@@ -417,7 +400,7 @@ export const PADDY_PHASES: PhaseGroup[] = [
       },
       {
         id: 'p5_straw_yield',
-        name: '25. Straw & Fodder Biomass Monetization',
+        name: '24. Straw & Fodder Biomass Monetization',
         phaseId: 'paddy_p5',
         dayRange: 'Days 122 – 130',
         description: 'Sale of dried paddy straw bales or sacks to local dairy units and paper mills.',

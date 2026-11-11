@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useRouter, usePathname, useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
+import { message } from 'antd';
 import { useFertilizerContext } from '@/lib/fertilizer/FertilizerContext';
 import { SavedRecordsView } from '@/components/fertilizer/SavedRecordsView';
 import { StepNavigation } from '@/components/fertilizer/StepNavigation';
@@ -31,9 +32,16 @@ export default function FertilizerCatchAllPage() {
     userDetails,
     setUserDetails,
     errors,
+    validateStep1,
     clearError,
     expenseMap,
     currentPhases,
+    isStep1Valid,
+    step2Completed,
+    maxUnlockedStep,
+    phaseCompletionMap,
+    highestUnlockedPhaseIndex,
+    allPhasesComplete,
     handleCultivationSelect,
     handleCropSelect,
     handleConfigureCrop,
@@ -71,6 +79,7 @@ export default function FertilizerCatchAllPage() {
     setActivePlanId,
     saveSuccessMessage,
     saveCurrentPlan,
+    savePhaseProgress,
     loadPlanAndShowSummary,
     loadPlanForEditing,
     deletePlan,
@@ -78,26 +87,44 @@ export default function FertilizerCatchAllPage() {
   } = useFertilizerContext();
 
   const isInitialSync = useRef(true);
+  const pendingStepGrantRef = useRef<number>(0);
 
-  // Sync state from current URL pathname (handles direct links & browser Back/Forward)
+  // Sync state from current URL pathname and enforce sequential Step 1 -> 2 -> 3 access order
   useEffect(() => {
     if (!pathname) return;
+
+    const grantedStep = pendingStepGrantRef.current;
 
     if (pathname === '/fertilizer' || pathname === '/fertilizer/') {
       if (pageView !== 'records') {
         setPageView('records');
       }
     } else if (pathname === '/fertilizer/create/step1') {
+      pendingStepGrantRef.current = 0;
       if (pageView !== 'wizard' || step !== 1) {
         setPageView('wizard');
         setStep(1);
       }
     } else if (pathname === '/fertilizer/create/step2') {
+      if (!isStep1Valid && !activePlanId && grantedStep < 2) {
+        router.replace('/fertilizer/create/step1');
+        return;
+      }
+      pendingStepGrantRef.current = 0;
       if (pageView !== 'wizard' || step !== 2) {
         setPageView('wizard');
         setStep(2);
       }
     } else if (pathname === '/fertilizer/create/step3') {
+      if (!isStep1Valid && !activePlanId && grantedStep < 3) {
+        router.replace('/fertilizer/create/step1');
+        return;
+      }
+      if (!step2Completed && !activePlanId && grantedStep < 3) {
+        router.replace('/fertilizer/create/step2');
+        return;
+      }
+      pendingStepGrantRef.current = 0;
       if (pageView !== 'wizard' || step !== 3) {
         setPageView('wizard');
         setStep(3);
@@ -113,7 +140,18 @@ export default function FertilizerCatchAllPage() {
       }
     }
     isInitialSync.current = false;
-  }, [pathname, pageView, step, activePlanId, loadPlanAndShowSummary, setPageView, setStep]);
+  }, [
+    pathname,
+    pageView,
+    step,
+    activePlanId,
+    isStep1Valid,
+    step2Completed,
+    loadPlanAndShowSummary,
+    setPageView,
+    setStep,
+    router,
+  ]);
 
   // Route-aware navigation helpers
   const handleNavigateToRecords = () => {
@@ -121,6 +159,7 @@ export default function FertilizerCatchAllPage() {
   };
 
   const handleNavigateToCreateNew = () => {
+    pendingStepGrantRef.current = 0;
     createNewPlan();
     router.push('/fertilizer/create/step1');
   };
@@ -132,11 +171,30 @@ export default function FertilizerCatchAllPage() {
 
   const handleEditPlan = (planId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    pendingStepGrantRef.current = 3;
     loadPlanForEditing(planId);
     router.push('/fertilizer/create/step3');
   };
 
   const handleStepNavSelect = (targetStep: 1 | 2 | 3 | 4) => {
+    if (targetStep > maxUnlockedStep && targetStep !== 4) {
+      if (!isStep1Valid) {
+        validateStep1();
+        message.warning('Please fill all required Step 1 Farmer Details first.');
+        if (pathname !== '/fertilizer/create/step1') {
+          router.push('/fertilizer/create/step1');
+        }
+        return;
+      }
+      if (targetStep === 3) {
+        message.warning('Please select and continue from Step 2 Crop Selection first.');
+        if (pathname !== '/fertilizer/create/step2') {
+          router.push('/fertilizer/create/step2');
+        }
+        return;
+      }
+    }
+
     if (targetStep === 1) router.push('/fertilizer/create/step1');
     else if (targetStep === 2) router.push('/fertilizer/create/step2');
     else if (targetStep === 3) router.push('/fertilizer/create/step3');
@@ -149,11 +207,13 @@ export default function FertilizerCatchAllPage() {
   const handleStep1FormSubmit = (e?: React.FormEvent) => {
     const success = handleStep1Submit(e);
     if (success) {
+      pendingStepGrantRef.current = 2;
       router.push('/fertilizer/create/step2');
     }
   };
 
   const handleCropSelectionAndProceed = (cropType: any) => {
+    pendingStepGrantRef.current = 3;
     handleConfigureCrop(cropType);
     router.push('/fertilizer/create/step3');
   };
@@ -231,6 +291,7 @@ export default function FertilizerCatchAllPage() {
               {step !== 4 && (
                 <StepNavigation
                   currentStep={step}
+                  maxUnlockedStep={maxUnlockedStep}
                   onSelectStep={handleStepNavSelect}
                   stepsList={stepsList}
                 />
@@ -315,9 +376,13 @@ export default function FertilizerCatchAllPage() {
                     savedPlans={savedPlans}
                     activePlanId={activePlanId}
                     saveCurrentPlan={saveCurrentPlan}
+                    savePhaseProgress={savePhaseProgress}
                     loadPlanAndShowSummary={handleSelectPlanSummary}
                     deletePlan={deletePlan}
                     createNewPlan={handleNavigateToCreateNew}
+                    highestUnlockedPhaseIndex={highestUnlockedPhaseIndex}
+                    phaseCompletionMap={phaseCompletionMap}
+                    allPhasesComplete={allPhasesComplete}
                   />
 
                   {/* Sticky Bottom Dock */}

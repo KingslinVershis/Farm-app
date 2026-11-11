@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 
 export const AUTH_COOKIE_NAME = 'farmhub_token';
 export const LEGACY_AUTH_COOKIE_NAME = 'agripulse_token';
+export const SESSION_MAX_AGE_SECONDS = 24 * 60 * 60; // 24 hours
 
 export const getSecretKey = () => {
   return (process.env.JWT_SECRET || 'farmhub-super-secret-key-2026');
@@ -10,6 +11,8 @@ export const getSecretKey = () => {
 
 export interface AuthUserPayload {
   id: string | number;
+  jti?: string;
+  loginAt?: number;
   username?: string;
   email?: string;
   role?: string;
@@ -17,10 +20,15 @@ export interface AuthUserPayload {
 }
 
 /**
- * Creates a signed JWT token using jsonwebtoken
+ * Creates a signed JWT token using jsonwebtoken (default 24h expiry)
  */
-export async function createAuthToken(payload: AuthUserPayload, expiresIn: string | number = '7d'): Promise<string> {
-  return jwt.sign(payload, getSecretKey(), { expiresIn: expiresIn as any });
+export async function createAuthToken(
+  payload: AuthUserPayload,
+  expiresIn: string | number = '24h'
+): Promise<string> {
+  const jti = payload.jti || crypto.randomUUID();
+  const loginAt = typeof payload.loginAt === 'number' ? payload.loginAt : Date.now();
+  return jwt.sign({ ...payload, jti, loginAt }, getSecretKey(), { expiresIn: expiresIn as any });
 }
 
 /**
@@ -62,8 +70,20 @@ export async function verifyAuthToken(token: string): Promise<AuthUserPayload | 
     const payloadJson = new TextDecoder().decode(toUint8Array(payloadB64));
     const payload = JSON.parse(payloadJson) as AuthUserPayload;
 
-    // Check expiration
+    // Check JWT exp claim
     if (payload.exp && typeof payload.exp === 'number' && Date.now() >= payload.exp * 1000) {
+      return null;
+    }
+
+    // Enforce strict 24-hour server session limit from original login/issue timestamp
+    const sessionStartMs =
+      typeof payload.loginAt === 'number'
+        ? payload.loginAt
+        : typeof payload.iat === 'number'
+        ? payload.iat * 1000
+        : null;
+
+    if (sessionStartMs !== null && Date.now() - sessionStartMs >= SESSION_MAX_AGE_SECONDS * 1000) {
       return null;
     }
 

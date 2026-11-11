@@ -1,10 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion, type Variants } from 'framer-motion';
 import { ArrowRight, Eye, EyeOff, Lock, Mail, User } from 'lucide-react';
+import { message } from 'antd';
 import { useLanguage } from '@/components/providers/LanguageProvider';
+import { OtpVerificationModal } from '@/components/auth/OtpVerificationModal';
+import type { CodeSlotsStatus } from '@/components/auth/CodeSlots';
 
 const CAROUSEL_SLIDES = [
   {
@@ -87,6 +91,23 @@ export function AuthCard({ initialMode }: AuthCardProps) {
   const [signUpLoading, setSignUpLoading] = useState(false);
   const [signUpError, setSignUpError] = useState('');
   const [signUpSuccessMsg, setSignUpSuccessMsg] = useState('');
+
+  // Sign Up OTP Modal states
+  const [signUpOtpOpen, setSignUpOtpOpen] = useState(false);
+  const [signUpOtpSeconds, setSignUpOtpSeconds] = useState(0);
+  const [signUpOtpStatus, setSignUpOtpStatus] = useState<CodeSlotsStatus>('idle');
+  const [signUpOtpLoading, setSignUpOtpLoading] = useState(false);
+  const [signUpOtpResending, setSignUpOtpResending] = useState(false);
+  const [signUpOtpError, setSignUpOtpError] = useState<string | null>(null);
+  const [signUpOtpPreviewUrl, setSignUpOtpPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!signUpOtpOpen || signUpOtpSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setSignUpOtpSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [signUpOtpOpen, signUpOtpSeconds]);
 
   // Carousel auto-advance
   useEffect(() => {
@@ -171,8 +192,8 @@ export function AuthCard({ initialMode }: AuthCardProps) {
       }
 
       if (data?.token && typeof window !== 'undefined') {
-        document.cookie = `farmhub_token=${data.token}; path=/; max-age=604800; SameSite=Lax`;
-        document.cookie = `agripulse_token=${data.token}; path=/; max-age=604800; SameSite=Lax`;
+        document.cookie = `farmhub_token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
+        document.cookie = `agripulse_token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
         if (data?.user) {
           localStorage.setItem('farmhub_user', JSON.stringify(data.user));
           localStorage.setItem('agripulse_user', JSON.stringify(data.user));
@@ -265,8 +286,24 @@ export function AuthCard({ initialMode }: AuthCardProps) {
         setSignUpLoading(false);
         return;
       }
+
       setSignUpLoading(false);
-      // Automatically switch to signin mode with animated transition and prefilled email
+
+      if (data?.otpRequired) {
+        setSignUpOtpError(null);
+        setSignUpOtpStatus('idle');
+        setSignUpOtpSeconds(data.expiresInSeconds || 300);
+        setSignUpOtpPreviewUrl(data.previewUrl || null);
+        setSignUpOtpOpen(true);
+        message.success(
+          locale === 'ta'
+            ? '6 இலக்க சரிபார்ப்பு குறியீடு உங்கள் மின்னஞ்சலுக்கு அனுப்பப்பட்டது!'
+            : '6-digit verification code sent to your email!'
+        );
+        return;
+      }
+
+      // Fallback direct creation
       setSignInEmail(signUpEmail.trim().toLowerCase());
       setSignUpSuccessMsg(
         locale === 'ta'
@@ -282,6 +319,87 @@ export function AuthCard({ initialMode }: AuthCardProps) {
           ? 'சேவையக பிழை ஏற்பட்டது'
           : 'Server error during sign up'
       );
+    }
+  };
+
+  const handleResendSignUpOtp = async () => {
+    setSignUpOtpResending(true);
+    setSignUpOtpError(null);
+    try {
+      const res = await fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: fullName.trim(),
+          email: signUpEmail.trim().toLowerCase(),
+          password: signUpPassword,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        setSignUpOtpError(data?.error || 'Failed to resend verification code.');
+        return;
+      }
+      setSignUpOtpSeconds(data.expiresInSeconds || 300);
+      setSignUpOtpPreviewUrl(data.previewUrl || null);
+      message.success(
+        locale === 'ta'
+          ? 'புதிய 6 இலக்க குறியீடு அனுப்பப்பட்டது!'
+          : 'A new 6-digit verification code was sent!'
+      );
+    } catch {
+      setSignUpOtpError('Server error while resending code.');
+    } finally {
+      setSignUpOtpResending(false);
+    }
+  };
+
+  const handleVerifySignUpOtp = async (otpCode: string) => {
+    setSignUpOtpError(null);
+    setSignUpOtpLoading(true);
+    try {
+      const res = await fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: fullName.trim(),
+          email: signUpEmail.trim().toLowerCase(),
+          password: signUpPassword,
+          otp: otpCode.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        setSignUpOtpStatus('error');
+        setSignUpOtpError(
+          data?.error ||
+            (locale === 'ta' ? 'தவறான சரிபார்ப்பு குறியீடு.' : 'Invalid verification code.')
+        );
+        return;
+      }
+
+      setSignUpOtpStatus('success');
+      message.success(
+        locale === 'ta'
+          ? 'மின்னஞ்சல் சரிபார்க்கப்பட்டது! கணக்கு உருவாக்கப்பட்டது.'
+          : 'Email verified & account created successfully!'
+      );
+
+      setTimeout(() => {
+        setSignUpOtpOpen(false);
+        setSignInEmail(signUpEmail.trim().toLowerCase());
+        setSignUpSuccessMsg(
+          locale === 'ta'
+            ? 'கணக்கு வெற்றிகரமாக உருவாக்கப்பட்டது! இப்போது உள்நுழையவும்.'
+            : 'Account verified & created successfully! Please sign in.'
+        );
+        switchMode('signin');
+      }, 650);
+    } catch {
+      setSignUpOtpStatus('error');
+      setSignUpOtpError('Server error while verifying OTP.');
+    } finally {
+      setSignUpOtpLoading(false);
     }
   };
 
@@ -332,7 +450,10 @@ export function AuthCard({ initialMode }: AuthCardProps) {
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.3, ease: 'easeOut' }}
                 >
-                  <h3 className="text-xl sm:text-2xl lg:text-3xl font-black text-white leading-tight font-display tracking-tight">
+                  <h3
+                    className="keep-white text-xl sm:text-2xl lg:text-3xl font-black leading-tight font-display tracking-tight"
+                    style={{ color: '#ffffff' }}
+                  >
                     {locale === 'ta'
                       ? CAROUSEL_SLIDES[activeSlide].titleTa
                       : CAROUSEL_SLIDES[activeSlide].titleEn}
@@ -459,7 +580,7 @@ export function AuthCard({ initialMode }: AuthCardProps) {
                           t.emailOrPhonePlaceholder ||
                           'e.g. swaminathan@farmhub.in or 9876543210'
                         }
-                        className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-4 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/35 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                        className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-4 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
                       />
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
                         <Mail size={17} />
@@ -476,20 +597,12 @@ export function AuthCard({ initialMode }: AuthCardProps) {
                       >
                         {t.password || 'Password'}
                       </label>
-                      <a
-                        href="#forgot"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          alert(
-                            locale === 'ta'
-                              ? 'கடவுச்சொல் மீட்டமைப்பு உங்கள் பதிவுசெய்த கைபேசி எண்ணிற்கு அனுப்பப்படும்.'
-                              : 'Password reset link has been dispatched to your registered contact.'
-                          );
-                        }}
+                      <Link
+                        href="/forgot-password"
                         className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:underline"
                       >
                         {t.forgotPassword || 'Forgot password?'}
-                      </a>
+                      </Link>
                     </div>
                     <div className="relative">
                       <input
@@ -501,7 +614,7 @@ export function AuthCard({ initialMode }: AuthCardProps) {
                         value={signInPassword}
                         onChange={(e) => setSignInPassword(e.target.value)}
                         placeholder={t.passwordPlaceholder || 'Enter your password'}
-                        className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-10 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/35 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                        className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-10 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
                       />
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
                         <Lock size={17} />
@@ -541,11 +654,12 @@ export function AuthCard({ initialMode }: AuthCardProps) {
                     type="submit"
                     id="btn-submit-signin"
                     disabled={signInLoading}
-                    className="w-full mt-2 h-11 sm:h-12 rounded-xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 hover:from-emerald-400 hover:to-teal-300 font-black text-slate-950 text-sm shadow-[0_8px_25px_rgba(16,185,129,0.35)] hover:brightness-110 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                    style={{ color: '#ffffff' }}
+                    className="keep-white w-full mt-2 h-11 sm:h-12 rounded-xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 hover:from-emerald-400 hover:to-teal-300 font-black text-white text-sm shadow-[0_8px_25px_rgba(16,185,129,0.35)] hover:brightness-110 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {signInLoading ? (
                       <>
-                        <span className="w-4 h-4 rounded-full border-2 border-slate-950 border-t-transparent animate-spin" />
+                        <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
                         <span>{t.signingIn || 'Authenticating...'}</span>
                       </>
                     ) : (
@@ -603,109 +717,115 @@ export function AuthCard({ initialMode }: AuthCardProps) {
 
                 {/* Form */}
                 <form onSubmit={handleSignUp} className="space-y-3.5 sm:space-y-4">
-                  {/* Full Name & Email Address Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5">
-                    <div>
-                      <label
-                        htmlFor="signup-name"
-                        className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80 mb-1.5"
-                      >
-                        {t.fullName || 'Full Name'} *
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          id="signup-name"
-                          value={fullName}
-                          onChange={(e) => setFullName(e.target.value)}
-                          required
-                          placeholder={t.fullNamePlaceholder || 'e.g. R. Subramanian'}
-                          className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-4 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/35 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
-                        />
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
-                          <User size={17} />
-                        </span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="signup-email"
-                        className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80 mb-1.5"
-                      >
-                        {t.email || 'Email Address'} *
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="email"
-                          id="signup-email"
-                          value={signUpEmail}
-                          onChange={(e) => setSignUpEmail(e.target.value)}
-                          required
-                          placeholder={t.emailPlaceholder || 'e.g. farmer@farmhub.in'}
-                          className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-4 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/35 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
-                        />
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
-                          <Mail size={17} />
-                        </span>
-                      </div>
+                  {/* Full Name */}
+                  <div>
+                    <label
+                      htmlFor="signup-name"
+                      className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80 mb-1.5"
+                    >
+                      {t.fullName || 'Full Name'} *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        id="signup-name"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        required
+                        placeholder={t.fullNamePlaceholder || 'e.g. R. Subramanian'}
+                        className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-4 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                      />
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
+                        <User size={17} />
+                      </span>
                     </div>
                   </div>
 
-                  {/* Password & Confirm Password Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5">
-                    <div>
-                      <label
-                        htmlFor="signup-password"
-                        className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80 mb-1.5"
-                      >
-                        {t.password || 'Password'} *
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={signUpShowPassword ? 'text' : 'password'}
-                          id="signup-password"
-                          value={signUpPassword}
-                          onChange={(e) => setSignUpPassword(e.target.value)}
-                          required
-                          placeholder={t.passwordPlaceholder || 'Min 6 characters'}
-                          className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-10 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/35 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
-                        />
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
-                          <Lock size={17} />
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setSignUpShowPassword(!signUpShowPassword)}
-                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:text-emerald-300/60 dark:hover:text-white cursor-pointer transition-colors"
-                          aria-label="Toggle password visibility"
-                        >
-                          {signUpShowPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                        </button>
-                      </div>
+                  {/* Email Address */}
+                  <div>
+                    <label
+                      htmlFor="signup-email"
+                      className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80 mb-1.5"
+                    >
+                      {t.email || 'Email Address'} *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="email"
+                        id="signup-email"
+                        value={signUpEmail}
+                        onChange={(e) => setSignUpEmail(e.target.value)}
+                        required
+                        placeholder={t.emailPlaceholder || 'e.g. farmer@farmhub.in'}
+                        className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-4 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                      />
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
+                        <Mail size={17} />
+                      </span>
                     </div>
+                  </div>
 
-                    <div>
-                      <label
-                        htmlFor="signup-confirm-password"
-                        className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80 mb-1.5"
+                  {/* Password */}
+                  <div>
+                    <label
+                      htmlFor="signup-password"
+                      className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80 mb-1.5"
+                    >
+                      {t.password || 'Password'} *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={signUpShowPassword ? 'text' : 'password'}
+                        id="signup-password"
+                        value={signUpPassword}
+                        onChange={(e) => setSignUpPassword(e.target.value)}
+                        required
+                        placeholder={t.passwordPlaceholder || 'Min 6 characters'}
+                        className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-10 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                      />
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
+                        <Lock size={17} />
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSignUpShowPassword(!signUpShowPassword)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:text-emerald-300/60 dark:hover:text-white cursor-pointer transition-colors"
+                        aria-label="Toggle password visibility"
                       >
-                        {t.confirmPassword || 'Confirm Password'} *
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={signUpShowPassword ? 'text' : 'password'}
-                          id="signup-confirm-password"
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          required
-                          placeholder={t.confirmPasswordPlaceholder || 'Repeat password'}
-                          className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-4 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/35 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
-                        />
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
-                          <Lock size={17} />
-                        </span>
-                      </div>
+                        {signUpShowPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Confirm Password */}
+                  <div>
+                    <label
+                      htmlFor="signup-confirm-password"
+                      className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80 mb-1.5"
+                    >
+                      {t.confirmPassword || 'Confirm Password'} *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={signUpShowPassword ? 'text' : 'password'}
+                        id="signup-confirm-password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        required
+                        placeholder={t.confirmPasswordPlaceholder || 'Repeat password'}
+                        className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-10 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                      />
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
+                        <Lock size={17} />
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSignUpShowPassword(!signUpShowPassword)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:text-emerald-300/60 dark:hover:text-white cursor-pointer transition-colors"
+                        aria-label="Toggle password visibility"
+                      >
+                        {signUpShowPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                      </button>
                     </div>
                   </div>
 
@@ -737,11 +857,12 @@ export function AuthCard({ initialMode }: AuthCardProps) {
                     type="submit"
                     id="btn-submit-signup"
                     disabled={signUpLoading}
-                    className="w-full mt-2 h-11 sm:h-12 rounded-xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 hover:from-emerald-400 hover:to-teal-300 font-black text-slate-950 text-sm shadow-[0_8px_25px_rgba(16,185,129,0.35)] hover:brightness-110 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                    style={{ color: '#ffffff' }}
+                    className="keep-white w-full mt-2 h-11 sm:h-12 rounded-xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 hover:from-emerald-400 hover:to-teal-300 font-black text-white text-sm shadow-[0_8px_25px_rgba(16,185,129,0.35)] hover:brightness-110 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {signUpLoading ? (
                       <>
-                        <span className="w-4 h-4 rounded-full border-2 border-slate-950 border-t-transparent animate-spin" />
+                        <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
                         <span>{t.signingUp || 'Creating account...'}</span>
                       </>
                     ) : (
@@ -754,6 +875,32 @@ export function AuthCard({ initialMode }: AuthCardProps) {
           </AnimatePresence>
         </motion.div>
       </motion.div>
+
+      <OtpVerificationModal
+        open={signUpOtpOpen}
+        email={signUpEmail.trim().toLowerCase()}
+        title={locale === 'ta' ? 'மின்னஞ்சலை சரிபார்க்கவும்' : 'Verify Your Email'}
+        subtitle={
+          locale === 'ta'
+            ? 'உங்கள் கணக்கை உருவாக்க, உங்கள் மின்னஞ்சலுக்கு அனுப்பப்பட்ட 6 இலக்க குறியீட்டை உள்ளிடவும்.'
+            : 'Enter the 6-digit verification code sent to your email address to activate your FarmHub account.'
+        }
+        confirmLabel={locale === 'ta' ? 'சரிபார்த்து கணக்கை உருவாக்கு' : 'Verify & Create Account'}
+        loading={signUpOtpLoading}
+        resending={signUpOtpResending}
+        errorMsg={signUpOtpError}
+        secondsLeft={signUpOtpSeconds}
+        status={signUpOtpStatus}
+        onStatusChange={setSignUpOtpStatus}
+        onVerify={handleVerifySignUpOtp}
+        onResend={handleResendSignUpOtp}
+        onCancel={() => {
+          setSignUpOtpOpen(false);
+          setSignUpOtpError(null);
+        }}
+        isTamil={locale === 'ta'}
+        previewUrl={signUpOtpPreviewUrl}
+      />
     </motion.div>
   );
 }

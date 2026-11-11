@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
-import { getAuthenticatedUser } from '@/lib/auth';
+import { getServerAuthenticatedUser as getAuthenticatedUser } from '@/lib/serverAuth';
 
 /**
  * POST /api/user/language

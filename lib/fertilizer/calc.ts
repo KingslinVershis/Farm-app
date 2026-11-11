@@ -333,7 +333,6 @@ export function normalizeOrFormatNestedExpenseMap(
   // Phase 2 Tasks
   const tractor2 = isAlreadyNested ? (p2.tractor || {}) : (input.p2_tractor || {});
   const bund2 = isAlreadyNested ? (p2.bund_labour || {}) : (input.p2_bund_labour || {});
-  const plot2 = isAlreadyNested ? (p2.plotting_labour || {}) : (input.p2_plotting_labour || {});
   const fert2 = isAlreadyNested ? (p2.fert_labour || {}) : (input.p2_fert_labour || {});
   const transplant2 = isAlreadyNested ? (p2.translanting || {}) : (input.p2_labour || {});
   const water2 = isAlreadyNested ? (p2.water || {}) : (input.p3_water || {});
@@ -407,14 +406,6 @@ export function normalizeOrFormatNestedExpenseMap(
         snackCost: bund2.snackCost ?? 200,
         travelCost: bund2.travelCost ?? 150,
         isEnabled: bund2.isEnabled !== false,
-      },
-      plotting_labour: {
-        days: plot2.days ?? 10,
-        labourCount: plot2.labourCount ?? 4,
-        labourWage: plot2.labourWage ?? 500,
-        snackCost: plot2.snackCost ?? 200,
-        travelCost: plot2.travelCost ?? 150,
-        isEnabled: plot2.isEnabled !== false,
       },
       fert_labour: {
         days: fert2.days ?? 3,
@@ -606,7 +597,7 @@ export function nestedToFlatExpenseMap(
   const p5 = norm.phase_5;
 
   // Phase 1
-  const tCost = Math.round(p1.tractor.ratePerCent * cents);
+  const tCost = Math.round(p1.tractor.ratePerCent);
   result['p1_tractor'] = {
     ratePerCent: p1.tractor.ratePerCent,
     days: p1.tractor.days,
@@ -615,7 +606,7 @@ export function nestedToFlatExpenseMap(
     isEnabled: p1.tractor.isEnabled !== false,
   };
 
-  const sCost = Math.round(p1.seed.seedCost * cents + (p1.seed.isTravelCost ? p1.seed.TravelcostPer : 0));
+  const sCost = Math.round(p1.seed.seedCost + (p1.seed.isTravelCost ? p1.seed.TravelcostPer : 0));
   result['p1_nursery'] = {
     ratePerCent: p1.seed.seedCost,
     days: p1.seed.days,
@@ -626,7 +617,7 @@ export function nestedToFlatExpenseMap(
     isEnabled: p1.seed.isEnabled !== false,
   };
 
-  const fCost = Math.round(p1.fuel.ratePerCent * cents);
+  const fCost = Math.round(p1.fuel.ratePerCent);
   result['p1_fuel'] = {
     ratePerCent: p1.fuel.ratePerCent,
     days: p1.fuel.days,
@@ -662,7 +653,7 @@ export function nestedToFlatExpenseMap(
   };
 
   // Phase 2
-  const t2Cost = Math.round(p2.tractor.ratePerCent * cents);
+  const t2Cost = Math.round(p2.tractor.ratePerCent);
   result['p2_tractor'] = {
     ratePerCent: p2.tractor.ratePerCent,
     days: p2.tractor.days,
@@ -684,19 +675,6 @@ export function nestedToFlatExpenseMap(
     isEnabled: p2.bund_labour.isEnabled !== false,
   };
 
-  const pl2Cost = p2.plotting_labour.labourCount * p2.plotting_labour.labourWage + p2.plotting_labour.snackCost + p2.plotting_labour.travelCost;
-  result['p2_plotting_labour'] = {
-    ratePerCent: cents > 0 ? Math.round(pl2Cost / cents) : 0,
-    days: p2.plotting_labour.days,
-    labourCount: p2.plotting_labour.labourCount,
-    labourWage: p2.plotting_labour.labourWage,
-    snackCost: p2.plotting_labour.snackCost,
-    travelCost: p2.plotting_labour.travelCost,
-    totalCost: pl2Cost,
-    costPerDay: p2.plotting_labour.days > 0 ? Math.round(pl2Cost / p2.plotting_labour.days) : 0,
-    isEnabled: p2.plotting_labour.isEnabled !== false,
-  };
-
   const f2Cost = p2.fert_labour.labourCount * p2.fert_labour.labourWage + p2.fert_labour.snackCost + p2.fert_labour.travelCost;
   result['p2_fert_labour'] = {
     ratePerCent: cents > 0 ? Math.round(f2Cost / cents) : 0,
@@ -713,7 +691,7 @@ export function nestedToFlatExpenseMap(
   const isManual = p2.translanting.isManual;
   const trCost = isManual
     ? p2.translanting.labourCount * p2.translanting.labourWage + p2.translanting.snackCost + p2.translanting.travelCost
-    : Math.round(p2.translanting.machineCost * cents);
+    : Math.round(p2.translanting.machineCost);
   result['p2_labour'] = {
     ratePerCent: isManual ? (cents > 0 ? Math.round(trCost / cents) : 0) : p2.translanting.machineCost,
     days: p2.translanting.days,
@@ -727,7 +705,7 @@ export function nestedToFlatExpenseMap(
     isEnabled: p2.translanting.isEnabled !== false,
   };
 
-  const wCost = Math.round(p2.water.waterCost * cents);
+  const wCost = Math.round(p2.water.waterCost);
   result['p3_water'] = {
     ratePerCent: p2.water.waterCost,
     days: p2.water.days,
@@ -842,7 +820,7 @@ export function nestedToFlatExpenseMap(
   };
 
   // Phase 4
-  const h4Cost = Math.round(p4.harvest.harvest_cost * cents);
+  const h4Cost = Math.round(p4.harvest.harvest_cost);
   result['p4_harvest'] = {
     ratePerCent: p4.harvest.harvest_cost,
     days: p4.harvest.days,
@@ -951,11 +929,11 @@ export function calculateTotalsFromNested(
 
   // Phase 1
   const p1 = norm.phase_1;
-  if (p1.tractor.isEnabled !== false) grandTotal += p1.tractor.ratePerCent * cents;
+  if (p1.tractor.isEnabled !== false) grandTotal += p1.tractor.ratePerCent;
   if (p1.seed.isEnabled !== false) {
-    grandTotal += p1.seed.seedCost * cents + (p1.seed.isTravelCost ? p1.seed.TravelcostPer : 0);
+    grandTotal += p1.seed.seedCost + (p1.seed.isTravelCost ? p1.seed.TravelcostPer : 0);
   }
-  if (p1.fuel.isEnabled !== false) grandTotal += p1.fuel.ratePerCent * cents;
+  if (p1.fuel.isEnabled !== false) grandTotal += p1.fuel.ratePerCent;
   if (p1.bund_labour.isEnabled !== false) {
     grandTotal += p1.bund_labour.labourCount * p1.bund_labour.labourWage + p1.bund_labour.snackCost + p1.bund_labour.travelCost;
   }
@@ -965,12 +943,9 @@ export function calculateTotalsFromNested(
 
   // Phase 2
   const p2 = norm.phase_2;
-  if (p2.tractor.isEnabled !== false) grandTotal += p2.tractor.ratePerCent * cents;
+  if (p2.tractor.isEnabled !== false) grandTotal += p2.tractor.ratePerCent;
   if (p2.bund_labour.isEnabled !== false) {
     grandTotal += p2.bund_labour.labourCount * p2.bund_labour.labourWage + p2.bund_labour.snackCost + p2.bund_labour.travelCost;
-  }
-  if (p2.plotting_labour.isEnabled !== false) {
-    grandTotal += p2.plotting_labour.labourCount * p2.plotting_labour.labourWage + p2.plotting_labour.snackCost + p2.plotting_labour.travelCost;
   }
   if (p2.fert_labour.isEnabled !== false) {
     grandTotal += p2.fert_labour.labourCount * p2.fert_labour.labourWage + p2.fert_labour.snackCost + p2.fert_labour.travelCost;
@@ -979,10 +954,10 @@ export function calculateTotalsFromNested(
     if (p2.translanting.isManual) {
       grandTotal += p2.translanting.labourCount * p2.translanting.labourWage + p2.translanting.snackCost + p2.translanting.travelCost;
     } else {
-      grandTotal += p2.translanting.machineCost * cents;
+      grandTotal += p2.translanting.machineCost;
     }
   }
-  if (p2.water.isEnabled !== false) grandTotal += p2.water.waterCost * cents;
+  if (p2.water.isEnabled !== false) grandTotal += p2.water.waterCost;
 
   // Phase 3
   const p3 = norm.phase_3;
@@ -1004,7 +979,7 @@ export function calculateTotalsFromNested(
 
   // Phase 4
   const p4 = norm.phase_4;
-  if (p4.harvest.isEnabled !== false) grandTotal += p4.harvest.harvest_cost * cents;
+  if (p4.harvest.isEnabled !== false) grandTotal += p4.harvest.harvest_cost;
   if (p4.gunny_bags.isEnabled !== false) grandTotal += p4.gunny_bags.bagCount * p4.gunny_bags.bagPrice;
   if (p4.bagging_labour.isEnabled !== false) {
     grandTotal += p4.bagging_labour.labourCount * p4.bagging_labour.labourWage + p4.bagging_labour.snackCost;

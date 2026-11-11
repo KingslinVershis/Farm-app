@@ -29,6 +29,68 @@ const DEFAULT_USER_DETAILS: UserDetails = {
   address: '',
 };
 
+/** Checks whether a single task entry has been filled (or explicitly skipped if optional). */
+export function isTaskEntryFilled(task: ExpenseTask, entry?: ExpenseEntry): boolean {
+  if (!entry) return false;
+  if (task.isOptional && entry.isEnabled === false) return true;
+  if (task.isFertilizerWithLabour) {
+    return (
+      ((entry.fertQty ?? 0) > 0 && (entry.fertPrice ?? 0) > 0) ||
+      ((entry.labourCount ?? 0) > 0 && (entry.labourWage ?? 0) > 0)
+    );
+  }
+  if (task.isLabour && !entry.isMachineMode) {
+    return (entry.labourCount ?? 0) > 0 && (entry.labourWage ?? 0) > 0;
+  }
+  if (task.isGunnyBags) {
+    return (entry.bagCount ?? 0) > 0 && (entry.bagPrice ?? 0) > 0;
+  }
+  if (task.isTransportLoading) {
+    return (
+      (entry.transportRent ?? 0) > 0 ||
+      ((entry.loadingWorkers ?? 0) > 0 && (entry.loadingWage ?? 0) > 0)
+    );
+  }
+  if (task.isGrainYield) {
+    return (
+      (entry.yieldKg ?? 0) > 0 &&
+      (entry.bagWeightKg ?? 0) > 0 &&
+      (entry.grainBagPrice ?? 0) > 0
+    );
+  }
+  if (task.isStrawYield) {
+    return (entry.strawSackCount ?? 0) > 0 && (entry.strawPrice ?? 0) > 0;
+  }
+  if (task.isMandiTrip) {
+    return (entry.mandiCount ?? 0) > 0 && (entry.mandiRate ?? 0) > 0;
+  }
+  return (entry.ratePerCent ?? 0) > 0;
+}
+
+/** Checks whether all required (non-skipped) tasks inside a phase have filled values. */
+export function isPhaseComplete(
+  phase: PhaseGroup,
+  expenseMap: Record<string, ExpenseEntry>
+): boolean {
+  return phase.tasks.every((task) => isTaskEntryFilled(task, expenseMap[task.id]));
+}
+
+/** Checks whether Step 1 farmer details are completely filled & valid without mutating UI errors. */
+export function areStep1DetailsValid(details: UserDetails): boolean {
+  const hasName = Boolean(details.name?.trim());
+  const hasPhone =
+    Boolean(details.phone?.trim()) && /^\d{10}$/.test(details.phone.replace(/\D/g, ''));
+  const hasLandSize = Boolean(details.landSize && details.landSize > 0);
+  const hasLocation = Boolean(
+    details.location?.trim() ||
+      (details.state?.trim() &&
+        details.district?.trim() &&
+        (details.village?.trim() || details.city?.trim()))
+  );
+  const hasAddress = Boolean(details.address?.trim());
+  return hasName && hasPhone && hasLandSize && hasLocation && hasAddress;
+}
+
 /**
  * Owns all fertilizer-planner state, cost handlers, validation and derived
  * totals. Keeps the page component focused on presentation.
@@ -50,6 +112,7 @@ export function useFertilizerPlanner() {
   const [savedPlans, setSavedPlans] = useState<SavedPlanRecord[]>([]);
   const [pageView, setPageView] = useState<'records' | 'wizard'>('records');
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
+  const [step2Completed, setStep2Completed] = useState<boolean>(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
 
   // ─── API sync helper ────────────────────────────────────────────────────────
@@ -193,11 +256,13 @@ export function useFertilizerPlanner() {
 
   const handleCropSelect = (crop: CultivationType = 'paddy') => {
     setCultivation('paddy');
+    setStep2Completed(true);
     // Stay on step 2 - do NOT advance step!
   };
 
   const handleConfigureCrop = (crop: CultivationType = 'paddy') => {
     setCultivation('paddy');
+    setStep2Completed(true);
     setActivePhaseIndex(0);
     const phases = PADDY_PHASES;
     if (!activePlanId) {
@@ -218,7 +283,6 @@ export function useFertilizerPlanner() {
     hasTravelCost?: boolean
   ) => {
     const safeRate = isNaN(rate) ? 0 : Math.max(0, rate);
-    const cents = userDetails.landSize > 0 ? userDetails.landSize : 0;
     setExpenseMap((prev) => {
       const current = prev[taskId];
       if (!current) return prev;
@@ -229,7 +293,7 @@ export function useFertilizerPlanner() {
           ? (isNaN(travelCost) ? 0 : Math.max(0, travelCost))
           : (current.travelCost ?? 0);
       const addedTravel = isTravelActive ? safeTravel : 0;
-      const totalCost = Math.round(safeRate * cents + addedTravel);
+      const totalCost = Math.round(safeRate + addedTravel);
       const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
       return {
         ...prev,
@@ -365,13 +429,13 @@ export function useFertilizerPlanner() {
       let ratePerCent = current.ratePerCent;
 
       if (nextIsMachine) {
-        ratePerCent = defaultMachineRate;
-        totalCost = Math.round(ratePerCent * cents);
+        ratePerCent = current.ratePerCent || 0;
+        totalCost = Math.round(ratePerCent);
       } else {
-        const count = current.labourCount ?? 5;
-        const wage = current.labourWage ?? 500;
-        const snacks = current.snackCost ?? 200;
-        const travel = current.travelCost ?? 200;
+        const count = current.labourCount ?? 0;
+        const wage = current.labourWage ?? 0;
+        const snacks = current.snackCost ?? 0;
+        const travel = current.travelCost ?? 0;
         totalCost = Math.round(count * wage + snacks + travel);
         ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
       }
@@ -402,7 +466,7 @@ export function useFertilizerPlanner() {
       if (!current) return prev;
       const nextIsPlastic = current.isPlasticBag === false ? true : false;
       const bagPrice = nextIsPlastic ? plasticPrice : traditionalPrice;
-      const bagCount = current.bagCount ?? 120;
+      const bagCount = current.bagCount ?? 0;
       const totalCost = Math.round(bagCount * bagPrice);
       const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
       const ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
@@ -484,17 +548,16 @@ export function useFertilizerPlanner() {
       const current = prev[taskId];
       if (!current) return prev;
       const nextMode: 'tons' | 'bags' = current.yieldMode === 'bags' ? 'tons' : 'bags';
-      const yieldTons = current.yieldTons ?? 14;
-      const bagWeightKg = current.bagWeightKg ?? 75;
-      const grainBagPrice = current.grainBagPrice ?? 1650;
-      let grainBagCount = current.grainBagCount ?? 186.67;
+      const yieldTons = current.yieldTons ?? 0;
+      const bagWeightKg = current.bagWeightKg ?? 0;
+      const grainBagPrice = current.grainBagPrice ?? 0;
+      let grainBagCount = current.grainBagCount ?? 0;
       let totalCost = 0;
 
       if (nextMode === 'tons') {
         const totalKg = yieldTons * 1000;
-        const safeWeight = bagWeightKg > 0 ? bagWeightKg : 75;
-        grainBagCount = Number((totalKg / safeWeight).toFixed(2));
-        totalCost = Math.round((totalKg / safeWeight) * grainBagPrice);
+        grainBagCount = bagWeightKg > 0 ? Number((totalKg / bagWeightKg).toFixed(2)) : 0;
+        totalCost = bagWeightKg > 0 ? Math.round((totalKg / bagWeightKg) * grainBagPrice) : 0;
       } else {
         totalCost = Math.round(grainBagCount * grainBagPrice);
       }
@@ -536,13 +599,14 @@ export function useFertilizerPlanner() {
       const safeYieldKg =
         params.yieldKg !== undefined && !isNaN(params.yieldKg)
           ? Math.max(0, params.yieldKg)
-          : (current.yieldKg ?? ((current.yieldTons ?? 14) * 1000));
+          : (current.yieldKg ?? ((current.yieldTons ?? 0) * 1000));
       const safeYieldTons = Number((safeYieldKg / 1000).toFixed(2));
       const safeBagWeight =
         params.bagWeightKg !== undefined && !isNaN(params.bagWeightKg)
-          ? Math.max(1, params.bagWeightKg)
-          : (current.bagWeightKg ?? 75);
-      const grainBagCount = Number((safeYieldKg / safeBagWeight).toFixed(2));
+          ? Math.max(0, params.bagWeightKg)
+          : (current.bagWeightKg ?? 0);
+      const grainBagCount =
+        safeBagWeight > 0 ? Number((safeYieldKg / safeBagWeight).toFixed(2)) : 0;
       const totalCost = Math.round(grainBagCount * safePrice);
       const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
       const ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
@@ -697,14 +761,22 @@ export function useFertilizerPlanner() {
     });
   };
 
-  const saveCurrentPlan = async (isDraft: boolean = false, isCompleted: boolean = false) => {
+  const persistPlanToServer = async ({
+    isDraft = false,
+    isCompleted = false,
+    redirectToRecords = true,
+  }: {
+    isDraft?: boolean;
+    isCompleted?: boolean;
+    redirectToRecords?: boolean;
+  }) => {
     const nestedExpenses = formatToNestedExpenseMap(cultivation, expenseMap, userDetails.landSize);
 
     const cleanUserDetails = {
       name: userDetails.name || '',
       phone: userDetails.phone || '',
       landSize: Number(userDetails.landSize) || 0,
-      state: userDetails.state || 'Tamil Nadu',
+      state: userDetails.state || '',
       district: userDetails.district || '',
       city: userDetails.city || '',
       village: userDetails.village || '',
@@ -744,8 +816,8 @@ export function useFertilizerPlanner() {
           console.error('Failed to save plans to localStorage', e);
         }
       }
-    } else {
-      // Offline fallback only if network/fetch completely fails
+    } else if (redirectToRecords) {
+      // Offline fallback only if network/fetch completely fails during explicit save
       const fallbackId = activePlanId || `plan_${Date.now()}`;
       planId = fallbackId;
       const nowFormatted = new Date().toLocaleDateString('en-IN', {
@@ -783,21 +855,29 @@ export function useFertilizerPlanner() {
       }
     }
 
-    if (isCompleted) {
-      setSaveSuccessMessage('Cultivation plan marked as Completed and finalized!');
-    } else if (isDraft) {
-      setSaveSuccessMessage('Cultivation draft saved successfully!');
-    } else {
-      setSaveSuccessMessage(t.step3?.savedSuccessToast || 'Cultivation record saved successfully!');
-    }
-    setPageView('records');
+    if (redirectToRecords) {
+      if (isCompleted) {
+        setSaveSuccessMessage('Cultivation plan marked as Completed and finalized!');
+      } else if (isDraft) {
+        setSaveSuccessMessage('Cultivation draft saved successfully!');
+      } else {
+        setSaveSuccessMessage(t.step3?.savedSuccessToast || 'Cultivation record saved successfully!');
+      }
+      setPageView('records');
 
-    setTimeout(() => {
-      setSaveSuccessMessage(null);
-    }, 4000);
+      setTimeout(() => {
+        setSaveSuccessMessage(null);
+      }, 4000);
+    }
 
     return planId;
   };
+
+  const saveCurrentPlan = async (isDraft: boolean = false, isCompleted: boolean = false) =>
+    persistPlanToServer({ isDraft, isCompleted, redirectToRecords: true });
+
+  const savePhaseProgress = async () =>
+    persistPlanToServer({ isDraft: true, isCompleted: false, redirectToRecords: false });
 
   const loadPlanAndShowSummary = (planId: string) => {
     const plan = savedPlans.find((p) => p.id === planId);
@@ -813,6 +893,7 @@ export function useFertilizerPlanner() {
     });
     setExpenseMap(flatExpenses || {});
     setActivePlanId(plan.id);
+    setStep2Completed(true);
     setStep(4);
     setPageView('wizard');
   };
@@ -832,6 +913,7 @@ export function useFertilizerPlanner() {
     });
     setExpenseMap(flatExpenses || {});
     setActivePlanId(plan.id);
+    setStep2Completed(true);
     setActivePhaseIndex(0);
     setStep(1);
     setPageView('wizard');
@@ -851,6 +933,7 @@ export function useFertilizerPlanner() {
     });
     setExpenseMap(flatExpenses || {});
     setActivePlanId(plan.id);
+    setStep2Completed(true);
   };
 
   const deletePlan = (planId: string, e?: SyntheticEvent) => {
@@ -875,21 +958,18 @@ export function useFertilizerPlanner() {
 
   const createNewPlan = () => {
     setActivePlanId(null);
-    // Fill static test values for Step 1 and all phases for easy testing
+    setStep2Completed(false);
+    setViewMode('individual');
     setUserDetails({
-      name: 'Arun Kumar',
-      phone: '9876543210',
-      landSize: 100,
-      state: 'Tamil Nadu',
+      ...DEFAULT_USER_DETAILS,
+      state: '',
       district: '',
       city: '',
       village: '',
-      location: 'Tamil Nadu',
-      address: 'Survey No. 88/2, Tenkasi High Road',
     });
     setErrors({});
     setCultivation('paddy');
-    setExpenseMap(buildInitialExpenses(PADDY_PHASES, 100));
+    setExpenseMap(buildEmptyExpenses(PADDY_PHASES));
     setActivePhaseIndex(0);
     setStep(1);
     setPageView('wizard');
@@ -898,6 +978,36 @@ export function useFertilizerPlanner() {
   const openSavedRecords = () => {
     setPageView('records');
   };
+
+  const isStep1Valid = useMemo(() => areStep1DetailsValid(userDetails), [userDetails]);
+
+  const maxUnlockedStep: 1 | 2 | 3 = useMemo(() => {
+    if (!isStep1Valid) return 1;
+    if (!step2Completed && step < 3 && !activePlanId) return 2;
+    return 3;
+  }, [isStep1Valid, step2Completed, step, activePlanId]);
+
+  const phaseCompletionMap = useMemo(
+    () => currentPhases.map((ph) => isPhaseComplete(ph, expenseMap)),
+    [currentPhases, expenseMap]
+  );
+
+  const highestUnlockedPhaseIndex = useMemo(() => {
+    let unlocked = 0;
+    for (let i = 0; i < currentPhases.length - 1; i++) {
+      if (phaseCompletionMap[i]) {
+        unlocked = i + 1;
+      } else {
+        break;
+      }
+    }
+    return unlocked;
+  }, [currentPhases.length, phaseCompletionMap]);
+
+  const allPhasesComplete = useMemo(
+    () => phaseCompletionMap.every(Boolean),
+    [phaseCompletionMap]
+  );
 
   return {
     step,
@@ -913,9 +1023,16 @@ export function useFertilizerPlanner() {
     userDetails,
     setUserDetails,
     errors,
+    validateStep1,
     clearError,
     expenseMap,
     currentPhases,
+    isStep1Valid,
+    step2Completed,
+    maxUnlockedStep,
+    phaseCompletionMap,
+    highestUnlockedPhaseIndex,
+    allPhasesComplete,
     handleCultivationSelect,
     handleCropSelect,
     handleConfigureCrop,
@@ -954,6 +1071,7 @@ export function useFertilizerPlanner() {
     setActivePlanId,
     saveSuccessMessage,
     saveCurrentPlan,
+    savePhaseProgress,
     loadPlanAndShowSummary,
     loadPlanForEditing,
     loadPlan,

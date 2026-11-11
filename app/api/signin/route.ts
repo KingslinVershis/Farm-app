@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from '@/lib/db';
 import bcrypt from "bcryptjs";
-import jwt from 'jsonwebtoken';
+import { createAuthToken, AUTH_COOKIE_NAME, LEGACY_AUTH_COOKIE_NAME, SESSION_MAX_AGE_SECONDS } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
     const errorResponse = NextResponse.json({ success: false, message: "Invalid username or password" }, { status: 400 });
@@ -21,14 +21,10 @@ export async function POST(request: NextRequest) {
         username: user.username,
         email: user.email,
         createdAt: user.created_at,
-        updatedAt: user.updated_at
+        updatedAt: user.updated_at,
+        loginAt: Date.now(),
     };
-    const secret = (process.env.JWT_SECRET || 'farmhub-super-secret-key-2026').trim();
-    if (!secret)
-        throw Error("Secret Key is not defined");
-    const token = jwt.sign(tokenPayload, secret, {
-        expiresIn: '7d'
-    });
+    const token = await createAuthToken(tokenPayload, '24h');
     const userSafe = {
         id: user.id,
         username: user.username,
@@ -44,13 +40,13 @@ export async function POST(request: NextRequest) {
 
     const cookieOptions = {
         path: '/',
-        maxAge: 604800,
+        maxAge: SESSION_MAX_AGE_SECONDS,
         sameSite: 'lax' as const,
         httpOnly: false,
     };
 
-    response.cookies.set('farmhub_token', token, cookieOptions);
-    response.cookies.set('agripulse_token', token, cookieOptions);
+    response.cookies.set(AUTH_COOKIE_NAME, token, cookieOptions);
+    response.cookies.set(LEGACY_AUTH_COOKIE_NAME, token, cookieOptions);
 
     return response;
 }

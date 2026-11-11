@@ -236,7 +236,7 @@ export default function FarmDashboardPage() {
           <div className="flex flex-wrap items-center gap-2.5 shrink-0 z-10">
             <Link
               href="/fertilizer"
-              className="rounded-xl px-4 py-2 text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer bg-emerald-500 text-slate-950 hover:bg-emerald-400 shadow-glow active:scale-95"
+              className="rounded-xl px-4 py-2 text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer bg-emerald-500 text-white keep-white hover:bg-emerald-400 shadow-glow active:scale-95"
             >
               <SproutIcon size={15} />
               <span>{t.newPlanBtn}</span>
