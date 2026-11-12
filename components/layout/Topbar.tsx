@@ -13,6 +13,7 @@ import {
   SettingsIcon,
   FlaskConicalIcon,
   WavesIcon,
+  CloudSunIcon,
 } from '../icons/Icons';
 import {
   ChevronDown,
@@ -22,11 +23,16 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
-import { useTheme } from '@/components/providers/ThemeProvider';
 import { ThemeSwitch } from './ThemeSwitch';
 import { clearClientSessionStorage } from './AppShell';
 import type { TopbarProps } from '@/types/components';
 import { message, Modal } from 'antd';
+import {
+  readSavedWeatherLocation,
+  WEATHER_LOCATION_EVENT,
+  getWeatherCondition,
+  type WeatherApiResponse,
+} from '@/lib/weather';
 
 export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
   const router = useRouter();
@@ -40,17 +46,27 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
   const mobileNavRef = useRef<HTMLDivElement>(null);
 
   const { locale, setLocale, messages } = useLanguage();
-  const { theme } = useTheme();
-  const logoSrc = theme === 'light' ? '/images/white_logo.png' : '/images/dark_logo.png';
+  const logoSrc = '/images/logo.png';
 
   // Navigation Items (clean tabs without extra badge chips)
   const navItems = [
     { key: 'dashboard', title: messages.sidebar.dashboard, href: '/', icon: LayoutDashboardIcon },
     { key: 'fertilizer', title: messages.sidebar.fertilizer, href: '/fertilizer', icon: FlaskConicalIcon },
     { key: 'reservoirs', title: messages.sidebar.reservoirs, href: '/reservoirs', icon: WavesIcon },
+    { key: 'weather', title: (messages.sidebar as any).weather || 'Agro Weather', href: '/weather', icon: CloudSunIcon },
     { key: 'seeds', title: (messages.sidebar as any).seeds || 'TNAU Seeds', href: '/seeds', icon: SproutIcon },
     { key: 'settings', title: messages.sidebar.settings, href: '/settings', icon: SettingsIcon },
   ];
+
+  // Live weather telemetry state for the profile dropdown
+  const [liveWeather, setLiveWeather] = useState<{
+    tempMax: string;
+    tempMin: string;
+    humidityRange: string;
+    rainfallMm: string;
+    locationLabel: string;
+    emoji: string;
+  } | null>(null);
 
   // User state loaded dynamically from active session
   const [currentUser, setCurrentUser] = useState<{
@@ -151,6 +167,79 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
     return () => clearInterval(interval);
   }, []);
 
+  // Load live TNAGRISNET weather telemetry for the user's selected/saved location
+  useEffect(() => {
+    let active = true;
+
+    const loadWeatherSummary = async (overrideLoc?: {
+      districtId?: string;
+      blockId?: string;
+      districtName?: string;
+      blockName?: string;
+    }) => {
+      try {
+        const loc = overrideLoc || readSavedWeatherLocation();
+        const params = new URLSearchParams();
+        if (loc.districtId) params.set('district_id', loc.districtId);
+        if (loc.blockId) params.set('block_id', loc.blockId);
+        if (loc.districtName) params.set('district_name', loc.districtName);
+        if (loc.blockName) params.set('block_name', loc.blockName);
+
+        const qs = params.toString();
+        const res = await fetch(qs ? `/api/weather?${qs}` : '/api/weather');
+        if (!res.ok) return;
+        const json: WeatherApiResponse = await res.json();
+        if (!active || !json?.success || !json.dashboard?.forecast?.length) return;
+
+        const day0 = json.dashboard.forecast[0];
+        const blockObj = json.dashboard.blocks?.find(
+          (b) => String(b.block_id) === String(json.resolvedBlockId || json.dashboard?.block_id)
+        );
+        const cond = getWeatherCondition(day0.rainfall, day0.cloud_cover);
+
+        const distText =
+          locale === 'ta' && json.dashboard.district?.district_reg_name
+            ? json.dashboard.district.district_reg_name
+            : json.dashboard.district?.district_name || '';
+        const blockText =
+          locale === 'ta' && blockObj?.block_reg_name
+            ? blockObj.block_reg_name
+            : blockObj?.block_name || '';
+
+        setLiveWeather({
+          tempMax: Number(day0.current_temperature ?? day0.temperature_max ?? 0).toFixed(1),
+          tempMin: Number(day0.temperature_min || 0).toFixed(1),
+          humidityRange: `${day0.humidity}–${day0.humidity2}%`,
+          rainfallMm: `${Number(day0.rainfall || 0).toFixed(1)} mm`,
+          locationLabel: blockText ? `${blockText}, ${distText}` : distText,
+          emoji: cond.emoji,
+        });
+      } catch {
+        // Silent fail: dropdown renders graceful default state
+      }
+    };
+
+    loadWeatherSummary();
+
+    const handleWeatherLocChange = (e: any) => {
+      loadWeatherSummary(e?.detail);
+    };
+    const handleUserUpdatedForWeather = (e: any) => {
+      const u = e?.detail;
+      if (u?.district || u?.city) {
+        loadWeatherSummary({ districtName: u.district, blockName: u.city });
+      }
+    };
+
+    window.addEventListener(WEATHER_LOCATION_EVENT, handleWeatherLocChange);
+    window.addEventListener('farmhub_user_updated', handleUserUpdatedForWeather);
+    return () => {
+      active = false;
+      window.removeEventListener(WEATHER_LOCATION_EVENT, handleWeatherLocChange);
+      window.removeEventListener('farmhub_user_updated', handleUserUpdatedForWeather);
+    };
+  }, [locale]);
+
   // Click outside and escape key listener for dropdowns
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -218,9 +307,8 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         <Link href="/" className="flex items-center group py-1" onClick={() => setMobileNavOpen(false)}>
           <Image
-            key={logoSrc}
             src={logoSrc}
-            alt="FarmHub"
+            alt="Logo"
             width={220}
             height={68}
             unoptimized
@@ -394,11 +482,15 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
               <div className="py-3 border-b dark:border-white/10 border-slate-200">
                 <div className="flex items-center justify-between text-xs mb-2">
                   <div className="flex items-center gap-2 dark:text-white/70 text-slate-600">
-                    <CloudSun size={15} className="text-amber-500 dark:text-amber-400" />
+                    {liveWeather?.emoji ? (
+                      <span className="text-sm leading-none">{liveWeather.emoji}</span>
+                    ) : (
+                      <CloudSun size={15} className="text-amber-500 dark:text-amber-400" />
+                    )}
                     <span className="font-bold">{locale === 'ta' ? 'வானிலை தரவு' : 'Weather Telemetry'}</span>
                   </div>
-                  <span className="text-[11px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/25">
-                    31.5°C
+                  <span className="text-[11px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/25 font-mono">
+                    {liveWeather ? `${liveWeather.tempMax}° / ${liveWeather.tempMin}°C` : '—'}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
@@ -406,14 +498,30 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
                     <span className="block dark:text-white/50 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
                       {locale === 'ta' ? 'ஈரப்பதம்' : 'Humidity'}
                     </span>
-                    <span className="font-extrabold dark:text-white text-slate-900">78% RH</span>
+                    <span className="font-extrabold dark:text-white text-slate-900 font-mono">
+                      {liveWeather ? liveWeather.humidityRange : '—'}
+                    </span>
                   </div>
                   <div className="rounded-xl dark:bg-white/5 bg-slate-100 p-2 border dark:border-white/5 border-slate-200">
                     <span className="block dark:text-white/50 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
-                      {locale === 'ta' ? 'மண்டலம்' : 'Delta Zone'}
+                      {locale === 'ta' ? 'மழை' : 'Rainfall'}
                     </span>
-                    <span className="font-extrabold text-emerald-700 dark:text-emerald-400">Optimal (Zone 4)</span>
+                    <span className="font-extrabold text-sky-700 dark:text-sky-400 font-mono">
+                      {liveWeather ? liveWeather.rainfallMm : '—'}
+                    </span>
                   </div>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-2 text-[10px]">
+                  <span className="text-slate-500 dark:text-white/60 font-semibold truncate">
+                    {liveWeather?.locationLabel || (locale === 'ta' ? 'தமிழ்நாடு' : 'Tamil Nadu')}
+                  </span>
+                  <Link
+                    href="/weather"
+                    onClick={() => setIsDropdownOpen(false)}
+                    className="font-bold text-sky-600 dark:text-sky-400 hover:underline shrink-0"
+                  >
+                    {locale === 'ta' ? 'வானிலை காண்க →' : '10-Day Forecast →'}
+                  </Link>
                 </div>
               </div>
 
@@ -513,8 +621,8 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
       >
         <p className="text-sm text-slate-600 dark:text-slate-300 m-0 py-2 leading-relaxed">
           {locale === 'ta'
-            ? 'உங்கள் FarmHub கணக்கிலிருந்து வெளியேற விரும்புகிறீர்களா? உங்கள் சர்வர் அமர்வு உடனடியாக முடிவுக்கு வரும்.'
-            : 'Are you sure you want to sign out of your FarmHub account? Your server session will be immediately ended.'}
+            ? 'உங்கள் கணக்கிலிருந்து வெளியேற விரும்புகிறீர்களா? உங்கள் சர்வர் அமர்வு உடனடியாக முடிவுக்கு வரும்.'
+            : 'Are you sure you want to sign out of your account? Your server session will be immediately ended.'}
         </p>
       </Modal>
     </>

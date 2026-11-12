@@ -22,6 +22,14 @@ export interface UserDetails {
   pincode?: string;
 }
 
+export interface DailyLabourEntry {
+  day: number;
+  labourCount: number;
+  labourWage: number;
+  snackCost: number;
+  travelCost: number;
+}
+
 export interface ExpenseTask {
   id: string;
   name: string;
@@ -32,6 +40,8 @@ export interface ExpenseTask {
   defaultRate: number;
   defaultDays: number;
   isLabour?: boolean;
+  isMultiDayLabour?: boolean;
+  maxDays?: number;
   defaultLabourCount?: number;
   defaultLabourWage?: number;
   hasSnacks?: boolean;
@@ -88,6 +98,8 @@ export interface ExpenseEntry {
   labourWage?: number;
   snackCost?: number;
   travelCost?: number;
+  activeDay?: number;
+  dayEntries?: DailyLabourEntry[];
   hasTravelCost?: boolean;
   isMachineMode?: boolean;
   mandiCount?: number;

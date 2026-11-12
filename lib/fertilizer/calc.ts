@@ -3,7 +3,146 @@
 // Single source of truth for calculations and data normalization
 // ─────────────────────────────────────────────────────────────
 
-import type { CultivationType, ExpenseEntry, PhaseGroup } from './types';
+import type { CultivationType, DailyLabourEntry, ExpenseEntry, PhaseGroup } from './types';
+
+export function computeDailyLabourCost(d: Partial<DailyLabourEntry>): number {
+  const count = Number(d.labourCount) || 0;
+  const wage = Number(d.labourWage) || 0;
+  const snacks = Number(d.snackCost) || 0;
+  const travel = Number(d.travelCost) || 0;
+  return Math.round(count * wage + snacks + travel);
+}
+
+/** Pesticide dosage: (landSize / 2) * 80 ml converted to litres */
+export function computeRecommendedPesticideLitres(landSizeInCents: number): number {
+  const cents = Number(landSizeInCents) > 0 ? Number(landSizeInCents) : 0;
+  if (cents <= 0) return 0;
+  const ml = (cents / 2) * 80;
+  return Number((ml / 1000).toFixed(2));
+}
+
+/** Panicle Initiation fertilizer bag count (50kg bags): min = (cents * 3) / 50, max = (cents * 6) / 50 */
+export function computeRecommendedFertilizerBagRange(landSizeInCents: number): {
+  minKg: number;
+  maxKg: number;
+  minBags: number;
+  maxBags: number;
+} {
+  const cents = Number(landSizeInCents) > 0 ? Number(landSizeInCents) : 0;
+  if (cents <= 0) return { minKg: 0, maxKg: 0, minBags: 0, maxBags: 0 };
+  const minKg = Number((cents * 3).toFixed(2));
+  const maxKg = Number((cents * 6).toFixed(2));
+  const minBags = Number((minKg / 50).toFixed(2));
+  const maxBags = Number((maxKg / 50).toFixed(2));
+  return { minKg, maxKg, minBags, maxBags };
+}
+
+const formatRatioKg = (value: number): number => {
+  if (value <= 0) return 0;
+  return value < 0.1 ? Number(value.toFixed(3)) : Number(value.toFixed(2));
+};
+
+/** Suggested top-dress mixture scaled dynamically from 1 cent using 62-cent baseline (2kg Urea, 1kg Complex, 1kg Potash, 1kg DAP, 1kg Vembu powder) */
+export function computeRecommendedFertilizerMix(landSizeInCents: number): {
+  ureaKg: number;
+  complexKg: number;
+  potashKg: number;
+  dapKg: number;
+  vembuPowderKg: number;
+} {
+  const cents = Number(landSizeInCents) > 0 ? Number(landSizeInCents) : 0;
+  if (cents <= 0) {
+    return { ureaKg: 0, complexKg: 0, potashKg: 0, dapKg: 0, vembuPowderKg: 0 };
+  }
+  const perCentUnit = 1 / 62;
+  const unitKg = formatRatioKg(cents * perCentUnit);
+  return {
+    ureaKg: formatRatioKg(cents * (2 / 62)),
+    complexKg: unitKg,
+    potashKg: unitKg,
+    dapKg: unitKg,
+    vembuPowderKg: unitKg,
+  };
+}
+
+export function normalizeDailyLabourEntries(raw: any, maxDays: number = 7): DailyLabourEntry[] {
+  if (!raw || typeof raw !== 'object') {
+    return [{ day: 1, labourCount: 0, labourWage: 0, snackCost: 0, travelCost: 0 }];
+  }
+
+  const byDay = new Map<number, DailyLabourEntry>();
+
+  if (Array.isArray(raw.dayEntries) && raw.dayEntries.length > 0) {
+    for (const item of raw.dayEntries) {
+      const dayNum = Math.min(maxDays, Math.max(1, Math.round(Number(item?.day) || 1)));
+      byDay.set(dayNum, {
+        day: dayNum,
+        labourCount: Math.max(0, Number(item?.labourCount) || 0),
+        labourWage: Math.max(0, Number(item?.labourWage) || 0),
+        snackCost: Math.max(0, Number(item?.snackCost) || 0),
+        travelCost: Math.max(0, Number(item?.travelCost) || 0),
+      });
+    }
+  }
+
+  for (let dayNum = 1; dayNum <= maxDays; dayNum++) {
+    const dayObj = raw[`day_${dayNum}`];
+    if (dayObj && typeof dayObj === 'object') {
+      byDay.set(dayNum, {
+        day: dayNum,
+        labourCount: Math.max(0, Number(dayObj.labourCount) || 0),
+        labourWage: Math.max(0, Number(dayObj.labourWage) || 0),
+        snackCost: Math.max(0, Number(dayObj.snackCost) || 0),
+        travelCost: Math.max(0, Number(dayObj.travelCost) || 0),
+      });
+    }
+  }
+
+  if (byDay.size > 0) {
+    const sorted = Array.from(byDay.values()).sort((a, b) => a.day - b.day);
+    const nonEmpty = sorted.filter(
+      (d) => d.labourCount > 0 || d.labourWage > 0 || d.snackCost > 0 || d.travelCost > 0
+    );
+    if (nonEmpty.length > 0) return nonEmpty;
+    return [sorted[0] || { day: 1, labourCount: 0, labourWage: 0, snackCost: 0, travelCost: 0 }];
+  }
+
+  const hasFlatValues =
+    raw.labourCount !== undefined ||
+    raw.labourWage !== undefined ||
+    raw.snackCost !== undefined ||
+    raw.travelCost !== undefined;
+
+  if (hasFlatValues) {
+    return [
+      {
+        day: 1,
+        labourCount: Math.max(0, Number(raw.labourCount) || 0),
+        labourWage: Math.max(0, Number(raw.labourWage) || 0),
+        snackCost: Math.max(0, Number(raw.snackCost) || 0),
+        travelCost: Math.max(0, Number(raw.travelCost) || 0),
+      },
+    ];
+  }
+
+  return [{ day: 1, labourCount: 0, labourWage: 0, snackCost: 0, travelCost: 0 }];
+}
+
+export function buildDayWiseLabourObject(entries: DailyLabourEntry[], maxDays: number = 7): Record<string, any> {
+  const result: Record<string, any> = {
+    totalDays: entries.length || 1,
+  };
+  for (const entry of entries) {
+    const dayNum = Math.min(maxDays, Math.max(1, Math.round(Number(entry.day) || 1)));
+    result[`day_${dayNum}`] = {
+      labourCount: Math.max(0, Number(entry.labourCount) || 0),
+      labourWage: Math.max(0, Number(entry.labourWage) || 0),
+      snackCost: Math.max(0, Number(entry.snackCost) || 0),
+      travelCost: Math.max(0, Number(entry.travelCost) || 0),
+    };
+  }
+  return result;
+}
 
 export interface PhaseTotals {
   total: number;
@@ -74,25 +213,37 @@ export function getCropDurationDays(cultivation: CultivationType = 'paddy'): num
   return 120;
 }
 
-/** Builds an empty expense entry for every task with 0 values */
-export function buildEmptyExpenses(phases: PhaseGroup[]): Record<string, ExpenseEntry> {
+/** Builds an empty expense entry for every task with 0 values (plus initial recommended quantities from landSize if > 0) */
+export function buildEmptyExpenses(phases: PhaseGroup[], landSizeInCents: number = 0): Record<string, ExpenseEntry> {
   const result: Record<string, ExpenseEntry> = {};
+  const recommendedPesticideLitres = computeRecommendedPesticideLitres(landSizeInCents);
+  const recommendedFertMinBags = computeRecommendedFertilizerBagRange(landSizeInCents).minBags;
 
   phases.forEach((ph) => {
     ph.tasks.forEach((t) => {
+      const initialFertQty =
+        t.id === 'p1_fert' || t.id === 'p2_tillering'
+          ? recommendedPesticideLitres
+          : t.id === 'p3_fert_dose3'
+            ? recommendedFertMinBags
+            : 0;
       result[t.id] = {
         ratePerCent: 0,
-        days: t.defaultDays,
+        days: t.isMultiDayLabour ? 1 : t.defaultDays,
         totalCost: 0,
         costPerDay: 0,
         labourCount: 0,
         labourWage: 0,
         snackCost: 0,
         travelCost: 0,
+        activeDay: t.isMultiDayLabour ? 1 : undefined,
+        dayEntries: t.isMultiDayLabour
+          ? [{ day: 1, labourCount: 0, labourWage: 0, snackCost: 0, travelCost: 0 }]
+          : undefined,
         hasTravelCost: t.id === 'p1_nursery' ? true : undefined,
         mandiCount: 0,
         mandiRate: 0,
-        fertQty: 0,
+        fertQty: initialFertQty,
         fertPrice: 0,
         isPlasticBag: true,
         bagCount: 0,
@@ -159,43 +310,49 @@ export function buildInitialExpenses(
       if (t.id === 'p1_nursery') {
         hasTravelCost = true;
         const seedTravel = t.defaultTravelCost ?? 100;
-        totalCost = Math.round(t.defaultRate * cents + seedTravel);
+        totalCost = Math.round(t.defaultRate + seedTravel);
       } else if (t.isFertilizerWithLabour) {
-        fertQty = t.defaultFertQty ?? 50;
+        if (t.id === 'p1_fert' || t.id === 'p2_tillering') {
+          fertQty = computeRecommendedPesticideLitres(cents) || (t.defaultFertQty ?? 4);
+        } else if (t.id === 'p3_fert_dose3') {
+          fertQty = computeRecommendedFertilizerBagRange(cents).minBags || (t.defaultFertQty ?? 6);
+        } else {
+          fertQty = t.defaultFertQty ?? 50;
+        }
         fertPrice = t.defaultFertPrice ?? 30;
         labourCount = t.defaultLabourCount ?? 2;
         labourWage = t.defaultLabourWage ?? 500;
         const snackCost = t.hasSnacks ? (t.defaultSnackCost ?? 200) : 0;
         const travelCost = t.hasTravel ? (t.defaultTravelCost ?? 150) : 0;
         totalCost = Math.round(fertQty * fertPrice + labourCount * labourWage + snackCost + travelCost);
-        ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
+        ratePerCent = 0;
       } else if (t.isLabour) {
         labourCount = t.defaultLabourCount ?? 4;
         labourWage = t.defaultLabourWage ?? 500;
         const snackCost = t.hasSnacks ? (t.defaultSnackCost ?? 200) : 0;
         const travelCost = t.hasTravel ? (t.defaultTravelCost ?? 150) : 0;
         totalCost = Math.round(labourCount * labourWage + snackCost + travelCost);
-        ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
+        ratePerCent = 0;
       } else if (t.isGunnyBags) {
         isPlasticBag = true;
         bagCount = t.defaultBagCount ?? 120;
         bagPrice = t.defaultPlasticPrice ?? 20;
         totalCost = Math.round(bagCount * bagPrice);
-        ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
+        ratePerCent = 0;
       } else if (t.isTransportLoading) {
         transportRent = t.defaultTransportRent ?? 1500;
         loadingWorkers = t.defaultLoadingWorkers ?? 4;
         loadingWage = t.defaultLoadingWage ?? 350;
         loadingSnacks = t.defaultLoadingSnacks ?? 150;
         totalCost = Math.round(transportRent + loadingWorkers * loadingWage + loadingSnacks);
-        ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
+        ratePerCent = 0;
       } else if (t.isGrainYield) {
         const totalKg = 10500;
         const bagWeight = 75;
         const bagPriceP5 = 1650;
         const bags = bagWeight > 0 ? totalKg / bagWeight : 0;
         totalCost = Math.round(bags * bagPriceP5);
-        ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
+        ratePerCent = 0;
         yieldKg = totalKg;
         yieldTons = 10.5;
         bagWeightKg = bagWeight;
@@ -205,24 +362,36 @@ export function buildInitialExpenses(
         const sacks = 100;
         const pricePerSack = 150;
         totalCost = Math.round(sacks * pricePerSack);
-        ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
+        ratePerCent = 0;
         strawSackCount = sacks;
         strawPrice = pricePerSack;
       } else {
-        totalCost = Math.round(t.defaultRate * cents);
+        totalCost = Math.round(t.defaultRate);
       }
 
-      const costPerDay = t.defaultDays > 0 ? Math.round(totalCost / t.defaultDays) : 0;
+      const costPerDay = (t.isMultiDayLabour ? 1 : t.defaultDays) > 0 ? Math.round(totalCost / (t.isMultiDayLabour ? 1 : t.defaultDays)) : 0;
 
       result[t.id] = {
         ratePerCent,
-        days: t.defaultDays,
+        days: t.isMultiDayLabour ? 1 : t.defaultDays,
         totalCost,
         costPerDay,
         labourCount,
         labourWage,
         snackCost: t.defaultSnackCost,
         travelCost: t.defaultTravelCost,
+        activeDay: t.isMultiDayLabour ? 1 : undefined,
+        dayEntries: t.isMultiDayLabour
+          ? [
+              {
+                day: 1,
+                labourCount: labourCount ?? 0,
+                labourWage: labourWage ?? 0,
+                snackCost: t.hasSnacks ? (t.defaultSnackCost ?? 200) : 0,
+                travelCost: t.hasTravel ? (t.defaultTravelCost ?? 150) : 0,
+              },
+            ]
+          : undefined,
         hasTravelCost,
         mandiCount,
         mandiRate,
@@ -407,24 +576,27 @@ export function normalizeOrFormatNestedExpenseMap(
         travelCost: bund2.travelCost ?? 150,
         isEnabled: bund2.isEnabled !== false,
       },
-      fert_labour: {
-        days: fert2.days ?? 3,
-        labourCount: fert2.labourCount ?? 4,
-        labourWage: fert2.labourWage ?? 500,
-        snackCost: fert2.snackCost ?? 200,
-        travelCost: fert2.travelCost ?? 150,
-        isEnabled: fert2.isEnabled !== false,
-      },
-      translanting: {
-        isManual: transplant2.isManual !== undefined ? transplant2.isManual : (transplant2.isMachineMode !== undefined ? !transplant2.isMachineMode : false),
-        days: transplant2.days ?? 10,
-        machineCost: transplant2.machineCost ?? (transplant2.ratePerCent ?? 290),
-        labourCount: transplant2.labourCount ?? 5,
-        labourWage: transplant2.labourWage ?? 500,
-        snackCost: transplant2.snackCost ?? 200,
-        travelCost: transplant2.travelCost ?? 200,
-        isEnabled: transplant2.isEnabled !== false,
-      },
+      fert_labour: (() => {
+        const fert2Entries = normalizeDailyLabourEntries(fert2);
+        return {
+          ...buildDayWiseLabourObject(fert2Entries),
+          isEnabled: fert2.isEnabled !== false,
+        };
+      })(),
+      translanting: (() => {
+        const transEntries = normalizeDailyLabourEntries(transplant2);
+        return {
+          isManual:
+            transplant2.isManual !== undefined
+              ? transplant2.isManual
+              : transplant2.isMachineMode !== undefined
+                ? !transplant2.isMachineMode
+                : false,
+          machineCost: transplant2.machineCost ?? (transplant2.ratePerCent ?? 290),
+          ...buildDayWiseLabourObject(transEntries),
+          isEnabled: transplant2.isEnabled !== false,
+        };
+      })(),
       water: {
         waterCost: water2.waterCost ?? (water2.ratePerCent ?? 14),
         days: water2.days ?? 30,
@@ -432,15 +604,14 @@ export function normalizeOrFormatNestedExpenseMap(
       },
     },
     phase_3: {
-      herbicide: {
-        days: herbicide3.days ?? 3,
-        labourCount: herbicide3.labourCount ?? 3,
-        labourWage: herbicide3.labourWage ?? 500,
-        snackCost: herbicide3.snackCost ?? 150,
-        travelCost: herbicide3.travelCost ?? 150,
-        Herbicide_notify: herbicide3.Herbicide_notify ?? (herbicide3.herbicideNotify ?? true),
-        isEnabled: herbicide3.isEnabled !== false,
-      },
+      herbicide: (() => {
+        const herbicideEntries = normalizeDailyLabourEntries(herbicide3, 3);
+        return {
+          ...buildDayWiseLabourObject(herbicideEntries, 3),
+          Herbicide_notify: herbicide3.Herbicide_notify ?? (herbicide3.herbicideNotify ?? true),
+          isEnabled: herbicide3.isEnabled !== false,
+        };
+      })(),
       replanting_labour: {
         days: replant3.days ?? 5,
         labourCount: replant3.labourCount ?? 4,
@@ -524,6 +695,7 @@ export function normalizeOrFormatNestedExpenseMap(
         labourCount: labour4.labourCount ?? 6,
         labourWage: labour4.labourWage ?? 550,
         snackCost: labour4.snackCost ?? 200,
+        travelCost: labour4.travelCost ?? 150,
         isEnabled: labour4.isEnabled !== false,
       },
       sack_stitcher: {
@@ -628,7 +800,7 @@ export function nestedToFlatExpenseMap(
 
   const b1Cost = p1.bund_labour.labourCount * p1.bund_labour.labourWage + p1.bund_labour.snackCost + p1.bund_labour.travelCost;
   result['p1_bund_labour'] = {
-    ratePerCent: cents > 0 ? Math.round(b1Cost / cents) : 0,
+    ratePerCent: 0,
     days: p1.bund_labour.days,
     labourCount: p1.bund_labour.labourCount,
     labourWage: p1.bund_labour.labourWage,
@@ -641,7 +813,7 @@ export function nestedToFlatExpenseMap(
 
   const pl1Cost = p1.plotting_labour.labourCount * p1.plotting_labour.labourWage + p1.plotting_labour.snackCost + p1.plotting_labour.travelCost;
   result['p1_plotting_labour'] = {
-    ratePerCent: cents > 0 ? Math.round(pl1Cost / cents) : 0,
+    ratePerCent: 0,
     days: p1.plotting_labour.days,
     labourCount: p1.plotting_labour.labourCount,
     labourWage: p1.plotting_labour.labourWage,
@@ -664,7 +836,7 @@ export function nestedToFlatExpenseMap(
 
   const b2Cost = p2.bund_labour.labourCount * p2.bund_labour.labourWage + p2.bund_labour.snackCost + p2.bund_labour.travelCost;
   result['p2_bund_labour'] = {
-    ratePerCent: cents > 0 ? Math.round(b2Cost / cents) : 0,
+    ratePerCent: 0,
     days: p2.bund_labour.days,
     labourCount: p2.bund_labour.labourCount,
     labourWage: p2.bund_labour.labourWage,
@@ -675,33 +847,54 @@ export function nestedToFlatExpenseMap(
     isEnabled: p2.bund_labour.isEnabled !== false,
   };
 
-  const f2Cost = p2.fert_labour.labourCount * p2.fert_labour.labourWage + p2.fert_labour.snackCost + p2.fert_labour.travelCost;
+  const fert2Entries = normalizeDailyLabourEntries(p2.fert_labour);
+  const f2Cost = fert2Entries.reduce((sum, d) => sum + computeDailyLabourCost(d), 0);
+  const f2DaysCount = fert2Entries.length || 1;
+  const f2Day1 = fert2Entries.find((d) => d.day === 1) || fert2Entries[0] || {
+    day: 1,
+    labourCount: 0,
+    labourWage: 0,
+    snackCost: 0,
+    travelCost: 0,
+  };
   result['p2_fert_labour'] = {
-    ratePerCent: cents > 0 ? Math.round(f2Cost / cents) : 0,
-    days: p2.fert_labour.days,
-    labourCount: p2.fert_labour.labourCount,
-    labourWage: p2.fert_labour.labourWage,
-    snackCost: p2.fert_labour.snackCost,
-    travelCost: p2.fert_labour.travelCost,
+    ratePerCent: 0,
+    days: f2DaysCount,
+    activeDay: 1,
+    dayEntries: fert2Entries,
+    labourCount: f2Day1.labourCount,
+    labourWage: f2Day1.labourWage,
+    snackCost: f2Day1.snackCost,
+    travelCost: f2Day1.travelCost,
     totalCost: f2Cost,
-    costPerDay: p2.fert_labour.days > 0 ? Math.round(f2Cost / p2.fert_labour.days) : 0,
+    costPerDay: f2DaysCount > 0 ? Math.round(f2Cost / f2DaysCount) : 0,
     isEnabled: p2.fert_labour.isEnabled !== false,
   };
 
   const isManual = p2.translanting.isManual;
-  const trCost = isManual
-    ? p2.translanting.labourCount * p2.translanting.labourWage + p2.translanting.snackCost + p2.translanting.travelCost
-    : Math.round(p2.translanting.machineCost);
+  const transEntries = normalizeDailyLabourEntries(p2.translanting);
+  const manualTransCost = transEntries.reduce((sum, d) => sum + computeDailyLabourCost(d), 0);
+  const trCost = isManual ? manualTransCost : Math.round(p2.translanting.machineCost);
+  const transDaysCount = isManual ? (transEntries.length || 1) : (p2.translanting.totalDays || p2.translanting.days || 1);
+  const transDay1 = transEntries.find((d) => d.day === 1) || transEntries[0] || {
+    day: 1,
+    labourCount: 0,
+    labourWage: 0,
+    snackCost: 0,
+    travelCost: 0,
+  };
   result['p2_labour'] = {
-    ratePerCent: isManual ? (cents > 0 ? Math.round(trCost / cents) : 0) : p2.translanting.machineCost,
-    days: p2.translanting.days,
+    ratePerCent: isManual ? 0 : p2.translanting.machineCost,
+    days: transDaysCount,
+    activeDay: 1,
+    dayEntries: transEntries,
     isMachineMode: !isManual,
-    labourCount: p2.translanting.labourCount,
-    labourWage: p2.translanting.labourWage,
-    snackCost: p2.translanting.snackCost,
-    travelCost: p2.translanting.travelCost,
+    labourCount: transDay1.labourCount,
+    labourWage: transDay1.labourWage,
+    snackCost: transDay1.snackCost,
+    travelCost: transDay1.travelCost,
     totalCost: trCost,
-    costPerDay: p2.translanting.days > 0 ? Math.round(trCost / p2.translanting.days) : 0,
+    costPerDay: transDaysCount > 0 ? Math.round(trCost / transDaysCount) : 0,
     isEnabled: p2.translanting.isEnabled !== false,
   };
 
@@ -715,23 +908,34 @@ export function nestedToFlatExpenseMap(
   };
 
   // Phase 3
-  const hCost = p3.herbicide.labourCount * p3.herbicide.labourWage + p3.herbicide.snackCost + p3.herbicide.travelCost;
+  const herbicideEntries = normalizeDailyLabourEntries(p3.herbicide, 3);
+  const hCost = herbicideEntries.reduce((sum, d) => sum + computeDailyLabourCost(d), 0);
+  const hDaysCount = herbicideEntries.length || 1;
+  const hDay1 = herbicideEntries.find((d) => d.day === 1) || herbicideEntries[0] || {
+    day: 1,
+    labourCount: 0,
+    labourWage: 0,
+    snackCost: 0,
+    travelCost: 0,
+  };
   result['p3_herbicide'] = {
-    ratePerCent: cents > 0 ? Math.round(hCost / cents) : 0,
-    days: p3.herbicide.days,
-    labourCount: p3.herbicide.labourCount,
-    labourWage: p3.herbicide.labourWage,
-    snackCost: p3.herbicide.snackCost,
-    travelCost: p3.herbicide.travelCost,
+    ratePerCent: 0,
+    days: hDaysCount,
+    activeDay: 1,
+    dayEntries: herbicideEntries,
+    labourCount: hDay1.labourCount,
+    labourWage: hDay1.labourWage,
+    snackCost: hDay1.snackCost,
+    travelCost: hDay1.travelCost,
     herbicideNotify: p3.herbicide.Herbicide_notify ?? true,
     totalCost: hCost,
-    costPerDay: p3.herbicide.days > 0 ? Math.round(hCost / p3.herbicide.days) : 0,
+    costPerDay: hDaysCount > 0 ? Math.round(hCost / hDaysCount) : 0,
     isEnabled: p3.herbicide.isEnabled !== false,
   };
 
   const w3Cost = p3.replanting_labour.labourCount * p3.replanting_labour.labourWage + p3.replanting_labour.snackCost + p3.replanting_labour.travelCost;
   result['p1_weed'] = {
-    ratePerCent: cents > 0 ? Math.round(w3Cost / cents) : 0,
+    ratePerCent: 0,
     days: p3.replanting_labour.days,
     labourCount: p3.replanting_labour.labourCount,
     labourWage: p3.replanting_labour.labourWage,
@@ -744,7 +948,7 @@ export function nestedToFlatExpenseMap(
 
   const dwCost = p3.deweeding.labourCount * p3.deweeding.labourWage + p3.deweeding.snackCost + p3.deweeding.travelCost;
   result['p3_deweeding'] = {
-    ratePerCent: cents > 0 ? Math.round(dwCost / cents) : 0,
+    ratePerCent: 0,
     days: p3.deweeding.days,
     labourCount: p3.deweeding.labourCount,
     labourWage: p3.deweeding.labourWage,
@@ -757,7 +961,7 @@ export function nestedToFlatExpenseMap(
 
   const p1Cost = Math.round(p3.pesticide_Dose_1.fertQty * p3.pesticide_Dose_1.fertPrice + p3.pesticide_Dose_1.labourCount * p3.pesticide_Dose_1.labourWage + p3.pesticide_Dose_1.snackCost + p3.pesticide_Dose_1.travelCost);
   result['p1_fert'] = {
-    ratePerCent: cents > 0 ? Math.round(p1Cost / cents) : 0,
+    ratePerCent: 0,
     days: p3.pesticide_Dose_1.days,
     labourCount: p3.pesticide_Dose_1.labourCount,
     labourWage: p3.pesticide_Dose_1.labourWage,
@@ -773,7 +977,7 @@ export function nestedToFlatExpenseMap(
 
   const p2Cost = Math.round(p3.pesticide_Dose_2.fertQty * p3.pesticide_Dose_2.fertPrice + p3.pesticide_Dose_2.labourCount * p3.pesticide_Dose_2.labourWage + p3.pesticide_Dose_2.snackCost + p3.pesticide_Dose_2.travelCost);
   result['p2_tillering'] = {
-    ratePerCent: cents > 0 ? Math.round(p2Cost / cents) : 0,
+    ratePerCent: 0,
     days: p3.pesticide_Dose_2.days,
     labourCount: p3.pesticide_Dose_2.labourCount,
     labourWage: p3.pesticide_Dose_2.labourWage,
@@ -789,7 +993,7 @@ export function nestedToFlatExpenseMap(
 
   const f3Cost = Math.round(p3.fertilizer.fertQty * p3.fertilizer.fertPrice + p3.fertilizer.labourCount * p3.fertilizer.labourWage + p3.fertilizer.snackCost + p3.fertilizer.travelCost);
   result['p3_fert_dose3'] = {
-    ratePerCent: cents > 0 ? Math.round(f3Cost / cents) : 0,
+    ratePerCent: 0,
     days: p3.fertilizer.days,
     labourCount: p3.fertilizer.labourCount,
     labourWage: p3.fertilizer.labourWage,
@@ -805,7 +1009,7 @@ export function nestedToFlatExpenseMap(
 
   const potCost = Math.round(p3.potash_sulphide_fertilizer.fertQty * p3.potash_sulphide_fertilizer.fertPrice + p3.potash_sulphide_fertilizer.labourCount * p3.potash_sulphide_fertilizer.labourWage + p3.potash_sulphide_fertilizer.snackCost + p3.potash_sulphide_fertilizer.travelCost);
   result['p3_potash_sulphide'] = {
-    ratePerCent: cents > 0 ? Math.round(potCost / cents) : 0,
+    ratePerCent: 0,
     days: p3.potash_sulphide_fertilizer.days,
     labourCount: p3.potash_sulphide_fertilizer.labourCount,
     labourWage: p3.potash_sulphide_fertilizer.labourWage,
@@ -831,7 +1035,7 @@ export function nestedToFlatExpenseMap(
 
   const gCost = Math.round(p4.gunny_bags.bagCount * p4.gunny_bags.bagPrice);
   result['p4_gunny_bags'] = {
-    ratePerCent: cents > 0 ? Math.round(gCost / cents) : 0,
+    ratePerCent: 0,
     days: p4.gunny_bags.days,
     isPlasticBag: p4.gunny_bags.isPlasticBag,
     bagCount: p4.gunny_bags.bagCount,
@@ -841,13 +1045,14 @@ export function nestedToFlatExpenseMap(
     isEnabled: p4.gunny_bags.isEnabled !== false,
   };
 
-  const b4Cost = p4.bagging_labour.labourCount * p4.bagging_labour.labourWage + p4.bagging_labour.snackCost;
+  const b4Cost = p4.bagging_labour.labourCount * p4.bagging_labour.labourWage + p4.bagging_labour.snackCost + (p4.bagging_labour.travelCost ?? 0);
   result['p4_labour'] = {
-    ratePerCent: cents > 0 ? Math.round(b4Cost / cents) : 0,
+    ratePerCent: 0,
     days: p4.bagging_labour.days,
     labourCount: p4.bagging_labour.labourCount,
     labourWage: p4.bagging_labour.labourWage,
     snackCost: p4.bagging_labour.snackCost,
+    travelCost: p4.bagging_labour.travelCost ?? 0,
     totalCost: b4Cost,
     costPerDay: p4.bagging_labour.days > 0 ? Math.round(b4Cost / p4.bagging_labour.days) : 0,
     isEnabled: p4.bagging_labour.isEnabled !== false,
@@ -855,7 +1060,7 @@ export function nestedToFlatExpenseMap(
 
   const skCost = p4.sack_stitcher.labourCount * p4.sack_stitcher.labourWage + p4.sack_stitcher.snackCost + p4.sack_stitcher.travelCost;
   result['p4_sack_stitcher'] = {
-    ratePerCent: cents > 0 ? Math.round(skCost / cents) : 0,
+    ratePerCent: 0,
     days: p4.sack_stitcher.days,
     labourCount: p4.sack_stitcher.labourCount,
     labourWage: p4.sack_stitcher.labourWage,
@@ -868,7 +1073,7 @@ export function nestedToFlatExpenseMap(
 
   const trTotal = p4.transport.transportRent + (p4.transport.loadingLabourCount * p4.transport.loadingLabourWage) + p4.transport.snackCost;
   result['p4_transport'] = {
-    ratePerCent: cents > 0 ? Math.round(trTotal / cents) : 0,
+    ratePerCent: 0,
     days: p4.transport.days,
     transportRent: p4.transport.transportRent,
     loadingWorkers: p4.transport.loadingLabourCount,
@@ -892,7 +1097,7 @@ export function nestedToFlatExpenseMap(
     grainBagCount: gBagCount,
     grainBagPrice: p5.grain_yield.pricePerBag,
     totalCost: gTotal,
-    ratePerCent: cents > 0 ? Math.round(gTotal / cents) : 0,
+    ratePerCent: 0,
     days: p5.grain_yield.days,
     costPerDay: Math.round(gTotal / p5.grain_yield.days),
     isEnabled: p5.grain_yield.isEnabled !== false,
@@ -905,7 +1110,7 @@ export function nestedToFlatExpenseMap(
     strawSackCount: p5.straw_yield.SackCount,
     strawPrice: p5.straw_yield.SackPrice,
     totalCost: strTotal,
-    ratePerCent: cents > 0 ? Math.round(strTotal / cents) : 0,
+    ratePerCent: 0,
     days: p5.straw_yield.days,
     costPerDay: Math.round(strTotal / p5.straw_yield.days),
     isEnabled: p5.straw_yield.isEnabled !== false,
@@ -948,11 +1153,13 @@ export function calculateTotalsFromNested(
     grandTotal += p2.bund_labour.labourCount * p2.bund_labour.labourWage + p2.bund_labour.snackCost + p2.bund_labour.travelCost;
   }
   if (p2.fert_labour.isEnabled !== false) {
-    grandTotal += p2.fert_labour.labourCount * p2.fert_labour.labourWage + p2.fert_labour.snackCost + p2.fert_labour.travelCost;
+    const fert2Entries = normalizeDailyLabourEntries(p2.fert_labour);
+    grandTotal += fert2Entries.reduce((sum, d) => sum + computeDailyLabourCost(d), 0);
   }
   if (p2.translanting.isEnabled !== false) {
     if (p2.translanting.isManual) {
-      grandTotal += p2.translanting.labourCount * p2.translanting.labourWage + p2.translanting.snackCost + p2.translanting.travelCost;
+      const transEntries = normalizeDailyLabourEntries(p2.translanting);
+      grandTotal += transEntries.reduce((sum, d) => sum + computeDailyLabourCost(d), 0);
     } else {
       grandTotal += p2.translanting.machineCost;
     }
@@ -962,7 +1169,8 @@ export function calculateTotalsFromNested(
   // Phase 3
   const p3 = norm.phase_3;
   if (p3.herbicide.isEnabled !== false) {
-    grandTotal += p3.herbicide.labourCount * p3.herbicide.labourWage + p3.herbicide.snackCost + p3.herbicide.travelCost;
+    const herbicideEntries = normalizeDailyLabourEntries(p3.herbicide, 3);
+    grandTotal += herbicideEntries.reduce((sum, d) => sum + computeDailyLabourCost(d), 0);
   }
   if (p3.replanting_labour.isEnabled !== false) {
     grandTotal += p3.replanting_labour.labourCount * p3.replanting_labour.labourWage + p3.replanting_labour.snackCost + p3.replanting_labour.travelCost;
@@ -982,7 +1190,7 @@ export function calculateTotalsFromNested(
   if (p4.harvest.isEnabled !== false) grandTotal += p4.harvest.harvest_cost;
   if (p4.gunny_bags.isEnabled !== false) grandTotal += p4.gunny_bags.bagCount * p4.gunny_bags.bagPrice;
   if (p4.bagging_labour.isEnabled !== false) {
-    grandTotal += p4.bagging_labour.labourCount * p4.bagging_labour.labourWage + p4.bagging_labour.snackCost;
+    grandTotal += p4.bagging_labour.labourCount * p4.bagging_labour.labourWage + p4.bagging_labour.snackCost + (p4.bagging_labour.travelCost ?? 0);
   }
   if (p4.sack_stitcher.isEnabled !== false) {
     grandTotal += p4.sack_stitcher.labourCount * p4.sack_stitcher.labourWage + p4.sack_stitcher.snackCost + p4.sack_stitcher.travelCost;

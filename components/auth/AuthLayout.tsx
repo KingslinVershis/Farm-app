@@ -4,7 +4,6 @@ import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLanguage } from '@/components/providers/LanguageProvider';
-import { useTheme } from '@/components/providers/ThemeProvider';
 import { ThemeSwitch } from '@/components/layout/ThemeSwitch';
 
 interface AuthLayoutProps {
@@ -12,9 +11,8 @@ interface AuthLayoutProps {
 }
 
 export function AuthLayout({ children }: AuthLayoutProps) {
-  const { messages, locale, setLocale } = useLanguage();
-  const { theme } = useTheme();
-  const logoSrc = theme === 'light' ? '/images/white_logo.png' : '/images/dark_logo.png';
+  const { locale, setLocale } = useLanguage();
+  const logoSrc = '/images/logo.png';
 
   return (
     <div className="relative min-h-screen w-full flex flex-col justify-between items-center bg-slate-100 dark:bg-black text-slate-900 dark:text-white selection:bg-emerald-500 selection:text-slate-950 overflow-x-hidden transition-colors">
@@ -23,9 +21,8 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         <div className="w-full px-4 sm:px-8 lg:px-12 py-3 sm:py-3.5 flex items-center justify-between">
           <Link href="/" className="flex items-center group py-0.5">
             <Image
-              key={logoSrc}
               src={logoSrc}
-              alt="FarmHub"
+              alt="Logo"
               width={220}
               height={68}
               unoptimized
@@ -73,7 +70,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       {/* Footer */}
       <footer className="w-full py-4 px-4 sm:px-8 border-t border-slate-200 dark:border-white/5 text-center text-slate-500 dark:text-white/40">
         <p className="text-[11px] font-semibold tracking-wide">
-          © {new Date().getFullYear()} FarmHub Kaveri Delta Farming Intelligence Network. All rights reserved.
+          © {new Date().getFullYear()} Kaveri Delta Farming Intelligence Network. All rights reserved.
         </p>
       </footer>
     </div>

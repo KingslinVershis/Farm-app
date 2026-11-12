@@ -967,7 +967,7 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
             id="btn-continue-step1"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-2.5 text-sm font-extrabold text-white keep-white shadow-glow transition-all hover:bg-emerald-400 active:scale-95 cursor-pointer"
           >
-            {t.step1.submitBtn} →
+            {t.step1.submitBtn}
           </button>
         </div>
       </form>

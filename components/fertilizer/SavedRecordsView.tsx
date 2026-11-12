@@ -57,7 +57,7 @@ export const SavedRecordsView: React.FC<SavedRecordsViewProps> = ({
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 px-6 py-3 text-sm font-black text-white keep-white shadow-[0_10px_30px_rgba(16,185,129,0.4)] hover:brightness-110 active:scale-95 transition-all cursor-pointer"
             >
               <span className="text-base font-black">➕</span>
-              <span>{t.step3.createNewRecordBtn || '+ Create New Record'}</span>
+              <span>{t.step3.createNewRecordBtn || 'Create New Record'}</span>
             </button>
           </div>
         </div>

@@ -113,7 +113,7 @@ export async function DELETE(request: NextRequest) {
       {
         success: true,
         deletedEmail: userEmail || undefined,
-        message: 'Your FarmHub account and all active sessions have been permanently deleted.',
+        message: 'Your account and all active sessions have been permanently deleted.',
       },
       { status: 200 }
     );

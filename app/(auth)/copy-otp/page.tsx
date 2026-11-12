@@ -46,7 +46,7 @@ function CopyOtpContent() {
     <div className="w-full max-w-md rounded-[28px] bg-white/95 dark:bg-[#080e14]/90 border border-slate-200/90 dark:border-white/10 shadow-2xl backdrop-blur-2xl p-6 sm:p-8 text-center">
       <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs font-bold mb-4 border border-emerald-500/30">
         <ShieldCheck size={14} />
-        <span>FarmHub Verification Code</span>
+        <span>Verification Code</span>
       </div>
 
       {code ? (
@@ -56,8 +56,8 @@ function CopyOtpContent() {
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-white/60 m-0 mb-5">
             {copied
-              ? 'You can now paste this 6-digit code back into the FarmHub verification screen.'
-              : 'Click the button below to copy your 6-digit FarmHub code.'}
+              ? 'You can now paste this 6-digit code back into the verification screen.'
+              : 'Click the button below to copy your 6-digit verification code.'}
           </p>
 
           <div className="p-4 rounded-2xl bg-slate-100 dark:bg-black/60 border border-slate-200 dark:border-white/15 mb-5 flex items-center justify-between gap-3">
@@ -86,7 +86,7 @@ function CopyOtpContent() {
         className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
       >
         <ArrowLeft size={14} />
-        <span>Return to FarmHub</span>
+        <span>Return to Sign In</span>
       </Link>
     </div>
   );

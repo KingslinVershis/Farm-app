@@ -1,18 +1,22 @@
 'use client';
 
-import { useEffect, useMemo, useState, type SyntheticEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { PADDY_PHASES } from './data';
 import {
   buildEmptyExpenses,
   buildInitialExpenses,
+  computeDailyLabourCost,
   computePlanTotals,
+  computeRecommendedFertilizerBagRange,
+  computeRecommendedPesticideLitres,
   formatToNestedExpenseMap,
   getCropDurationDays,
   nestedToFlatExpenseMap,
 } from './calc';
 import type {
   CultivationType,
+  DailyLabourEntry,
   ExpenseEntry,
   ExpenseTask,
   PhaseGroup,
@@ -29,15 +33,19 @@ const DEFAULT_USER_DETAILS: UserDetails = {
   address: '',
 };
 
-/** Checks whether a single task entry has been filled (or explicitly skipped if optional). */
+/** Checks whether a single task entry has been filled (optional tasks do not block phase progression). */
 export function isTaskEntryFilled(task: ExpenseTask, entry?: ExpenseEntry): boolean {
+  if (task.isOptional) return true;
   if (!entry) return false;
-  if (task.isOptional && entry.isEnabled === false) return true;
   if (task.isFertilizerWithLabour) {
     return (
       ((entry.fertQty ?? 0) > 0 && (entry.fertPrice ?? 0) > 0) ||
       ((entry.labourCount ?? 0) > 0 && (entry.labourWage ?? 0) > 0)
     );
+  }
+  if (task.isMultiDayLabour && !entry.isMachineMode) {
+    const entries = entry.dayEntries || [];
+    return entries.some((d) => (d.labourCount ?? 0) > 0 && (d.labourWage ?? 0) > 0);
   }
   if (task.isLabour && !entry.isMachineMode) {
     return (entry.labourCount ?? 0) > 0 && (entry.labourWage ?? 0) > 0;
@@ -114,6 +122,7 @@ export function useFertilizerPlanner() {
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const [step2Completed, setStep2Completed] = useState<boolean>(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+  const dirtyQtyTasksRef = useRef<Set<string>>(new Set());
 
   // ─── API sync helper ────────────────────────────────────────────────────────
   // Syncs a plan to the server-side API and retrieves DB-assigned id & timestamps.
@@ -254,6 +263,42 @@ export function useFertilizerPlanner() {
     []
   );
 
+  // Auto-populate recommended initial quantities for Dose 1, Dose 2 (litres), and Panicle Fertilizer (bags)
+  // whenever landSize changes, without overwriting values already customized/saved by the user.
+  useEffect(() => {
+    const cents = userDetails.landSize > 0 ? userDetails.landSize : 0;
+    const pesticideLitres = computeRecommendedPesticideLitres(cents);
+    const fertMinBags = computeRecommendedFertilizerBagRange(cents).minBags;
+
+    const autoTargets: Array<{ id: string; qty: number }> = [
+      { id: 'p1_fert', qty: pesticideLitres },
+      { id: 'p2_tillering', qty: pesticideLitres },
+      { id: 'p3_fert_dose3', qty: fertMinBags },
+    ];
+
+    setExpenseMap((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const target of autoTargets) {
+        if (dirtyQtyTasksRef.current.has(target.id)) continue;
+        const entry = next[target.id];
+        if (!entry || entry.fertQty === target.qty) continue;
+        const materialCost = Math.round(target.qty * (entry.fertPrice ?? 0));
+        const workerCost = Math.round((entry.labourCount ?? 0) * (entry.labourWage ?? 0));
+        const totalCost = materialCost + workerCost + (entry.snackCost ?? 0) + (entry.travelCost ?? 0);
+        const costPerDay = entry.days > 0 ? Math.round(totalCost / entry.days) : 0;
+        next[target.id] = {
+          ...entry,
+          fertQty: target.qty,
+          totalCost,
+          costPerDay,
+        };
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [userDetails.landSize]);
+
   const handleCropSelect = (crop: CultivationType = 'paddy') => {
     setCultivation('paddy');
     setStep2Completed(true);
@@ -268,7 +313,7 @@ export function useFertilizerPlanner() {
     if (!activePlanId) {
       setExpenseMap((prev) => {
         const hasExisting = phases[0]?.tasks.some((t) => prev[t.id] !== undefined);
-        return hasExisting ? prev : buildEmptyExpenses(phases);
+        return hasExisting ? prev : buildEmptyExpenses(phases, userDetails.landSize);
       });
     }
     setStep(3);
@@ -318,7 +363,6 @@ export function useFertilizerPlanner() {
   ) => {
     const safeCount = isNaN(count) ? 0 : Math.max(0, count);
     const safeWage = isNaN(wage) ? 0 : Math.max(0, wage);
-    const cents = userDetails.landSize > 0 ? userDetails.landSize : 0;
     setExpenseMap((prev) => {
       const current = prev[taskId];
       if (!current) return prev;
@@ -328,7 +372,7 @@ export function useFertilizerPlanner() {
         travel !== undefined ? (isNaN(travel) ? 0 : Math.max(0, travel)) : (current.travelCost ?? 0);
       const totalCost = Math.round(safeCount * safeWage + safeSnacks + safeTravel);
       const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
+      const ratePerCent = 0;
       return {
         ...prev,
         [taskId]: {
@@ -345,26 +389,141 @@ export function useFertilizerPlanner() {
     });
   };
 
+  const handleMultiDayChangeActiveDay = (
+    taskId: string,
+    nextDay: number,
+    maxDays: number = 7
+  ) => {
+    const safeDay = Math.min(maxDays, Math.max(1, Math.round(nextDay || 1)));
+    setExpenseMap((prev) => {
+      const current = prev[taskId];
+      if (!current) return prev;
+      return {
+        ...prev,
+        [taskId]: {
+          ...current,
+          activeDay: safeDay,
+        },
+      };
+    });
+  };
+
+  const handleMultiDayLabourChange = (
+    taskId: string,
+    day: number,
+    count: number,
+    wage: number,
+    snacks?: number,
+    travel?: number,
+    maxDays: number = 7
+  ) => {
+    const safeDay = Math.min(maxDays, Math.max(1, Math.round(day || 1)));
+    const safeCount = isNaN(count) ? 0 : Math.max(0, count);
+    const safeWage = isNaN(wage) ? 0 : Math.max(0, wage);
+
+    setExpenseMap((prev) => {
+      const current = prev[taskId];
+      if (!current) return prev;
+
+      const existingEntries: DailyLabourEntry[] = Array.isArray(current.dayEntries)
+        ? current.dayEntries
+        : [];
+      const existingForDay = existingEntries.find((d) => d.day === safeDay);
+
+      const safeSnacks =
+        snacks !== undefined
+          ? isNaN(snacks)
+            ? 0
+            : Math.max(0, snacks)
+          : (existingForDay?.snackCost ?? 0);
+      const safeTravel =
+        travel !== undefined
+          ? isNaN(travel)
+            ? 0
+            : Math.max(0, travel)
+          : (existingForDay?.travelCost ?? 0);
+
+      const updatedDayEntry: DailyLabourEntry = {
+        day: safeDay,
+        labourCount: safeCount,
+        labourWage: safeWage,
+        snackCost: safeSnacks,
+        travelCost: safeTravel,
+      };
+
+      const nextEntries = [
+        ...existingEntries.filter((d) => d.day !== safeDay),
+        updatedDayEntry,
+      ].sort((a, b) => a.day - b.day);
+
+      const totalCost = nextEntries.reduce(
+        (sum, d) => sum + computeDailyLabourCost(d),
+        0
+      );
+      const filledDaysCount = nextEntries.filter(
+        (d) => d.labourCount > 0 || d.labourWage > 0 || d.snackCost > 0 || d.travelCost > 0
+      ).length;
+      const activeTotalDays = filledDaysCount > 0 ? filledDaysCount : 1;
+      const costPerDay = activeTotalDays > 0 ? Math.round(totalCost / activeTotalDays) : 0;
+      const ratePerCent = 0;
+
+      const day1Entry = nextEntries.find((d) => d.day === 1) || updatedDayEntry;
+
+      return {
+        ...prev,
+        [taskId]: {
+          ...current,
+          activeDay: safeDay,
+          days: activeTotalDays,
+          dayEntries: nextEntries,
+          labourCount: day1Entry.labourCount,
+          labourWage: day1Entry.labourWage,
+          snackCost: day1Entry.snackCost,
+          travelCost: day1Entry.travelCost,
+          totalCost,
+          costPerDay,
+          ratePerCent,
+        },
+      };
+    });
+  };
+
   const handleFertilizerWithLabourChange = (
     taskId: string,
     fertQty: number,
     fertPrice: number,
     labourCount: number,
-    labourWage: number
+    labourWage: number,
+    snackCost?: number,
+    travelCost?: number
   ) => {
     const safeQty = isNaN(fertQty) ? 0 : Math.max(0, fertQty);
     const safePrice = isNaN(fertPrice) ? 0 : Math.max(0, fertPrice);
     const safeWorkers = isNaN(labourCount) ? 0 : Math.max(0, labourCount);
     const safeWage = isNaN(labourWage) ? 0 : Math.max(0, labourWage);
-    const cents = userDetails.landSize > 0 ? userDetails.landSize : 0;
     setExpenseMap((prev) => {
       const current = prev[taskId];
       if (!current) return prev;
+      if (safeQty !== (current.fertQty ?? 0)) {
+        dirtyQtyTasksRef.current.add(taskId);
+      }
+      const safeSnacks =
+        snackCost !== undefined
+          ? isNaN(snackCost)
+            ? 0
+            : Math.max(0, snackCost)
+          : (current.snackCost ?? 0);
+      const safeTravel =
+        travelCost !== undefined
+          ? isNaN(travelCost)
+            ? 0
+            : Math.max(0, travelCost)
+          : (current.travelCost ?? 0);
       const materialCost = Math.round(safeQty * safePrice);
       const workerCost = Math.round(safeWorkers * safeWage);
-      const totalCost = materialCost + workerCost;
+      const totalCost = materialCost + workerCost + safeSnacks + safeTravel;
       const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
+      const ratePerCent = 0;
       return {
         ...prev,
         [taskId]: {
@@ -373,6 +532,8 @@ export function useFertilizerPlanner() {
           fertPrice: safePrice,
           labourCount: safeWorkers,
           labourWage: safeWage,
+          snackCost: safeSnacks,
+          travelCost: safeTravel,
           totalCost,
           costPerDay,
           ratePerCent,
@@ -384,13 +545,12 @@ export function useFertilizerPlanner() {
   const handleMandiChange = (taskId: string, count: number, rate: number) => {
     const safeCount = isNaN(count) ? 0 : Math.max(0, count);
     const safeRate = isNaN(rate) ? 0 : Math.max(0, rate);
-    const cents = userDetails.landSize > 0 ? userDetails.landSize : 0;
     setExpenseMap((prev) => {
       const current = prev[taskId];
       if (!current) return prev;
       const totalCost = Math.round(safeCount * safeRate);
       const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
+      const ratePerCent = 0;
       return {
         ...prev,
         [taskId]: {
@@ -420,7 +580,6 @@ export function useFertilizerPlanner() {
   };
 
   const handleToggleMachineMode = (taskId: string, defaultMachineRate: number = 25) => {
-    const cents = userDetails.landSize > 0 ? userDetails.landSize : 0;
     setExpenseMap((prev) => {
       const current = prev[taskId];
       if (!current) return prev;
@@ -432,12 +591,19 @@ export function useFertilizerPlanner() {
         ratePerCent = current.ratePerCent || 0;
         totalCost = Math.round(ratePerCent);
       } else {
-        const count = current.labourCount ?? 0;
-        const wage = current.labourWage ?? 0;
-        const snacks = current.snackCost ?? 0;
-        const travel = current.travelCost ?? 0;
-        totalCost = Math.round(count * wage + snacks + travel);
-        ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
+        if (Array.isArray(current.dayEntries) && current.dayEntries.length > 0) {
+          totalCost = current.dayEntries.reduce(
+            (sum, d) => sum + computeDailyLabourCost(d),
+            0
+          );
+        } else {
+          const count = current.labourCount ?? 0;
+          const wage = current.labourWage ?? 0;
+          const snacks = current.snackCost ?? 0;
+          const travel = current.travelCost ?? 0;
+          totalCost = Math.round(count * wage + snacks + travel);
+        }
+        ratePerCent = 0;
       }
 
       const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
@@ -460,7 +626,6 @@ export function useFertilizerPlanner() {
     plasticPrice: number = 20,
     traditionalPrice: number = 45
   ) => {
-    const cents = userDetails.landSize > 0 ? userDetails.landSize : 0;
     setExpenseMap((prev) => {
       const current = prev[taskId];
       if (!current) return prev;
@@ -469,7 +634,7 @@ export function useFertilizerPlanner() {
       const bagCount = current.bagCount ?? 0;
       const totalCost = Math.round(bagCount * bagPrice);
       const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
+      const ratePerCent = 0;
       return {
         ...prev,
         [taskId]: {
@@ -487,13 +652,12 @@ export function useFertilizerPlanner() {
   const handleGunnyBagsChange = (taskId: string, count: number, price: number) => {
     const safeCount = isNaN(count) ? 0 : Math.max(0, count);
     const safePrice = isNaN(price) ? 0 : Math.max(0, price);
-    const cents = userDetails.landSize > 0 ? userDetails.landSize : 0;
     setExpenseMap((prev) => {
       const current = prev[taskId];
       if (!current) return prev;
       const totalCost = Math.round(safeCount * safePrice);
       const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
+      const ratePerCent = 0;
       return {
         ...prev,
         [taskId]: {
@@ -519,13 +683,12 @@ export function useFertilizerPlanner() {
     const safeWorkers = isNaN(workers) ? 0 : Math.max(0, workers);
     const safeWage = isNaN(wage) ? 0 : Math.max(0, wage);
     const safeSnacks = isNaN(snacks) ? 0 : Math.max(0, snacks);
-    const cents = userDetails.landSize > 0 ? userDetails.landSize : 0;
     setExpenseMap((prev) => {
       const current = prev[taskId];
       if (!current) return prev;
       const totalCost = Math.round(safeRent + safeWorkers * safeWage + safeSnacks);
       const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
+      const ratePerCent = 0;
       return {
         ...prev,
         [taskId]: {
@@ -543,7 +706,6 @@ export function useFertilizerPlanner() {
   };
 
   const handleToggleYieldMode = (taskId: string) => {
-    const cents = userDetails.landSize > 0 ? userDetails.landSize : 0;
     setExpenseMap((prev) => {
       const current = prev[taskId];
       if (!current) return prev;
@@ -563,7 +725,7 @@ export function useFertilizerPlanner() {
       }
 
       const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
+      const ratePerCent = 0;
 
       return {
         ...prev,
@@ -590,7 +752,6 @@ export function useFertilizerPlanner() {
       bagPrice: number;
     }
   ) => {
-    const cents = userDetails.landSize > 0 ? userDetails.landSize : 0;
     setExpenseMap((prev) => {
       const current = prev[taskId];
       if (!current) return prev;
@@ -609,7 +770,7 @@ export function useFertilizerPlanner() {
         safeBagWeight > 0 ? Number((safeYieldKg / safeBagWeight).toFixed(2)) : 0;
       const totalCost = Math.round(grainBagCount * safePrice);
       const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
+      const ratePerCent = 0;
 
       return {
         ...prev,
@@ -632,13 +793,12 @@ export function useFertilizerPlanner() {
   const handleStrawYieldChange = (taskId: string, sackCount: number, price: number) => {
     const safeCount = isNaN(sackCount) ? 0 : Math.max(0, sackCount);
     const safePrice = isNaN(price) ? 0 : Math.max(0, price);
-    const cents = userDetails.landSize > 0 ? userDetails.landSize : 0;
     setExpenseMap((prev) => {
       const current = prev[taskId];
       if (!current) return prev;
       const totalCost = Math.round(safeCount * safePrice);
       const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = cents > 0 ? Math.round(totalCost / cents) : 0;
+      const ratePerCent = 0;
       return {
         ...prev,
         [taskId]: {
@@ -654,6 +814,7 @@ export function useFertilizerPlanner() {
   };
 
   const resetToRecommendedDefaults = () => {
+    dirtyQtyTasksRef.current.clear();
     setExpenseMap(buildInitialExpenses(currentPhases, userDetails.landSize));
   };
 
@@ -693,7 +854,7 @@ export function useFertilizerPlanner() {
       newErrors.location = t.step1?.errors?.location || 'Location/District is required';
     }
     if (!userDetails.address?.trim()) {
-      newErrors.address = t.step1?.errors?.address || 'Farm address or survey number is required';
+      newErrors.address = t.step1?.errors?.address || 'Farm address is required';
     }
 
     setErrors(newErrors);
@@ -879,12 +1040,22 @@ export function useFertilizerPlanner() {
   const savePhaseProgress = async () =>
     persistPlanToServer({ isDraft: true, isCompleted: false, redirectToRecords: false });
 
+  const syncDirtyQtyFlagsFromPlan = (flat: Record<string, ExpenseEntry>) => {
+    dirtyQtyTasksRef.current.clear();
+    for (const id of ['p1_fert', 'p2_tillering', 'p3_fert_dose3']) {
+      if ((flat?.[id]?.fertQty ?? 0) > 0) {
+        dirtyQtyTasksRef.current.add(id);
+      }
+    }
+  };
+
   const loadPlanAndShowSummary = (planId: string) => {
     const plan = savedPlans.find((p) => p.id === planId);
     if (!plan) return;
     const flatExpenses = plan.expenseMap?.phase_1
       ? nestedToFlatExpenseMap(plan.expenseMap, plan.cultivation, plan.userDetails?.landSize || 100)
       : plan.expenseMap;
+    syncDirtyQtyFlagsFromPlan(flatExpenses || {});
     setCultivation(plan.cultivation);
     setUserDetails({
       ...DEFAULT_USER_DETAILS,
@@ -905,6 +1076,7 @@ export function useFertilizerPlanner() {
     const flatExpenses = plan.expenseMap?.phase_1
       ? nestedToFlatExpenseMap(plan.expenseMap, plan.cultivation, plan.userDetails?.landSize || 100)
       : plan.expenseMap;
+    syncDirtyQtyFlagsFromPlan(flatExpenses || {});
     setCultivation(plan.cultivation);
     setUserDetails({
       ...DEFAULT_USER_DETAILS,
@@ -925,6 +1097,7 @@ export function useFertilizerPlanner() {
     const flatExpenses = plan.expenseMap?.phase_1
       ? nestedToFlatExpenseMap(plan.expenseMap, plan.cultivation, plan.userDetails?.landSize || 100)
       : plan.expenseMap;
+    syncDirtyQtyFlagsFromPlan(flatExpenses || {});
     setCultivation(plan.cultivation);
     setUserDetails({
       ...DEFAULT_USER_DETAILS,
@@ -957,6 +1130,7 @@ export function useFertilizerPlanner() {
   };
 
   const createNewPlan = () => {
+    dirtyQtyTasksRef.current.clear();
     setActivePlanId(null);
     setStep2Completed(false);
     setViewMode('individual');
@@ -1038,6 +1212,8 @@ export function useFertilizerPlanner() {
     handleConfigureCrop,
     handleRateChange,
     handleLabourChange,
+    handleMultiDayChangeActiveDay,
+    handleMultiDayLabourChange,
     handleFertilizerWithLabourChange,
     handleMandiChange,
     handleToggleOptional,
