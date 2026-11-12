@@ -570,15 +570,6 @@ export default function SettingsPage() {
 
   return (
     <div className="relative min-h-screen w-full">
-      {/* Background Photography Layer for Settings */}
-      <div
-        className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out scale-105"
-        style={{
-          backgroundImage: `url('/images/setting.png')`,
-        }}
-      />
-      <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
-
       {/* Main Content Area */}
       <div className="relative z-10 max-w-[1720px] w-full mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-7 pb-24 flex flex-col gap-6 fade-in">
         {/* Page Header Banner (Transparent Glassmorphic Panel) */}
@@ -606,7 +597,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <div className="text-xs font-extrabold text-text-main truncate max-w-[170px]">
-                  {user.username || 'FarmHub User'}
+                  {user.username || (isTamil ? 'விவசாயி' : 'Farmer')}
                 </div>
                 <div className="text-[11px] text-text-muted truncate max-w-[170px] font-mono">
                   {user.phone_nun || user.phone_number || user.email}

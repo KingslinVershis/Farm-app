@@ -64,6 +64,8 @@ export default function ReservoirsPage() {
         if (parts.length === 3 && parts[0].length === 2) {
           const formatted = `${parts[2]}-${parts[1]}-${parts[0]}`;
           setSelectedDate(formatted);
+        } else if (/^\d{4}-\d{2}-\d{2}$/.test(json.date)) {
+          setSelectedDate(json.date);
         }
       }
     } catch (err: any) {
@@ -580,39 +582,41 @@ export default function ReservoirsPage() {
           centered
           width={720}
           destroyOnClose
+          className="reservoir-telemetry-modal"
           styles={{
             mask: {
-              backdropFilter: 'blur(2px) saturate(170%)',
-              WebkitBackdropFilter: 'blur(2px) saturate(170%)',
-              backgroundColor: isDark ? 'rgba(0, 0, 0, 0.65)' : 'rgba(15, 23, 42, 0.40)',
+              backdropFilter: 'blur(4px) saturate(160%)',
+              WebkitBackdropFilter: 'blur(4px) saturate(160%)',
+              backgroundColor: isDark ? 'rgba(2, 6, 23, 0.72)' : 'rgba(15, 23, 42, 0.45)',
+            },
+            container: {
+              backgroundColor: isDark ? 'rgba(11, 18, 32, 0.96)' : 'rgba(255, 255, 255, 0.98)',
+              backdropFilter: 'blur(14px) saturate(170%)',
+              WebkitBackdropFilter: 'blur(14px) saturate(170%)',
+              borderRadius: '1.5rem',
+              padding: 0,
+              overflow: 'hidden',
             },
             body: {
-              padding: '16px 20px',
-              borderRadius: '1.25rem',
-              maxHeight: '90vh',
+              padding: '22px 24px',
+              maxHeight: '88vh',
               overflowY: 'auto',
-              backgroundColor: isDark ? 'rgba(11, 18, 32, 0.75)' : 'rgba(255, 255, 255, 0.94)',
-              backdropFilter: 'blur(2px) saturate(170%)',
-              WebkitBackdropFilter: 'blur(2px) saturate(170%)',
-              border: isDark ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid rgba(203, 213, 225, 0.85)',
-              boxShadow: isDark
-                ? '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
-                : '0 20px 40px -12px rgba(15, 23, 42, 0.18)',
+              backgroundColor: 'transparent',
             },
           }}
         >
           {activeReservoir && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              transition={{ duration: 0.35, ease: 'easeOut' }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
               className="flex flex-col space-y-4"
             >
               {/* Modal Header with React Bits ShinyText */}
-              <div className="flex items-start justify-between border-b border-border-subtle pb-3.5 shrink-0">
+              <div className="flex items-start justify-between border-b border-slate-200/80 dark:border-white/10 pb-3.5 pr-9 shrink-0">
                 <div>
-                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
                     {activeReservoir.basin && (
                       <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
                         {activeReservoir.basin}
@@ -623,23 +627,23 @@ export default function ReservoirsPage() {
                         {activeReservoir.district}
                       </span>
                     )}
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-700 dark:text-purple-400 border border-purple-500/30">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30">
                       {m.storageUtilization}: {storageFillPct}%
                     </span>
                   </div>
-                  <h2 className="text-xl sm:text-2xl font-black text-text-main">
+                  <h2 className="text-xl sm:text-2xl font-black text-text-main tracking-tight">
                     <ShinyText text={activeReservoir.rawName || activeReservoir.name} speed={3.5} />
                   </h2>
-                  <span className="text-xs text-text-muted">
+                  <span className="text-xs text-text-muted font-medium">
                     {m.modalTitle}
                   </span>
                 </div>
               </div>
 
               {/* Quick Stats Grid with React Bits SpotlightCard & AnimatedCounter */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <SpotlightCard spotlightColor={isDark ? 'rgba(6, 182, 212, 0.22)' : 'rgba(6, 182, 212, 0.12)'} className="p-3">
-                  <span className="text-[10px] font-bold uppercase text-text-muted block">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <SpotlightCard spotlightColor={isDark ? 'rgba(6, 182, 212, 0.22)' : 'rgba(6, 182, 212, 0.12)'} className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block mb-0.5">
                     {m.statCurrentLevel}
                   </span>
                   <span className="text-lg font-black text-text-main font-mono">
@@ -650,8 +654,8 @@ export default function ReservoirsPage() {
                   </span>
                 </SpotlightCard>
 
-                <SpotlightCard spotlightColor={isDark ? 'rgba(6, 182, 212, 0.25)' : 'rgba(6, 182, 212, 0.12)'} className="p-3">
-                  <span className="text-[10px] font-bold uppercase text-text-muted block">
+                <SpotlightCard spotlightColor={isDark ? 'rgba(6, 182, 212, 0.25)' : 'rgba(6, 182, 212, 0.12)'} className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block mb-0.5">
                     {m.statCurrentStorage}
                   </span>
                   <span className="text-lg font-black text-cyan-600 dark:text-cyan-400 font-mono">
@@ -662,8 +666,8 @@ export default function ReservoirsPage() {
                   </span>
                 </SpotlightCard>
 
-                <SpotlightCard spotlightColor={isDark ? 'rgba(16, 185, 129, 0.22)' : 'rgba(16, 185, 129, 0.12)'} className="p-3">
-                  <span className="text-[10px] font-bold uppercase text-text-muted block">
+                <SpotlightCard spotlightColor={isDark ? 'rgba(16, 185, 129, 0.22)' : 'rgba(16, 185, 129, 0.12)'} className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block mb-0.5">
                     {m.statInflow}
                   </span>
                   <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 font-mono">
@@ -672,8 +676,8 @@ export default function ReservoirsPage() {
                   <span className="text-[10px] text-text-muted block mt-0.5">CuSecs</span>
                 </SpotlightCard>
 
-                <SpotlightCard spotlightColor={isDark ? 'rgba(245, 158, 11, 0.22)' : 'rgba(245, 158, 11, 0.12)'} className="p-3">
-                  <span className="text-[10px] font-bold uppercase text-text-muted block">
+                <SpotlightCard spotlightColor={isDark ? 'rgba(245, 158, 11, 0.22)' : 'rgba(245, 158, 11, 0.12)'} className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block mb-0.5">
                     {m.statOutflow}
                   </span>
                   <span className="text-lg font-black text-amber-600 dark:text-amber-400 font-mono">
@@ -684,7 +688,7 @@ export default function ReservoirsPage() {
               </div>
 
               {/* Storage Progress Bar */}
-              <div className="p-3.5 rounded-xl bg-surface border border-border-subtle flex flex-col gap-2">
+              <div className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 flex flex-col gap-2">
                 <div className="flex items-center justify-between text-xs font-bold">
                   <span className="text-text-muted">{m.storageUtilization}</span>
                   <span className="font-mono text-cyan-600 dark:text-cyan-400">{storageFillPct}% ({activeReservoir.currentStorageMcft.toLocaleString()} / {activeReservoir.fullCapacityMcft.toLocaleString()} M.Cft)</span>
@@ -697,7 +701,7 @@ export default function ReservoirsPage() {
               </div>
 
               {/* Interactive Chart Tabs */}
-              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100/90 dark:bg-surface border border-slate-200 dark:border-border-light">
+              <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-slate-100/90 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10">
                 <button
                   type="button"
                   onClick={() => setChartTab('storage')}
@@ -746,7 +750,7 @@ export default function ReservoirsPage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
-                className="p-4 rounded-xl bg-surface border border-border-subtle"
+                className="p-4 rounded-2xl bg-slate-50/80 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10"
               >
                 {chartTab === 'storage' && (
                   <div>
@@ -1007,7 +1011,7 @@ export default function ReservoirsPage() {
               </motion.div>
 
               {/* Last Year Comparative Info */}
-              <div className="p-3.5 rounded-xl bg-surface border border-border-light flex items-center justify-between text-xs">
+              <div className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 flex items-center justify-between text-xs">
                 <div>
                   <span className="text-[10px] uppercase font-bold text-text-muted block">
                     {m.statLastYearSameDay}
@@ -1036,11 +1040,11 @@ export default function ReservoirsPage() {
               </div>
 
               {/* Modal Footer */}
-              <div className="pt-2">
+              <div className="pt-1">
                 <button
                   type="button"
                   onClick={() => setActiveReservoir(null)}
-                  className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-surface dark:hover:bg-surface-glass font-bold text-xs text-slate-800 dark:text-text-main border border-slate-200 dark:border-border-light transition-colors cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] font-bold text-xs text-slate-800 dark:text-white border border-slate-200 dark:border-white/15 transition-colors cursor-pointer"
                 >
                   {m.close}
                 </button>

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { message } from 'antd';
+import { AlertTriangle, CheckCircle2, X } from 'lucide-react';
 import { RefreshCwIcon } from '@/components/icons/Icons';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { formatCurrency as fmt } from '@/lib/fertilizer/calc';
@@ -34,7 +35,25 @@ interface Step3PhaseExpensesProps {
   activePhaseMeta: { month: string; name: string; daySpan: string };
   handleRateChange: (taskId: string, rate: number, travelCost?: number, hasTravelCost?: boolean) => void;
   handleLabourChange: (taskId: string, count: number, wage: number, snacks?: number, travel?: number) => void;
-  handleFertilizerWithLabourChange: (taskId: string, fertQty: number, fertPrice: number, labourCount: number, labourWage: number) => void;
+  handleMultiDayChangeActiveDay?: (taskId: string, nextDay: number, maxDays?: number) => void;
+  handleMultiDayLabourChange?: (
+    taskId: string,
+    day: number,
+    count: number,
+    wage: number,
+    snacks?: number,
+    travel?: number,
+    maxDays?: number
+  ) => void;
+  handleFertilizerWithLabourChange: (
+    taskId: string,
+    fertQty: number,
+    fertPrice: number,
+    labourCount: number,
+    labourWage: number,
+    snackCost?: number,
+    travelCost?: number
+  ) => void;
   handleMandiChange: (taskId: string, count: number, rate: number) => void;
   handleToggleOptional: (taskId: string) => void;
   handleToggleMachineMode: (taskId: string, defaultRate?: number) => void;
@@ -74,6 +93,8 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
   activePhaseMeta,
   handleRateChange,
   handleLabourChange,
+  handleMultiDayChangeActiveDay,
+  handleMultiDayLabourChange,
   handleFertilizerWithLabourChange,
   handleMandiChange,
   handleToggleOptional,
@@ -350,6 +371,8 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                         meta={tMeta}
                         handleRateChange={handleRateChange}
                         handleLabourChange={handleLabourChange}
+                        handleMultiDayChangeActiveDay={handleMultiDayChangeActiveDay}
+                        handleMultiDayLabourChange={handleMultiDayLabourChange}
                         handleFertilizerWithLabourChange={handleFertilizerWithLabourChange}
                         handleMandiChange={handleMandiChange}
                         handleToggleOptional={handleToggleOptional}
@@ -520,6 +543,8 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                             meta={tMeta}
                             handleRateChange={handleRateChange}
                             handleLabourChange={handleLabourChange}
+                            handleMultiDayChangeActiveDay={handleMultiDayChangeActiveDay}
+                            handleMultiDayLabourChange={handleMultiDayLabourChange}
                             handleFertilizerWithLabourChange={handleFertilizerWithLabourChange}
                             handleMandiChange={handleMandiChange}
                             handleToggleOptional={handleToggleOptional}
@@ -573,43 +598,52 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
       {/* Complete Cultivation Plan Confirmation Modal */}
       {showCompleteConfirm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 dark:bg-black/75 backdrop-blur-[2px] saturate-[170%] animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 dark:bg-black/70 backdrop-blur-xs p-4 animate-fade-in"
           onClick={() => setShowCompleteConfirm(false)}
         >
           <div
-            className="relative w-full max-w-md rounded-3xl border border-slate-200 dark:border-emerald-500/30 bg-white/95 dark:bg-[#0b1320]/95 backdrop-blur-[2px] saturate-[170%] p-6 shadow-2xl overflow-hidden"
+            className="relative w-full max-w-md rounded-2xl border border-slate-200 dark:border-white/12 bg-white dark:bg-[#0f182a] p-6 shadow-[0_20px_40px_-10px_rgba(15,23,42,0.2)] dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)] space-y-5 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="absolute -top-20 -left-20 w-44 h-44 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
-            <div className="flex items-center gap-3.5 mb-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
-                <span className="text-2xl font-bold">✓</span>
+            {/* Close button matching other modals */}
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={() => setShowCompleteConfirm(false)}
+              className="absolute top-4 right-4 h-8 w-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="flex items-start gap-3.5 pr-8">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/25 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 size={20} />
               </div>
               <div>
-                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                <h3 className="font-display text-base sm:text-lg font-extrabold text-slate-900 dark:text-white tracking-tight m-0">
                   {t.step3.completeModalTitle || 'Complete Cultivation Plan?'}
                 </h3>
-                <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-600 dark:text-slate-400 font-medium mt-1 m-0">
                   {t.step3.completeModalSubtitle || 'Finalize and lock this plan record'}
                 </p>
               </div>
             </div>
 
-            <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 mb-5 text-xs text-slate-700 dark:text-slate-300 leading-relaxed space-y-2">
-              <p className="text-amber-700 dark:text-amber-300 font-bold flex items-center gap-1.5">
-                <span>⚠️</span>
+            <div className="rounded-xl bg-amber-50/90 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25 p-4 text-xs text-slate-700 dark:text-slate-300 leading-relaxed space-y-1.5">
+              <p className="text-amber-700 dark:text-amber-300 font-bold flex items-center gap-1.5 m-0">
+                <AlertTriangle size={15} className="shrink-0" />
                 <span>Important Notice:</span>
               </p>
-              <p>
+              <p className="m-0">
                 Once completed, this plan will be finalized and marked as completed. You <strong>cannot edit</strong> this plan from the outside records cards, and the edit action will be permanently hidden.
               </p>
             </div>
 
-            <div className="flex items-center justify-end gap-3">
+            <div className="flex items-center justify-end gap-2.5 pt-1">
               <button
                 type="button"
                 onClick={() => setShowCompleteConfirm(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-surface dark:hover:bg-surface/80 border border-slate-200 dark:border-white/10 transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] border border-slate-200 dark:border-white/10 transition-colors cursor-pointer"
               >
                 {messages.common.cancel || 'Cancel'}
               </button>
@@ -621,9 +655,9 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                   saveCurrentPlan(false, true);
                   router.push('/fertilizer');
                 }}
-                className="px-5 py-2 rounded-xl text-xs font-black text-white keep-white bg-gradient-to-r from-emerald-500 to-teal-400 shadow-glow hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+                className="px-5 py-2 rounded-xl text-xs font-black text-white keep-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 shadow-lg shadow-emerald-500/25 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
               >
-                <span>✓</span>
+                <CheckCircle2 size={14} />
                 <span>{t.step3.confirmCompleteBtn || 'Yes, Complete Plan'}</span>
               </button>
             </div>

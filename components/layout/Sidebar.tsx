@@ -13,10 +13,10 @@ import {
   XIcon,
   FlaskConicalIcon,
   WavesIcon,
+  CloudSunIcon,
 } from '../icons/Icons';
 import type { SidebarProps } from '@/types/components';
 import { useLanguage } from '@/components/providers/LanguageProvider';
-import { useTheme } from '@/components/providers/ThemeProvider';
 
 export const Sidebar: React.FC<SidebarProps> = ({
   isCollapsed,
@@ -26,8 +26,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const pathname = usePathname();
   const { messages } = useLanguage();
-  const { theme } = useTheme();
-  const logoSrc = theme === 'light' ? '/images/white_logo.png' : '/images/dark_logo.png';
+  const logoSrc = '/images/logo.png';
 
   const handleLinkClick = () => {
     if (onCloseMobile) {
@@ -39,6 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { key: 'dashboard', title: messages.sidebar.dashboard, href: '/', icon: LayoutDashboardIcon },
     { key: 'fertilizer', title: messages.sidebar.fertilizer, href: '/fertilizer', icon: FlaskConicalIcon },
     { key: 'reservoirs', title: messages.sidebar.reservoirs, href: '/reservoirs', icon: WavesIcon },
+    { key: 'weather', title: (messages.sidebar as any).weather || 'Agro Weather', href: '/weather', icon: CloudSunIcon },
     { key: 'seeds', title: (messages.sidebar as any).seeds || 'TNAU Seeds', href: '/seeds', icon: SproutIcon },
     { key: 'settings', title: messages.sidebar.settings, href: '/settings', icon: SettingsIcon },
   ];
@@ -55,9 +55,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="flex h-[70px] items-center justify-between border-b border-border-subtle px-4">
         <Link href="/" className="flex items-center gap-3 overflow-hidden" onClick={handleLinkClick}>
           <Image
-            key={logoSrc}
             src={logoSrc}
-            alt="FarmHub"
+            alt="Logo"
             width={180}
             height={55}
             unoptimized

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { AlertTriangle, Trash2, X } from 'lucide-react';
 import type { SavedPlanRecord } from '@/lib/fertilizer/types';
 import { formatCurrency as fmt } from '@/lib/fertilizer/calc';
 import { useLanguage } from '@/components/providers/LanguageProvider';
@@ -54,98 +55,111 @@ export const SavedPlanCard: React.FC<SavedPlanCardProps> = ({
 
   return (
     <>
-      {/* Enhanced Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal */}
       <AnimatePresence>
         {showDeleteConfirm && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 dark:bg-black/75 backdrop-blur-[2px] saturate-[170%] p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 dark:bg-black/70 backdrop-blur-xs p-4"
             onClick={(e) => {
               e.stopPropagation();
               setShowDeleteConfirm(false);
             }}
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.92, y: 15 }}
+              initial={{ opacity: 0, scale: 0.94, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92, y: 15 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className="bg-white/95 dark:bg-slate-900/95 border border-rose-200 dark:border-rose-500/30 backdrop-blur-[2px] saturate-[170%] rounded-3xl p-6 max-w-md w-full shadow-2xl shadow-slate-900/10 dark:shadow-rose-950/50 space-y-5 relative overflow-hidden"
+              exit={{ opacity: 0, scale: 0.94, y: 12 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="relative w-full max-w-md rounded-2xl border border-slate-200 dark:border-white/12 bg-white dark:bg-[#0f182a] p-6 shadow-[0_20px_40px_-10px_rgba(15,23,42,0.2)] dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)] space-y-5 overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Subtle Ambient Red Glow */}
-              <div className="absolute -top-16 -right-16 w-36 h-36 rounded-full bg-rose-500/10 dark:bg-rose-500/15 blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-16 -left-16 w-36 h-36 rounded-full bg-rose-500/5 dark:bg-rose-500/10 blur-3xl pointer-events-none" />
+              {/* Close button matching other modals */}
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDeleteConfirm(false);
+                }}
+                className="absolute top-4 right-4 h-8 w-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
 
-              {/* Header with Glowing Warning Icon */}
-              <div className="flex items-start gap-4">
-                <div className="h-12 w-12 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30 flex items-center justify-center text-2xl shrink-0 shadow-lg shadow-rose-500/10 dark:shadow-rose-500/20">
-                  ⚠️
+              {/* Header */}
+              <div className="flex items-start gap-3.5 pr-8">
+                <div className="h-11 w-11 rounded-2xl bg-rose-500/10 text-rose-600 border border-rose-500/25 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30 flex items-center justify-center shrink-0">
+                  <AlertTriangle size={20} />
                 </div>
                 <div>
-                  <h4 className="font-display font-extrabold text-lg text-slate-900 dark:text-slate-100 tracking-tight">
+                  <h4 className="font-display font-extrabold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight m-0">
                     Delete Cultivation Record?
                   </h4>
-                  <p className="text-xs text-rose-600 dark:text-rose-300/80 font-semibold mt-1">
+                  <p className="text-xs text-rose-600 dark:text-rose-400 font-semibold mt-1 m-0">
                     This action is permanent and cannot be undone.
                   </p>
                 </div>
               </div>
 
               {/* Record Summary Preview Box */}
-              <div className="rounded-2xl bg-slate-50/90 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 p-3.5 space-y-2 text-xs">
-                <div className="flex items-center justify-between">
+              <div className="rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 p-3.5 space-y-2 text-xs">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-slate-500 dark:text-slate-400">Farmer:</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200">{plan.userDetails.name || 'Unnamed Farm Plot'}</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100 truncate">
+                    {plan.userDetails.name || 'Unnamed Farm Plot'}
+                  </span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-slate-500 dark:text-slate-400">Land Cultivation:</span>
-                  <span className="font-bold text-emerald-700 dark:text-emerald-400">{plan.userDetails.landSize} Cents ({plan.cultivation.toUpperCase()})</span>
+                  <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                    {plan.userDetails.landSize} Cents ({plan.cultivation.toUpperCase()})
+                  </span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-slate-500 dark:text-slate-400">Net Profit Estimate:</span>
-                  <span className="font-bold text-cyan-700 dark:text-cyan-400">₹{fmt(plan.totals.netProfit)}</span>
+                  <span className="font-bold text-cyan-700 dark:text-cyan-400">
+                    ₹{fmt(plan.totals.netProfit)}
+                  </span>
                 </div>
-                <div className="flex items-center justify-between pt-1 border-t border-slate-200/80 dark:border-white/5 text-[11px]">
-                  <span className="text-slate-500 dark:text-slate-500">Saved Date:</span>
-                  <span className="text-slate-700 dark:text-slate-400">{plan.updated_at || plan.created_at}</span>
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/80 dark:border-white/10 text-[11px]">
+                  <span className="text-slate-500 dark:text-slate-400">Saved Date:</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-300">
+                    {plan.updated_at || plan.created_at}
+                  </span>
                 </div>
               </div>
 
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed m-0">
                 Deleting this record will immediately remove all phase-wise budget allocations, seed telemetry, and harvest yield records from your account.
               </p>
 
               {/* Modal Action Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+              <div className="flex items-center justify-end gap-2.5 pt-1">
+                <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowDeleteConfirm(false);
                   }}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 dark:bg-white/5 dark:hover:bg-white/10 dark:text-slate-300 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] border border-slate-200 dark:border-white/10 transition-colors cursor-pointer"
                 >
                   Cancel
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
+                </button>
+                <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowDeleteConfirm(false);
                     onDelete(plan.id, e);
                   }}
-                  className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white shadow-lg shadow-rose-500/30 transition-all cursor-pointer flex items-center gap-1.5"
+                  className="px-5 py-2 rounded-xl text-xs font-extrabold bg-gradient-to-r from-rose-500 to-red-600 hover:brightness-110 text-white keep-white shadow-lg shadow-rose-500/25 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
                 >
-                  <span>🗑️</span>
+                  <Trash2 size={14} />
                   <span>Yes, Delete</span>
-                </motion.button>
+                </button>
               </div>
             </motion.div>
           </motion.div>

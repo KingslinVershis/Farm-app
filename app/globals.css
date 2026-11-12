@@ -768,6 +768,30 @@ a.bg-emerald-600 *,
   box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15) !important;
 }
 
+.ant-modal.reservoir-telemetry-modal .ant-modal-container,
+.ant-modal.reservoir-telemetry-modal .ant-modal-content {
+  background: rgba(11, 18, 32, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 1.5rem !important;
+  box-shadow: 0 28px 60px -12px rgba(0, 0, 0, 0.85) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+[data-theme='light'] .ant-modal.reservoir-telemetry-modal .ant-modal-container,
+[data-theme='light'] .ant-modal.reservoir-telemetry-modal .ant-modal-content {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border: 1px solid rgba(203, 213, 225, 0.9) !important;
+  box-shadow: 0 24px 50px -12px rgba(15, 23, 42, 0.2) !important;
+}
+
+.ant-modal.reservoir-telemetry-modal .ant-modal-body {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 22px 24px !important;
+}
+
 .ant-modal-close {
   top: 16px !important;
   right: 16px !important;
@@ -1535,6 +1559,48 @@ body[data-theme='dark'] .ant-select-dropdown .ant-select-item-option-active,
   margin-bottom: 0 !important;
   gap: 6px !important;
   z-index: 30 !important;
+}
+
+/* Dark Theme Explicit Visible Borders for Fertilizer Step Input & Dropdown Fields */
+[data-theme='dark'] .fertilizer-step-scope input:not([type="checkbox"]):not([type="radio"]):not(.ant-select-input):not(.ant-select-selection-search-input):not(.search-inner-input):not(.ant-input-affix-wrapper input):not(.ant-input-affix-wrapper .ant-input),
+[data-theme='dark'] .fertilizer-step-scope textarea,
+[data-theme='dark'] .fertilizer-step-scope select,
+[data-theme='dark'] .fertilizer-step-scope .ant-input:not(.ant-input-affix-wrapper .ant-input),
+[data-theme='dark'] .fertilizer-step-scope .ant-input-affix-wrapper,
+[data-theme='dark'] .fertilizer-step-scope .ant-input-number,
+[data-theme='dark'] .fertilizer-step-scope .ant-select .ant-select-selector,
+[data-theme='dark'] .fertilizer-step-scope .custom-antd-select .ant-select-selector,
+[data-theme='dark'] .fertilizer-step-scope .custom-antd-select.ant-select-disabled .ant-select-selector,
+.dark .fertilizer-step-scope input:not([type="checkbox"]):not([type="radio"]):not(.ant-select-input):not(.ant-select-selection-search-input):not(.search-inner-input):not(.ant-input-affix-wrapper input):not(.ant-input-affix-wrapper .ant-input),
+.dark .fertilizer-step-scope textarea,
+.dark .fertilizer-step-scope select,
+.dark .fertilizer-step-scope .ant-input:not(.ant-input-affix-wrapper .ant-input),
+.dark .fertilizer-step-scope .ant-input-affix-wrapper,
+.dark .fertilizer-step-scope .ant-input-number,
+.dark .fertilizer-step-scope .ant-select .ant-select-selector,
+.dark .fertilizer-step-scope .custom-antd-select .ant-select-selector,
+.dark .fertilizer-step-scope .custom-antd-select.ant-select-disabled .ant-select-selector {
+  border: 1px solid #ffffff80 !important;
+}
+
+[data-theme='dark'] .fertilizer-step-scope .ant-input:hover,
+[data-theme='dark'] .fertilizer-step-scope .ant-input:focus,
+[data-theme='dark'] .fertilizer-step-scope .ant-input-affix-wrapper:hover,
+[data-theme='dark'] .fertilizer-step-scope .ant-input-affix-wrapper:focus-within,
+[data-theme='dark'] .fertilizer-step-scope .ant-select:not(.ant-select-disabled):hover .ant-select-selector,
+[data-theme='dark'] .fertilizer-step-scope .ant-select.ant-select-focused .ant-select-selector,
+.dark .fertilizer-step-scope .ant-input:hover,
+.dark .fertilizer-step-scope .ant-input:focus,
+.dark .fertilizer-step-scope .ant-input-affix-wrapper:hover,
+.dark .fertilizer-step-scope .ant-input-affix-wrapper:focus-within,
+.dark .fertilizer-step-scope .ant-select:not(.ant-select-disabled):hover .ant-select-selector,
+.dark .fertilizer-step-scope .ant-select.ant-select-focused .ant-select-selector {
+  border-color: #10b981 !important;
+}
+
+[data-theme='dark'] .fertilizer-step-scope .border-rose-500,
+.dark .fertilizer-step-scope .border-rose-500 {
+  border-color: #f43f5e !important;
 }
 
 /* Explicit Keep-White Override (always pure white across both light and dark themes) */

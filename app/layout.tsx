@@ -10,7 +10,7 @@ import { Agentation } from "agentation";
 import { AntdRegistry } from '@ant-design/nextjs-registry';
 
 export const metadata: Metadata = {
-  title: 'FarmHub | Precision Farm Management OS',
+  title: 'Precision Farm Management OS',
   description: 'Production-ready Next.js App Router farm dashboard with telemetry, IoT sensors, and smart irrigation.',
 };
 
@@ -20,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" data-theme="dark" suppressHydrationWarning>
+    <html lang="en" data-theme="dark" className="dark" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{

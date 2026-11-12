@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import * as cheerio from 'cheerio';
 import { getServerAuthenticatedUser, clearAuthCookies } from '@/lib/serverAuth';
 
 export interface ReservoirRecord {
@@ -45,11 +44,32 @@ export interface ReservoirsResponse {
   isFallback?: boolean;
 }
 
+interface UpstreamReservoirRow {
+  id?: string | number;
+  reservoir_name?: string;
+  tot_depth?: string | number;
+  tot_capacity?: string | number;
+  current_level?: string | number;
+  current_storage?: string | number;
+  lastyear_level?: string | number;
+  lastyear_storage?: string | number;
+  inflow?: string | number;
+  outflow?: string | number;
+  updated_date?: string;
+}
 
+interface UpstreamReservoirApiResponse {
+  status?: string;
+  requested?: string;
+  data_date?: string;
+  days_old?: number;
+  rows?: UpstreamReservoirRow[];
+}
 
-function parseNum(val: string): number {
+function parseNum(val: string | number | null | undefined): number {
+  if (typeof val === 'number') return Number.isFinite(val) ? val : 0;
   if (!val) return 0;
-  const cleaned = val.replace(/[^0-9.-]/g, '');
+  const cleaned = String(val).replace(/[^0-9.-]/g, '');
   const parsed = parseFloat(cleaned);
   return isNaN(parsed) ? 0 : parsed;
 }
@@ -68,10 +88,10 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const dateParam = searchParams.get('date')?.trim();
 
-  // Target URL
+  // Official JSON API endpoint
   const targetUrl = dateParam
-    ? `https://tnagriculture.in/ARS/home/reservoir/${dateParam}`
-    : 'https://tnagriculture.in/ARS/home/reservoir';
+    ? `https://tnagriculture.in/Agritech_new/home/reservoir_data?date=${encodeURIComponent(dateParam)}`
+    : 'https://tnagriculture.in/Agritech_new/home/reservoir_data';
 
   try {
     const controller = new AbortController();
@@ -82,7 +102,7 @@ export async function GET(request: NextRequest) {
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        Accept: 'application/json, text/plain, */*',
         'Accept-Language': 'en-US,en;q=0.9',
       },
       next: { revalidate: 300 }, // Cache on edge/Next for 5 minutes
@@ -91,85 +111,77 @@ export async function GET(request: NextRequest) {
     clearTimeout(timeout);
 
     if (!res.ok) {
-      throw new Error(`External source responded with status ${res.status}`);
+      throw new Error(`External API responded with status ${res.status}`);
     }
 
-    const html = await res.text();
-    const $ = cheerio.load(html);
-
-    // Extract displayed date
-    let displayDate = dateParam || '';
-    const dateAlertText = $('.alert.alert-danger, .alert').text().trim();
-    if (dateAlertText) {
-      const match = dateAlertText.match(/(\d{2}[-/]\d{2}[-/]\d{4}|\d{4}[-/]\d{2}[-/]\d{2})/);
-      if (match) {
-        displayDate = match[0];
-      }
-    }
+    const upstream: UpstreamReservoirApiResponse = await res.json();
+    const rows = Array.isArray(upstream?.rows) ? upstream.rows : [];
 
     const reservoirs: ReservoirRecord[] = [];
 
-    // Table rows extraction
-    $('table tr').each((_, row) => {
-      const tds = $(row).find('td');
-      if (tds.length >= 8) {
-        const rawName = $(tds[0]).text().replace(/\s+/g, ' ').trim();
-        if (!rawName || rawName.toLowerCase().includes('reservoir')) return;
+    for (const row of rows) {
+      const rawName = String(row.reservoir_name ?? '').replace(/\s+/g, ' ').trim();
+      if (!rawName || rawName.toLowerCase().includes('reservoir')) continue;
 
-        const cleanName = rawName.replace(/[*+^]/g, '').trim();
-        const normKey = cleanName.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+      const cleanName = rawName.replace(/[*+^]/g, '').trim();
+      const normKey = cleanName.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
 
-        const fullDepthFeet = parseNum($(tds[1]).text());
-        const fullCapacityMcft = parseNum($(tds[2]).text());
-        const currentLevelFeet = parseNum($(tds[3]).text());
-        const currentStorageMcft = parseNum($(tds[4]).text());
-        const currentInflowCusecs = parseNum($(tds[5]).text());
-        const currentOutflowCusecs = parseNum($(tds[6]).text());
-        const lastYearLevelFeet = parseNum($(tds[7]).text());
-        const lastYearStorageMcft = parseNum($(tds[8]).text());
+      const fullDepthFeet = parseNum(row.tot_depth);
+      const fullCapacityMcft = parseNum(row.tot_capacity);
+      const currentLevelFeet = parseNum(row.current_level);
+      const currentStorageMcft = parseNum(row.current_storage);
+      const currentInflowCusecs = parseNum(row.inflow);
+      const currentOutflowCusecs = parseNum(row.outflow);
+      const lastYearLevelFeet = parseNum(row.lastyear_level);
+      const lastYearStorageMcft = parseNum(row.lastyear_storage);
 
-        const storagePercentage =
-          fullCapacityMcft > 0
-            ? Math.min(100, Math.round((currentStorageMcft / fullCapacityMcft) * 1000) / 10)
-            : 0;
+      const storagePercentage =
+        fullCapacityMcft > 0
+          ? Math.min(100, Math.round((currentStorageMcft / fullCapacityMcft) * 1000) / 10)
+          : 0;
 
-        const levelPercentage =
-          fullDepthFeet > 0
-            ? Math.min(100, Math.round((currentLevelFeet / fullDepthFeet) * 1000) / 10)
-            : 0;
+      const levelPercentage =
+        fullDepthFeet > 0
+          ? Math.min(100, Math.round((currentLevelFeet / fullDepthFeet) * 1000) / 10)
+          : 0;
 
-        let status: ReservoirRecord['status'] = 'Critical';
-        if (storagePercentage >= 75) status = 'Surplus';
-        else if (storagePercentage >= 50) status = 'Adequate';
-        else if (storagePercentage >= 25) status = 'Moderate';
+      let status: ReservoirRecord['status'] = 'Critical';
+      if (storagePercentage >= 75) status = 'Surplus';
+      else if (storagePercentage >= 50) status = 'Adequate';
+      else if (storagePercentage >= 25) status = 'Moderate';
 
-        reservoirs.push({
-          id: `res-${normKey.replace(/\s+/g, '-')}`,
-          name: cleanName,
-          rawName,
-          basin: '',
-          district: '',
-          fullDepthFeet,
-          fullCapacityMcft,
-          currentLevelFeet,
-          currentStorageMcft,
-          currentInflowCusecs,
-          currentOutflowCusecs,
-          lastYearLevelFeet,
-          lastYearStorageMcft,
-          storagePercentage,
-          levelPercentage,
-          currentStorageTmc: Math.round((currentStorageMcft / 1000) * 100) / 100,
-          fullCapacityTmc: Math.round((fullCapacityMcft / 1000) * 100) / 100,
-          netFlowCusecs: currentInflowCusecs - currentOutflowCusecs,
-          status,
-        });
-      }
-    });
+      reservoirs.push({
+        id: normKey ? `res-${normKey.replace(/\s+/g, '-')}` : `res-${String(row.id ?? reservoirs.length)}`,
+        name: cleanName,
+        rawName,
+        basin: '',
+        district: '',
+        fullDepthFeet,
+        fullCapacityMcft,
+        currentLevelFeet,
+        currentStorageMcft,
+        currentInflowCusecs,
+        currentOutflowCusecs,
+        lastYearLevelFeet,
+        lastYearStorageMcft,
+        storagePercentage,
+        levelPercentage,
+        currentStorageTmc: Math.round((currentStorageMcft / 1000) * 100) / 100,
+        fullCapacityTmc: Math.round((fullCapacityMcft / 1000) * 100) / 100,
+        netFlowCusecs: currentInflowCusecs - currentOutflowCusecs,
+        status,
+      });
+    }
 
     if (reservoirs.length === 0) {
-      throw new Error('No reservoir rows parsed from the government page HTML.');
+      throw new Error('No reservoir data available for the specified date.');
     }
+
+    const displayDate =
+      (upstream.data_date && String(upstream.data_date).trim()) ||
+      (rows[0]?.updated_date && String(rows[0].updated_date).trim()) ||
+      dateParam ||
+      '';
 
     // Calculate aggregated totals
     const totalCurrentStorageMcft = reservoirs.reduce((sum, r) => sum + r.currentStorageMcft, 0);

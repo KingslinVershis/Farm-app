@@ -3,7 +3,8 @@
 import React from 'react';
 import { DropletsIcon, SproutIcon, TractorIcon } from '@/components/icons/Icons';
 import { useLanguage } from '@/components/providers/LanguageProvider';
-import { formatCurrency as fmt } from '@/lib/fertilizer/calc';
+import { formatCurrency as fmt, computeDailyLabourCost } from '@/lib/fertilizer/calc';
+import { printDossierAsPdf } from '@/lib/fertilizer/printDossier';
 import type {
   CultivationType,
   ExpenseEntry,
@@ -98,7 +99,25 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
           )}
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() =>
+              printDossierAsPdf({
+                activePlanId,
+                userDetails,
+                cultivation,
+                totalCropDays,
+                grandTotal,
+                revenueTotal,
+                netProfit,
+                costPerCent,
+                revenuePerCent,
+                roiPercentage,
+                currentPhases,
+                phaseTotals,
+                expenseMap,
+                getPhaseMeta,
+                getTaskMeta,
+              })
+            }
             className="rounded-xl glass-surface px-3.5 py-2 text-xs font-bold text-text-main hover:bg-white/10 border border-white/10 transition-all cursor-pointer"
           >
             🖨️ {messages.common.print}
@@ -416,8 +435,24 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
                           <span className="text-amber-400 font-semibold">{t.step3.skipped || 'Skipped (₹0)'}</span>
                         ) : task.isFertilizerWithLabour ? (
                           <span className="flex flex-col text-[10px] text-text-secondary leading-tight">
-                            <span>🌱 Fert: {entry.fertQty ?? 1} × ₹{fmt(entry.fertPrice ?? 0)}</span>
-                            <span>👷 Labour: {entry.labourCount ?? 2} × ₹{fmt(entry.labourWage ?? 450)}</span>
+                            <span>🌱 {task.id === 'p3_fert_dose3' ? 'Bags' : 'Qty'}: {entry.fertQty ?? 0} × ₹{fmt(entry.fertPrice ?? 0)}</span>
+                            <span>
+                              👷 Labour: {entry.labourCount ?? 0} × ₹{fmt(entry.labourWage ?? 0)}
+                              {(entry.snackCost ?? 0) > 0 ? ` + ₹${fmt(entry.snackCost ?? 0)} snacks` : ''}
+                              {(entry.travelCost ?? 0) > 0 ? ` + ₹${fmt(entry.travelCost ?? 0)} travel` : ''}
+                            </span>
+                          </span>
+                        ) : task.isMultiDayLabour && !entry.isMachineMode ? (
+                          <span className="flex flex-col text-[10px] text-text-secondary leading-tight gap-0.5">
+                            {(entry.dayEntries || [])
+                              .filter((d) => d.labourCount > 0 || d.labourWage > 0 || d.snackCost > 0 || d.travelCost > 0)
+                              .map((d) => (
+                                <span key={d.day}>
+                                  Day {d.day}: {d.labourCount} workers × ₹{fmt(d.labourWage)}
+                                  {d.snackCost > 0 ? ` + ₹${fmt(d.snackCost)} snacks` : ''}
+                                  {d.travelCost > 0 ? ` + ₹${fmt(d.travelCost)} travel` : ''} (₹{fmt(computeDailyLabourCost(d))})
+                                </span>
+                              ))}
                           </span>
                         ) : task.isLabour ? (
                           entry.isMachineMode ? (

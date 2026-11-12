@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
 import { motion } from 'motion/react';
 import {
   SproutIcon,
@@ -19,11 +18,6 @@ import {
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { AnimatedCounter } from '@/components/reactbits/AnimatedCounter';
 import { SpotlightCard } from '@/components/reactbits/SpotlightCard';
-
-const RiveVillageBackground = dynamic(
-  () => import('@/components/dashboard/RiveVillageBackground').then((mod) => mod.RiveVillageBackground),
-  { ssr: false }
-);
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -101,7 +95,7 @@ export default function FarmDashboardPage() {
   const [reservoirPercent, setReservoirPercent] = useState<number>(55.4);
   const [seedVarietiesCount, setSeedVarietiesCount] = useState<number>(78);
 
-  const majorDams: ReservoirSnapshot[] = [
+  const [majorDams, setMajorDams] = useState<ReservoirSnapshot[]>([
     {
       name: 'Mettur Dam (Stanley)',
       tamilName: 'மேட்டூர் அணை (ஸ்டான்லி)',
@@ -129,7 +123,7 @@ export default function FarmDashboardPage() {
       inflow: 1820,
       outflow: 1100,
     },
-  ];
+  ]);
 
   // Fetch live counts from our DB APIs silently on mount
   useEffect(() => {
@@ -172,12 +166,53 @@ export default function FarmDashboardPage() {
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
         if (!mounted || !json || !json.reservoirs) return;
-        if (Array.isArray(json.reservoirs) && json.reservoirs.length > 0) {
-          const totalCur = json.reservoirs.reduce((acc: number, r: any) => acc + (Number(r.currentStorage) || 0), 0);
-          const totalCap = json.reservoirs.reduce((acc: number, r: any) => acc + (Number(r.fullCapacity) || 0), 0);
+        if (typeof json.summary?.overallStoragePercentage === 'number') {
+          setReservoirPercent(Number(json.summary.overallStoragePercentage.toFixed(1)));
+        } else if (Array.isArray(json.reservoirs) && json.reservoirs.length > 0) {
+          const totalCur = json.reservoirs.reduce(
+            (acc: number, r: any) => acc + (Number(r.currentStorageMcft ?? r.currentStorage) || 0),
+            0
+          );
+          const totalCap = json.reservoirs.reduce(
+            (acc: number, r: any) => acc + (Number(r.fullCapacityMcft ?? r.fullCapacity) || 0),
+            0
+          );
           if (totalCap > 0) {
             setReservoirPercent(Number(((totalCur / totalCap) * 100).toFixed(1)));
           }
+        }
+
+        if (Array.isArray(json.reservoirs) && json.reservoirs.length > 0) {
+          const targets = [
+            { key: 'mettur', name: 'Mettur Dam (Stanley)', tamilName: 'மேட்டூர் அணை (ஸ்டான்லி)' },
+            { key: 'bhavanisagar', name: 'Bhavanisagar Dam', tamilName: 'பவானிசாகர் அணை' },
+            { key: 'vaigai', name: 'Vaigai Dam', tamilName: 'வைகை அணை' },
+          ];
+          setMajorDams((prev) =>
+            targets.map((target, idx) => {
+              const found = json.reservoirs.find((r: any) =>
+                String(r.name || r.rawName || '').toLowerCase().includes(target.key)
+              );
+              if (!found) return prev[idx];
+              const storageMcft = Number(found.currentStorageMcft) || 0;
+              const capacityMcft = Number(found.fullCapacityMcft) || 0;
+              const percent =
+                typeof found.storagePercentage === 'number'
+                  ? Number(found.storagePercentage.toFixed(1))
+                  : capacityMcft > 0
+                    ? Number(((storageMcft / capacityMcft) * 100).toFixed(1))
+                    : 0;
+              return {
+                name: target.name,
+                tamilName: target.tamilName,
+                storageMcft,
+                capacityMcft,
+                percent,
+                inflow: Number(found.currentInflowCusecs) || 0,
+                outflow: Number(found.currentOutflowCusecs) || 0,
+              };
+            })
+          );
         }
       })
       .catch(() => { });
@@ -202,9 +237,6 @@ export default function FarmDashboardPage() {
 
   return (
     <div className="relative min-h-screen w-full">
-      {/* Dynamic Animated Rive Village Scene Background (Day to Night) */}
-      <RiveVillageBackground />
-
       {/* Main Container */}
       <div className="relative z-10 space-y-6 sm:space-y-8 p-4 sm:p-6 lg:p-8 max-w-[1720px] w-full mx-auto animate-fade-in pb-24 text-text-main">
         {/* Top Executive Header Dossier */}
@@ -468,19 +500,25 @@ export default function FarmDashboardPage() {
                 <div className="p-3 rounded-xl glass-surface border border-white/10 space-y-1.5 text-[11px]">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-text-muted">Mettur (Stanley)</span>
-                    <span className="font-extrabold text-cyan-500 dark:text-cyan-400">59,450 / 93,470 Mcft</span>
+                    <span className="font-extrabold text-cyan-500 dark:text-cyan-400" suppressHydrationWarning>
+                      {majorDams[0].storageMcft.toLocaleString('en-IN')} / {majorDams[0].capacityMcft.toLocaleString('en-IN')} Mcft
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-text-muted">Bhavanisagar</span>
-                    <span className="font-extrabold text-cyan-500 dark:text-cyan-400">21,340 / 32,800 Mcft</span>
+                    <span className="font-extrabold text-cyan-500 dark:text-cyan-400" suppressHydrationWarning>
+                      {majorDams[1].storageMcft.toLocaleString('en-IN')} / {majorDams[1].capacityMcft.toLocaleString('en-IN')} Mcft
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-text-muted">Vaigai Dam</span>
-                    <span className="font-extrabold text-cyan-500 dark:text-cyan-400">4,820 / 6,140 Mcft</span>
+                    <span className="font-extrabold text-cyan-500 dark:text-cyan-400" suppressHydrationWarning>
+                      {majorDams[2].storageMcft.toLocaleString('en-IN')} / {majorDams[2].capacityMcft.toLocaleString('en-IN')} Mcft
+                    </span>
                   </div>
                   <div className="pt-1.5 border-t border-white/5 flex items-center justify-between text-[10px] text-text-muted font-medium">
-                    <span>Inflow: 8,420 cusecs</span>
-                    <span>Outflow: 6,500 cusecs</span>
+                    <span suppressHydrationWarning>Inflow: {majorDams[0].inflow.toLocaleString('en-IN')} cusecs</span>
+                    <span suppressHydrationWarning>Outflow: {majorDams[0].outflow.toLocaleString('en-IN')} cusecs</span>
                   </div>
                 </div>
 

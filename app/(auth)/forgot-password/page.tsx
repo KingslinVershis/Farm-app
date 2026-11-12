@@ -292,8 +292,8 @@ export default function ForgotPasswordPage() {
       badge: isTamil ? 'புதிய கடவுச்சொல் • படி 3 / 3' : 'New Password • Step 3 of 3',
       title: isTamil ? 'புதிய கடவுச்சொல் உருவாக்கவும்' : 'Create New Password',
       subtitle: isTamil
-        ? 'உங்கள் FarmHub கணக்கைப் புதுப்பிக்க குறைந்தது 6 எழுத்துகள் கொண்ட வலுவான புதிய கடவுச்சொல்லை அமைத்து உறுதிப்படுத்தவும்.'
-        : 'Set a strong new password (minimum 6 characters) and confirm it below to update your FarmHub account.',
+        ? 'உங்கள் கணக்கைப் புதுப்பிக்க குறைந்தது 6 எழுத்துகள் கொண்ட வலுவான புதிய கடவுச்சொல்லை அமைத்து உறுதிப்படுத்தவும்.'
+        : 'Set a strong new password (minimum 6 characters) and confirm it below to update your account.',
     },
   }[step];
 
@@ -371,7 +371,7 @@ export default function ForgotPasswordPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder={isTamil ? 'எ.கா. farmer@farmhub.in' : 'e.g. farmer@farmhub.in'}
+                  placeholder={isTamil ? 'எ.கா. farmer@example.com' : 'e.g. farmer@example.com'}
                   className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-4 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
                 />
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">

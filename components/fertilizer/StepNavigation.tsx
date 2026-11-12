@@ -37,7 +37,7 @@ export const StepNavigation: React.FC<StepNavigationProps> = ({
             onClick={() => onSelectStep(item.num)}
             className={`flex flex-col text-left p-3 sm:p-4 rounded-xl glass-card transition-all duration-200 ${
               isLocked
-                ? 'opacity-55 cursor-not-allowed border-border-subtle'
+                ? 'opacity-80 cursor-not-allowed border-border-subtle'
                 : isActive
                   ? 'cursor-pointer border-emerald-500/90 shadow-[0_14px_30px_-6px_rgba(16,185,129,0.3),0_0_0_1px_rgba(52,211,153,0.35)] ring-1 ring-emerald-500/30'
                   : isCompleted
@@ -49,18 +49,18 @@ export const StepNavigation: React.FC<StepNavigationProps> = ({
               <span
                 className={`text-[10px] font-extrabold uppercase tracking-wider ${
                   isLocked
-                    ? 'text-slate-500 dark:text-slate-400'
+                    ? 'text-text-secondary'
                     : isActive
-                      ? 'text-emerald-500 dark:text-emerald-400'
+                      ? 'text-emerald-600 dark:text-emerald-400'
                       : isCompleted
                         ? 'text-emerald-600 dark:text-emerald-300'
-                        : 'text-slate-700 dark:text-slate-300'
+                        : 'text-text-secondary'
                 }`}
               >
                 Step {item.num}
               </span>
               {isLocked ? (
-                <span className="flex items-center gap-1 rounded-full bg-slate-500/15 px-2 py-0.5 text-[9px] font-bold text-slate-500 dark:text-slate-400 border border-slate-500/25">
+                <span className="flex items-center gap-1 rounded-full bg-slate-200/80 dark:bg-white/10 px-2 py-0.5 text-[9px] font-bold text-text-secondary border border-slate-300/80 dark:border-white/20">
                   🔒 Locked
                 </span>
               ) : item.num === 3 ? (

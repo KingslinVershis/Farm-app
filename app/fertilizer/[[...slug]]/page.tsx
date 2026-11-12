@@ -47,6 +47,8 @@ export default function FertilizerCatchAllPage() {
     handleConfigureCrop,
     handleRateChange,
     handleLabourChange,
+    handleMultiDayChangeActiveDay,
+    handleMultiDayLabourChange,
     handleFertilizerWithLabourChange,
     handleMandiChange,
     handleToggleOptional,
@@ -282,6 +284,7 @@ export default function FertilizerCatchAllPage() {
           {pageView === 'wizard' && (
             <motion.div
               key="wizard-view"
+              className="fertilizer-step-scope"
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
@@ -361,6 +364,8 @@ export default function FertilizerCatchAllPage() {
                     activePhaseMeta={activePhaseMeta}
                     handleRateChange={handleRateChange}
                     handleLabourChange={handleLabourChange}
+                    handleMultiDayChangeActiveDay={handleMultiDayChangeActiveDay}
+                    handleMultiDayLabourChange={handleMultiDayLabourChange}
                     handleFertilizerWithLabourChange={handleFertilizerWithLabourChange}
                     handleMandiChange={handleMandiChange}
                     handleToggleOptional={handleToggleOptional}

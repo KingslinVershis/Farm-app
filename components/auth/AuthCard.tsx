@@ -34,9 +34,9 @@ const CAROUSEL_SLIDES = [
 const formVariants: Variants = {
   initial: (direction: number) => ({
     opacity: 0,
-    x: direction > 0 ? 40 : -40,
-    scale: 0.98,
-    filter: 'blur(4px)',
+    x: direction > 0 ? 24 : -24,
+    scale: 0.985,
+    filter: 'blur(3px)',
   }),
   animate: {
     opacity: 1,
@@ -44,18 +44,18 @@ const formVariants: Variants = {
     scale: 1,
     filter: 'blur(0px)',
     transition: {
-      duration: 0.35,
-      ease: 'easeOut',
+      duration: 0.85,
+      ease: [0.45, 0, 0.55, 1],
     },
   },
   exit: (direction: number) => ({
     opacity: 0,
-    x: direction > 0 ? -40 : 40,
-    scale: 0.98,
-    filter: 'blur(4px)',
+    x: direction > 0 ? -24 : 24,
+    scale: 0.985,
+    filter: 'blur(3px)',
     transition: {
-      duration: 0.22,
-      ease: 'easeIn',
+      duration: 0.48,
+      ease: [0.45, 0, 0.55, 1],
     },
   }),
 };
@@ -412,13 +412,16 @@ export function AuthCard({ initialMode }: AuthCardProps) {
     >
       <motion.div
         layout
+        transition={{
+          layout: { duration: 1.25, ease: [0.65, 0, 0.35, 1] },
+        }}
         className="flex flex-col lg:flex-row gap-4 lg:gap-8 items-stretch"
       >
         {/* Media Showcase Card (Left in Sign In, Right in Sign Up) */}
         <motion.div
           layout="position"
           transition={{
-            layout: { duration: 0.5, ease: 'easeInOut' },
+            layout: { duration: 1.25, ease: [0.65, 0, 0.35, 1] },
           }}
           className={`w-full lg:w-1/2 relative rounded-2xl sm:rounded-[24px] overflow-hidden min-h-[340px] sm:min-h-[440px] lg:min-h-[540px] flex flex-col justify-end p-6 sm:p-8 bg-slate-950 text-white shadow-inner ${
             mode === 'signup' ? 'lg:order-2' : 'lg:order-1'
@@ -491,7 +494,7 @@ export function AuthCard({ initialMode }: AuthCardProps) {
         <motion.div
           layout="position"
           transition={{
-            layout: { duration: 0.5, ease: 'easeInOut' },
+            layout: { duration: 1.25, ease: [0.65, 0, 0.35, 1] },
           }}
           className={`w-full lg:w-1/2 flex flex-col justify-center px-4 sm:px-6 lg:px-8 py-5 sm:py-8 overflow-hidden ${
             mode === 'signup' ? 'lg:order-1' : 'lg:order-2'
@@ -578,7 +581,7 @@ export function AuthCard({ initialMode }: AuthCardProps) {
                         onChange={(e) => setSignInEmail(e.target.value)}
                         placeholder={
                           t.emailOrPhonePlaceholder ||
-                          'e.g. swaminathan@farmhub.in or 9876543210'
+                          'e.g. swaminathan@example.com or 9876543210'
                         }
                         className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-4 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
                       />
@@ -756,7 +759,7 @@ export function AuthCard({ initialMode }: AuthCardProps) {
                         value={signUpEmail}
                         onChange={(e) => setSignUpEmail(e.target.value)}
                         required
-                        placeholder={t.emailPlaceholder || 'e.g. farmer@farmhub.in'}
+                        placeholder={t.emailPlaceholder || 'e.g. farmer@example.com'}
                         className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-4 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
                       />
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
@@ -844,8 +847,8 @@ export function AuthCard({ initialMode }: AuthCardProps) {
                     >
                       <span>
                         {locale === 'ta'
-                          ? 'FarmHub விவசாய சேவை விதிமுறைகள் மற்றும் கொள்கைகளை ஏற்கிறேன்.'
-                          : 'I agree to the FarmHub Terms of Service & Privacy Policy.'}
+                          ? 'விவசாய சேவை விதிமுறைகள் மற்றும் கொள்கைகளை ஏற்கிறேன்.'
+                          : 'I agree to the Terms of Service & Privacy Policy.'}
                       </span>
                     </label>
                   </div>
@@ -883,7 +886,7 @@ export function AuthCard({ initialMode }: AuthCardProps) {
         subtitle={
           locale === 'ta'
             ? 'உங்கள் கணக்கை உருவாக்க, உங்கள் மின்னஞ்சலுக்கு அனுப்பப்பட்ட 6 இலக்க குறியீட்டை உள்ளிடவும்.'
-            : 'Enter the 6-digit verification code sent to your email address to activate your FarmHub account.'
+            : 'Enter the 6-digit verification code sent to your email address to activate your account.'
         }
         confirmLabel={locale === 'ta' ? 'சரிபார்த்து கணக்கை உருவாக்கு' : 'Verify & Create Account'}
         loading={signUpOtpLoading}

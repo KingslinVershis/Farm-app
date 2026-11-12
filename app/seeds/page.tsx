@@ -255,14 +255,6 @@ export default function TnauSeedsPage() {
 
   return (
     <div className="relative min-h-screen w-full">
-      {/* Background Photography Layer */}
-      <div
-        className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out scale-105"
-        style={{
-          backgroundImage: `url('/images/green.png')`,
-        }}
-      />
-      <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
       <div className="relative z-10 space-y-6 sm:space-y-8 p-4 sm:p-6 lg:p-8 max-w-[1720px] w-full mx-auto animate-fade-in pb-24">
         {/* Dossier Top Banner */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 glass-panel rounded-2xl p-5 sm:p-7 shadow-2xl border border-border-light relative overflow-hidden">
