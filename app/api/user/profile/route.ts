@@ -87,6 +87,13 @@ export async function POST(request: NextRequest) {
       values.push(cleanPhone);
     }
 
+    // 7. Avatar URL
+    if (body.avatar_url !== undefined) {
+      const avatarVal = body.avatar_url ? String(body.avatar_url).trim() : null;
+      updates.push(`avatar_url = $${idx++}`);
+      values.push(avatarVal);
+    }
+
     if (values.length === 0) {
       return NextResponse.json(
         { success: false, error: 'No fields provided to update' },
@@ -100,7 +107,7 @@ export async function POST(request: NextRequest) {
       SET ${updates.join(', ')}
       WHERE id = $${idx}
       RETURNING id, username, email, role, isactive, theme, language, created_at, updated_at,
-                state, district, city, address,
+                state, district, city, address, avatar_url,
                 COALESCE(phone_nun, phone_number) as phone_nun,
                 COALESCE(phone_nun, phone_number) as phone_number
     `;

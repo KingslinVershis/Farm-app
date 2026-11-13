@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { useTheme, type Theme } from '@/components/providers/ThemeProvider';
 import { useLocationSelector } from '@/lib/hooks/useLocationSelector';
@@ -29,14 +29,17 @@ import {
   Home,
   Trash2,
   AlertTriangle,
+  Camera,
+  Upload,
 } from '@/components/icons/FlaticonIcons';
 import { Input, Modal, message } from 'antd';
 import { OtpVerificationModal } from '@/components/auth/OtpVerificationModal';
 import type { CodeSlotsStatus } from '@/components/auth/CodeSlots';
 import { clearClientSessionStorage } from '@/components/layout/AppShell';
 import HoldButton from '@/components/common/HoldButton';
+import { SettingsContactsSection } from '@/components/settings/SettingsContactsSection';
 
-export type SettingsTab = 'user-profile' | 'security-password' | 'language-theme';
+export type SettingsTab = 'user-profile' | 'security-password' | 'language-theme' | 'contacts';
 
 interface UserProfile {
   id: string;
@@ -50,6 +53,7 @@ interface UserProfile {
   district?: string;
   city?: string;
   address?: string;
+  avatar_url?: string;
   phone_nun?: string;
   phone_number?: string;
   createdAt?: string;
@@ -75,6 +79,8 @@ export default function SettingsPage() {
   const [addressInput, setAddressInput] = useState<string>('');
   const [savingProfile, setSavingProfile] = useState<boolean>(false);
   const [profileFeedback, setProfileFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState<boolean>(false);
+  const avatarFileInputRef = useRef<HTMLInputElement>(null);
 
   // Location selector hook (shared with fertilizer step 1)
   const location = useLocationSelector({
@@ -164,6 +170,9 @@ export default function SettingsPage() {
     if (typeof window !== 'undefined') {
       const parseTabFromUrl = (): SettingsTab => {
         const search = window.location.search.replace(/^\?/, '').toLowerCase();
+        if (search.includes('contact')) {
+          return 'contacts';
+        }
         if (search.includes('security') || search.includes('password')) {
           return 'security-password';
         }
@@ -224,9 +233,164 @@ export default function SettingsPage() {
     fetchUserProfile();
   }, []);
 
-  // 3. Handle Profile & Location update via /api/user/profile
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Avatar upload logic via backend API /api/user/avatar
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      message.error(isTamil ? 'படக் கோப்புகளை மட்டுமே பதிவேற்ற முடியும்' : 'Only image files are allowed');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      message.error(isTamil ? 'படத்தின் அளவு 5MBக்கு குறைவாக இருக்க வேண்டும்' : 'Image size must be less than 5MB');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    const hideLoading = message.loading(isTamil ? 'படம் பதிவேற்றப்படுகிறது...' : 'Uploading avatar...', 0);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/user/avatar', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Failed to upload avatar');
+      }
+
+      const updatedAvatarUrl = data.avatar_url;
+      const updatedUser: UserProfile = {
+        ...(user || {
+          id: '',
+          username: '',
+          email: '',
+          role: 'Farmer',
+          isactive: true,
+        }),
+        avatar_url: updatedAvatarUrl,
+      };
+
+      setUser(updatedUser);
+
+      try {
+        localStorage.setItem('farmhub_user', JSON.stringify(updatedUser));
+        window.dispatchEvent(new CustomEvent('farmhub_user_updated', { detail: updatedUser }));
+      } catch {}
+
+      message.success(
+        isTamil
+          ? 'சுயவிவரப் படம் வெற்றிகரமாக புதுப்பிக்கப்பட்டது!'
+          : 'Profile picture updated successfully!'
+      );
+    } catch (err: any) {
+      console.error('[Settings] Avatar upload error:', err);
+      message.error(err?.message || (isTamil ? 'படத்தை பதிவேற்ற முடியவில்லை' : 'Failed to upload avatar'));
+    } finally {
+      hideLoading();
+      setUploadingAvatar(false);
+      if (avatarFileInputRef.current) {
+        avatarFileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setUploadingAvatar(true);
+    const hideLoading = message.loading(isTamil ? 'படம் நீக்கப்படுகிறது...' : 'Removing avatar...', 0);
+    try {
+      const res = await fetch('/api/user/avatar', { method: 'DELETE' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Failed to remove avatar');
+      }
+
+      const updatedUser: UserProfile = {
+        ...(user || {
+          id: '',
+          username: '',
+          email: '',
+          role: 'Farmer',
+          isactive: true,
+        }),
+        avatar_url: '',
+      };
+      setUser(updatedUser);
+
+      try {
+        localStorage.setItem('farmhub_user', JSON.stringify(updatedUser));
+        window.dispatchEvent(new CustomEvent('farmhub_user_updated', { detail: updatedUser }));
+      } catch {}
+
+      message.success(isTamil ? 'சுயவிவரப் படம் நீக்கப்பட்டது' : 'Avatar removed successfully');
+    } catch (err: any) {
+      message.error(err?.message || 'Failed to remove avatar');
+    } finally {
+      hideLoading();
+      setUploadingAvatar(false);
+    }
+  };
+
+  // 1. Check if User Details are dirty (Username, Phone Number differed from API values)
+  const isUserDetailsDirty = useMemo(() => {
+    if (!user) return false;
+
+    const originalUsername = (user.username || '').trim();
+    const currentUsername = usernameInput.trim();
+    if (currentUsername !== originalUsername) return true;
+
+    const originalPhone = (user.phone_nun || user.phone_number || '').replace(/\D/g, '');
+    const currentPhone = phoneInput.replace(/\D/g, '');
+    if (currentPhone !== originalPhone) return true;
+
+    return false;
+  }, [user, usernameInput, phoneInput]);
+
+  // 2. Check if Farm Location is dirty (State, District, City, Address differed from API values)
+  const isLocationDirty = useMemo(() => {
+    if (!user) return false;
+
+    const originalState = (user.state || '').trim();
+    const currentState = (location.selectedStateName || '').trim();
+    if (currentState !== originalState) return true;
+
+    const originalDistrict = (user.district || '').trim();
+    const currentDistrict = (location.selectedDistrictName || '').trim();
+    if (currentDistrict !== originalDistrict) return true;
+
+    const originalCity = (user.city || '').trim();
+    const activeCity = (
+      location.isManualInput && location.manualPlaceName
+        ? location.manualPlaceName.trim()
+        : location.selectedPlace || ''
+    ).trim();
+    if (activeCity !== originalCity) return true;
+
+    const originalAddress = (user.address || '').trim();
+    const currentAddress = addressInput.trim();
+    if (currentAddress !== originalAddress) return true;
+
+    return false;
+  }, [
+    user,
+    location.selectedStateName,
+    location.selectedDistrictName,
+    location.selectedPlace,
+    location.manualPlaceName,
+    location.isManualInput,
+    addressInput,
+  ]);
+
+  // 3. Handle User Details update via /api/user/profile (Username, Phone)
+  const handleUpdateUserDetails = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!isUserDetailsDirty) return;
     setProfileFeedback(null);
 
     if (!usernameInput.trim()) {
@@ -240,7 +404,9 @@ export default function SettingsPage() {
     if (usernameInput.trim().length < 2) {
       setProfileFeedback({
         type: 'error',
-        message: isTamil ? 'பயனர் பெயர் குறைந்தபட்சம் 2 எழுத்துகள் இருக்க வேண்டும்' : 'Username must be at least 2 characters',
+        message: isTamil
+          ? 'பயனர் பெயர் குறைந்தபட்சம் 2 எழுத்துகள் இருக்க வேண்டும்'
+          : 'Username must be at least 2 characters',
       });
       return;
     }
@@ -249,21 +415,80 @@ export default function SettingsPage() {
     if (cleanPhone && cleanPhone.length !== 10) {
       setProfileFeedback({
         type: 'error',
-        message: isTamil ? 'செல்லுபடியாகும் 10 இலக்க தொலைபேசி எண்ணை உள்ளிடவும்' : 'Please enter a valid 10-digit phone number',
+        message: isTamil
+          ? 'செல்லுபடியாகும் 10 இலக்க தொலைபேசி எண்ணை உள்ளிடவும்'
+          : 'Please enter a valid 10-digit phone number',
       });
       return;
     }
 
     setSavingProfile(true);
+    try {
+      const payload = {
+        username: usernameInput.trim(),
+        phone_nun: cleanPhone.slice(0, 10),
+      };
 
+      const res = await fetch('/api/user/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Failed to update user details');
+      }
+
+      const updatedUser: UserProfile = {
+        ...user!,
+        ...(data?.user || payload),
+      };
+
+      setUser(updatedUser);
+
+      try {
+        localStorage.setItem('farmhub_user', JSON.stringify(updatedUser));
+        window.dispatchEvent(new CustomEvent('farmhub_user_updated', { detail: updatedUser }));
+      } catch {}
+
+      setProfileFeedback({
+        type: 'success',
+        message: isTamil
+          ? 'பயனர் விவரங்கள் வெற்றிகரமாக சேமிக்கப்பட்டன!'
+          : 'User details saved successfully!',
+      });
+      message.success(
+        isTamil
+          ? 'பயனர் விவரங்கள் சேமிக்கப்பட்டன!'
+          : 'User details saved successfully!'
+      );
+      setIsEditingUsername(false);
+      setTimeout(() => setProfileFeedback(null), 4000);
+    } catch (err: any) {
+      setProfileFeedback({
+        type: 'error',
+        message: err?.message || 'Error updating user details',
+      });
+      message.error(err?.message || (isTamil ? 'சுயவிவரத்தை புதுப்பிக்க முடியவில்லை' : 'Failed to update profile'));
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  // 4. Handle Farm Location update via /api/user/profile (State, District, City, Address)
+  const handleUpdateFarmLocation = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!isLocationDirty) return;
+    setProfileFeedback(null);
+
+    setSavingProfile(true);
     const activeCity = location.isManualInput && location.manualPlaceName
       ? location.manualPlaceName.trim()
       : location.selectedPlace;
 
     try {
       const payload = {
-        username: usernameInput.trim(),
-        phone_nun: cleanPhone.slice(0, 10),
         state: (location.selectedStateName || '').slice(0, 20),
         district: (location.selectedDistrictName || '').slice(0, 20),
         city: (activeCity || '').slice(0, 20),
@@ -278,16 +503,12 @@ export default function SettingsPage() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok || !data?.success) {
-        throw new Error(data?.error || 'Failed to update profile');
+        throw new Error(data?.error || 'Failed to update farm location');
       }
 
       const updatedUser: UserProfile = {
-        ...user,
+        ...user!,
         ...(data?.user || payload),
-        id: user?.id || '',
-        email: user?.email || '',
-        role: user?.role || 'Farmer',
-        isactive: user?.isactive !== false,
       };
 
       setUser(updatedUser);
@@ -300,22 +521,21 @@ export default function SettingsPage() {
       setProfileFeedback({
         type: 'success',
         message: isTamil
-          ? 'சுயவிவரம், தொலைபேசி எண் மற்றும் பண்ணை இருப்பிட விவரங்கள் வெற்றிகரமாக சேமிக்கப்பட்டன!'
-          : 'Profile, phone number, and location details saved successfully!',
+          ? 'பண்ணை இருப்பிட விவரங்கள் வெற்றிகரமாக சேமிக்கப்பட்டன!'
+          : 'Farm location details saved successfully!',
       });
       message.success(
         isTamil
-          ? 'சுயவிவர அமைப்புகள் வெற்றிகரமாக சேமிக்கப்பட்டன!'
-          : 'Profile settings saved successfully!'
+          ? 'பண்ணை இருப்பிடம் சேமிக்கப்பட்டது!'
+          : 'Farm location saved successfully!'
       );
-      setIsEditingUsername(false);
       setTimeout(() => setProfileFeedback(null), 4000);
     } catch (err: any) {
       setProfileFeedback({
         type: 'error',
-        message: err?.message || 'Error updating profile',
+        message: err?.message || 'Error updating farm location',
       });
-      message.error(err?.message || (isTamil ? 'சுயவிவரத்தை புதுப்பிக்க முடியவில்லை' : 'Failed to update profile'));
+      message.error(err?.message || (isTamil ? 'இருப்பிடத்தை புதுப்பிக்க முடியவில்லை' : 'Failed to update location'));
     } finally {
       setSavingProfile(false);
     }
@@ -592,8 +812,16 @@ export default function SettingsPage() {
           {/* Quick User Identity Badge */}
           {user && (
             <div className="flex items-center gap-3 p-3 rounded-2xl glass-surface border border-border-light shadow-md">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 font-black flex items-center justify-center text-sm shadow-md ring-2 ring-emerald-400/30">
-                {(user.username || user.email || 'U').charAt(0).toUpperCase()}
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 font-black flex items-center justify-center text-sm shadow-md ring-2 ring-emerald-400/30 overflow-hidden">
+                {user.avatar_url ? (
+                  <img
+                    src={user.avatar_url}
+                    alt={user.username || 'User Profile'}
+                    className="w-full h-full object-cover rounded-2xl"
+                  />
+                ) : (
+                  (user.username || user.email || 'U').charAt(0).toUpperCase()
+                )}
               </div>
               <div>
                 <div className="text-xs font-extrabold text-text-main truncate max-w-[170px]">
@@ -610,12 +838,13 @@ export default function SettingsPage() {
           )}
         </div>
 
-        {/* Navigation Tabs Bar with URL query synchronization (?user-profile, ?security-password, ?language-theme) */}
+        {/* Navigation Tabs Bar with URL query synchronization (?user-profile, ?security-password, ?language-theme, ?contacts) */}
         <div className="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-thin">
           {[
             { id: 'user-profile' as SettingsTab, label: isTamil ? 'சுயவிவரம் & இருப்பிடம்' : 'User Profile & Farm Location', icon: User },
             { id: 'security-password' as SettingsTab, label: isTamil ? 'கடவுச்சொல் & பாதுகாப்பு' : 'Security & Password', icon: Lock },
             { id: 'language-theme' as SettingsTab, label: isTamil ? 'மொழி மற்றும் தீம்' : 'Language and Theme', icon: Palette },
+            { id: 'contacts' as SettingsTab, label: isTamil ? 'அதிகாரப்பூர்வ தொடர்புகள்' : 'Official Contacts', icon: Phone },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -646,19 +875,71 @@ export default function SettingsPage() {
 
               {/* Avatar & Identity Header */}
               <div className="flex flex-col items-center text-center relative">
-                <div className="relative mt-2 mb-3.5">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 p-1 shadow-2xl shadow-emerald-500/25">
-                    <div className="w-full h-full rounded-full bg-slate-950/90 flex items-center justify-center text-white text-2xl font-black">
-                      {(user?.username || user?.email || 'U').charAt(0).toUpperCase()}
+                {/* Hidden File Input for Avatar Upload */}
+                <input
+                  type="file"
+                  ref={avatarFileInputRef}
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="hidden"
+                  onChange={handleAvatarFileChange}
+                />
+
+                <div className="relative mt-2 mb-3.5 group">
+                  <div
+                    onClick={() => !uploadingAvatar && avatarFileInputRef.current?.click()}
+                    className={`w-20 h-20 rounded-full bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 p-1 shadow-2xl shadow-emerald-500/25 cursor-pointer relative overflow-hidden group-hover:ring-4 group-hover:ring-emerald-400/40 transition-all ${
+                      uploadingAvatar ? 'opacity-70 pointer-events-none' : ''
+                    }`}
+                    title={isTamil ? 'சுயவிவரப் படத்தை மாற்ற கிளிக் செய்யவும்' : 'Click to upload or change profile picture'}
+                  >
+                    <div className="w-full h-full rounded-full bg-slate-950/90 overflow-hidden flex items-center justify-center text-white text-2xl font-black relative">
+                      {user?.avatar_url ? (
+                        <img
+                          src={user.avatar_url}
+                          alt={user.username || 'User Profile'}
+                          className="w-full h-full object-cover rounded-full"
+                        />
+                      ) : (
+                        <span>{(user?.username || user?.email || 'U').charAt(0).toUpperCase()}</span>
+                      )}
+
+                      {/* Hover Overlay */}
+                      <div className="absolute inset-0 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-[10px] text-white font-extrabold transition-opacity backdrop-blur-xs">
+                        <Camera size={16} className="text-white mb-0.5" />
+                        <span>{isTamil ? 'மாற்று' : 'Upload'}</span>
+                      </div>
+
+                      {/* Loading Spinner */}
+                      {uploadingAvatar && (
+                        <div className="absolute inset-0 bg-black/75 flex items-center justify-center">
+                          <span className="w-5 h-5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div
-                    className="absolute bottom-0.5 right-0.5 w-6 h-6 rounded-full bg-emerald-500 border-2 border-slate-950 flex items-center justify-center text-xs text-slate-950 font-black shadow"
-                    title="Account Active"
+
+                  {/* Upload Camera Badge Button */}
+                  <button
+                    type="button"
+                    onClick={() => avatarFileInputRef.current?.click()}
+                    disabled={uploadingAvatar}
+                    className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-emerald-500 hover:bg-emerald-400 border-2 border-slate-950 flex items-center justify-center text-slate-950 shadow-md cursor-pointer transition-transform hover:scale-110 active:scale-95 disabled:opacity-50"
+                    title={isTamil ? 'படம் பதிவேற்று' : 'Upload photo'}
                   >
-                    ✓
-                  </div>
+                    <Camera size={13} className="text-slate-950" />
+                  </button>
                 </div>
+
+                {user?.avatar_url && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveAvatar}
+                    disabled={uploadingAvatar}
+                    className="text-[11px] font-bold text-rose-400 hover:text-rose-300 -mt-1 mb-2 hover:underline cursor-pointer disabled:opacity-50 transition-colors"
+                  >
+                    {isTamil ? 'படத்தை நீக்கு' : 'Remove photo'}
+                  </button>
+                )}
 
                 <h2 className="text-lg font-black text-text-main m-0 mb-1">
                   {user?.username || (loadingUser ? 'Loading...' : 'User')}
@@ -680,7 +961,7 @@ export default function SettingsPage() {
               </div>
 
               {/* Editable User Account Details Form */}
-              <form onSubmit={handleUpdateProfile} className="w-full flex-1 flex flex-col gap-4 pt-4 border-t border-border-subtle text-left">
+              <form onSubmit={handleUpdateUserDetails} className="w-full flex-1 flex flex-col gap-4 pt-4 border-t border-border-subtle text-left">
                 {/* Username / Full Name */}
                 <div>
                   <label className="block text-[11px] font-bold text-text-secondary uppercase tracking-wider mb-1.5">
@@ -803,12 +1084,21 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* Save User Details Button */}
+                {/* Save User Details Button (Enabled ONLY when fields differ from loaded API values) */}
                 <div className="pt-2 mt-auto">
                   <button
                     type="submit"
-                    disabled={savingProfile || loadingUser}
-                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white keep-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer active:scale-98 disabled:opacity-50"
+                    disabled={!isUserDetailsDirty || savingProfile || loadingUser}
+                    className={`w-full py-2.5 px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition-all ${
+                      isUserDetailsDirty && !savingProfile && !loadingUser
+                        ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white keep-white shadow-emerald-500/25 cursor-pointer active:scale-98'
+                        : 'bg-slate-300/40 dark:bg-white/10 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-50 shadow-none'
+                    }`}
+                    title={
+                      !isUserDetailsDirty
+                        ? (isTamil ? 'மாற்றங்கள் எதுவும் இல்லை' : 'No changes made')
+                        : ''
+                    }
                   >
                     <Save size={16} />
                     <span>
@@ -853,7 +1143,7 @@ export default function SettingsPage() {
               )}
 
               <div className="flex-1 flex flex-col gap-6">
-              <form onSubmit={handleUpdateProfile} className="flex flex-col gap-6">
+              <form onSubmit={handleUpdateFarmLocation} className="flex flex-col gap-6">
                 {/* Farm Location (State, District, City/Village via common LocationSelectorFields) */}
                 <LocationSelectorFields
                   location={location}
@@ -893,12 +1183,21 @@ export default function SettingsPage() {
                   </span>
                 </div>
 
-                {/* Submit / Save Farm Location Button */}
+                {/* Submit / Save Farm Location Button (Enabled ONLY when fields differ from loaded API values) */}
                 <div className="pt-2 flex justify-start">
                   <button
                     type="submit"
-                    disabled={savingProfile || loadingUser}
-                    className="px-7 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white keep-white font-black text-sm flex items-center gap-2.5 shadow-xl shadow-emerald-500/25 transition-all cursor-pointer active:scale-98 disabled:opacity-50"
+                    disabled={!isLocationDirty || savingProfile || loadingUser}
+                    className={`px-7 py-3 rounded-xl font-black text-sm flex items-center gap-2.5 shadow-xl transition-all ${
+                      isLocationDirty && !savingProfile && !loadingUser
+                        ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white keep-white shadow-emerald-500/25 cursor-pointer active:scale-98'
+                        : 'bg-slate-300/40 dark:bg-white/10 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-50 shadow-none'
+                    }`}
+                    title={
+                      !isLocationDirty
+                        ? (isTamil ? 'மாற்றங்கள் எதுவும் இல்லை' : 'No changes made')
+                        : ''
+                    }
                   >
                     <Save size={17} />
                     <span>
@@ -1285,6 +1584,11 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* SECTION 4: OFFICIAL CONTACTS DIRECTORY */}
+        {activeTab === 'contacts' && (
+          <SettingsContactsSection />
         )}
       </div>
 

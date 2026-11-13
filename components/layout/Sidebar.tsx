@@ -15,7 +15,7 @@ import {
   WavesIcon,
   CloudSunIcon,
 } from '../icons/Icons';
-import { Store, CloudRain, ShieldCheck } from '@/components/icons/FlaticonIcons';
+import { Store, CloudRain, ShieldCheck, Sparkles } from '@/components/icons/FlaticonIcons';
 import type { SidebarProps } from '@/types/components';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 
@@ -41,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { key: 'fertilizer-stock', title: (messages.sidebar as any).fertilizerStock || 'Fertilizer Details', href: '/fertilizer-stock', icon: Store },
     { key: 'reservoirs', title: messages.sidebar.reservoirs, href: '/reservoirs', icon: WavesIcon },
     { key: 'weather', title: (messages.sidebar as any).weather || 'Agro Weather', href: '/weather', icon: CloudSunIcon },
+    { key: 'weather-mcp', title: messages.sidebar.weatherMcp || 'Weather MCP Lab', href: '/weather-mcp', icon: Sparkles },
     { key: 'rainfall', title: (messages.sidebar as any).rainfall || 'Rainfall Report', href: '/rainfall', icon: CloudRain },
     { key: 'crop-health', title: (messages.sidebar as any).cropHealth || 'Crop Health', href: '/crop-health', icon: ShieldCheck },
     { key: 'seeds', title: (messages.sidebar as any).seeds || 'TNAU Seeds', href: '/seeds', icon: SproutIcon },
