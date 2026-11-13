@@ -10,7 +10,7 @@ import {
   useReducedMotion,
   useTransform,
 } from 'motion/react';
-import { Check } from 'lucide-react';
+import { Check } from '@/components/icons/FlaticonIcons';
 import './CodeSlots.css';
 
 const EASE_OUT: [number, number, number, number] = [0.23, 1, 0.32, 1];

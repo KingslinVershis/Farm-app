@@ -23,8 +23,10 @@ import {
   Cell,
 } from 'recharts';
 import { SpotlightCard } from '@/components/reactbits/SpotlightCard';
+import ReflectiveCard from '@/components/reactbits/ReflectiveCard';
 import { AnimatedCounter } from '@/components/reactbits/AnimatedCounter';
 import { ShinyText } from '@/components/reactbits/ShinyText';
+import { LayoutGrid, TableList, Eye } from '@/components/icons/FlaticonIcons';
 
 export default function ReservoirsPage() {
   const { messages } = useLanguage();
@@ -47,6 +49,7 @@ export default function ReservoirsPage() {
   const [reservoirSearching, setReservoirSearching] = useState<boolean>(false);
   const [activeReservoir, setActiveReservoir] = useState<ReservoirRecord | null>(null);
   const [chartTab, setChartTab] = useState<'storage' | 'levels' | 'flows' | 'overview'>('storage');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   const fetchReservoirData = async (date?: string) => {
     setLoading(true);
@@ -487,23 +490,64 @@ export default function ReservoirsPage() {
             )}
           </div>
 
-          {/* Total displayed count indicator */}
-          <div className="text-xs text-text-muted sm:text-right shrink-0">
-            {m.showingReservoirs}{' '}
-            <span className="font-bold text-text-main">{filteredReservoirs.length}</span>{' '}
-            {m.reservoirsCount}
+          {/* Total displayed count indicator + Cards/Table View Switch */}
+          <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+            <div className="text-xs text-text-muted">
+              {m.showingReservoirs}{' '}
+              <span className="font-bold text-text-main">{filteredReservoirs.length}</span>{' '}
+              {m.reservoirsCount}
+            </div>
+
+            <div
+              role="group"
+              aria-label="Reservoirs View Mode"
+              className="inline-flex items-center p-1 rounded-xl glass-surface border border-border-light shadow-sm"
+            >
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'cards'
+                    ? 'bg-cyan-500 text-slate-950 shadow-sm font-extrabold'
+                    : 'text-text-secondary hover:text-text-main'
+                }`}
+              >
+                <LayoutGrid size={13} />
+                <span>Cards</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'table'
+                    ? 'bg-cyan-500 text-slate-950 shadow-sm font-extrabold'
+                    : 'text-text-secondary hover:text-text-main'
+                }`}
+              >
+                <TableList size={13} />
+                <span>Table</span>
+              </button>
+            </div>
           </div>
         </motion.div>
 
-        {/* Ant Design Table Section with Motion Entrance */}
+        {/* Data Display Section (Reflective Glass Cards or Ant Design Table) */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.16, ease: 'easeOut' }}
-          className="overflow-hidden rounded-2xl glass-panel border border-border-light shadow-xl"
+          className={
+            viewMode === 'table'
+              ? 'overflow-hidden rounded-2xl glass-panel border border-border-light shadow-xl'
+              : 'space-y-4'
+          }
         >
           {loading ? (
-            <div className="p-6 space-y-4 animate-pulse">
+            <div
+              className={`p-6 space-y-4 animate-pulse ${
+                viewMode === 'cards' ? 'rounded-2xl glass-panel border border-border-light shadow-xl' : ''
+              }`}
+            >
               <div className="flex items-center justify-between pb-3 border-b border-border-light/60">
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
@@ -511,19 +555,31 @@ export default function ReservoirsPage() {
                 </div>
                 <div className="skeleton-box h-4 w-32 rounded" />
               </div>
-              {[1, 2, 3, 4, 5, 6].map((row) => (
-                <div key={row} className="grid grid-cols-6 gap-4 items-center py-2.5">
-                  <div className="skeleton-box h-4 w-4/5 rounded" />
-                  <div className="skeleton-box h-4 w-2/3 rounded" />
-                  <div className="skeleton-box h-3 w-full rounded-full" />
-                  <div className="skeleton-box h-4 w-1/2 rounded" />
-                  <div className="skeleton-box h-4 w-1/2 rounded" />
-                  <div className="skeleton-box h-7 w-16 rounded-lg justify-self-end" />
+              {viewMode === 'cards' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5 pt-2">
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((card) => (
+                    <div key={card} className="skeleton-box h-72 rounded-3xl" />
+                  ))}
                 </div>
-              ))}
+              ) : (
+                [1, 2, 3, 4, 5, 6].map((row) => (
+                  <div key={row} className="grid grid-cols-6 gap-4 items-center py-2.5">
+                    <div className="skeleton-box h-4 w-4/5 rounded" />
+                    <div className="skeleton-box h-4 w-2/3 rounded" />
+                    <div className="skeleton-box h-3 w-full rounded-full" />
+                    <div className="skeleton-box h-4 w-1/2 rounded" />
+                    <div className="skeleton-box h-4 w-1/2 rounded" />
+                    <div className="skeleton-box h-7 w-16 rounded-lg justify-self-end" />
+                  </div>
+                ))
+              )}
             </div>
           ) : error && (!filteredReservoirs || filteredReservoirs.length === 0) ? (
-            <div className="flex flex-col items-center justify-center p-12 text-center gap-3">
+            <div
+              className={`flex flex-col items-center justify-center p-12 text-center gap-3 ${
+                viewMode === 'cards' ? 'rounded-2xl glass-panel border border-border-light shadow-xl' : ''
+              }`}
+            >
               <span className="text-4xl">⚠️</span>
               <h3 className="text-base font-bold text-rose-400">
                 {m.noDataTitle}
@@ -537,7 +593,11 @@ export default function ReservoirsPage() {
               </button>
             </div>
           ) : !loading && filteredReservoirs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-12 text-center gap-3">
+            <div
+              className={`flex flex-col items-center justify-center p-12 text-center gap-3 ${
+                viewMode === 'cards' ? 'rounded-2xl glass-panel border border-border-light shadow-xl' : ''
+              }`}
+            >
               <span className="text-4xl">📭</span>
               <h3 className="text-base font-bold text-text-main">
                 {m.noDataFoundTitle}
@@ -545,6 +605,137 @@ export default function ReservoirsPage() {
               <p className="text-xs text-text-muted max-w-md">
                 {m.noDataFoundDesc}
               </p>
+            </div>
+          ) : viewMode === 'cards' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+              {filteredReservoirs.map((res) => {
+                const fillPct =
+                  res.fullCapacityMcft > 0
+                    ? Math.min(100, Math.max(0, Math.round((res.currentStorageMcft / res.fullCapacityMcft) * 100)))
+                    : 0;
+                const yoyDelta = res.currentStorageMcft - res.lastYearStorageMcft;
+                const statusColorMap: Record<ReservoirRecord['status'], string> = {
+                  Surplus: '#10b981',
+                  Adequate: '#06b6d4',
+                  Moderate: '#f59e0b',
+                  Critical: '#f43f5e',
+                };
+                const statusBadgeClass: Record<ReservoirRecord['status'], string> = {
+                  Surplus: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30',
+                  Adequate: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/30',
+                  Moderate: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
+                  Critical: 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-500/30',
+                };
+
+                return (
+                  <ReflectiveCard
+                    key={res.id}
+                    onClick={() => setActiveReservoir(res)}
+                    tiltStrength={9}
+                    radius={24}
+                    intro
+                  >
+                    <div className="flex flex-col h-full justify-between gap-4">
+                      {/* Card Top Header */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${statusBadgeClass[res.status]}`}
+                        >
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: statusColorMap[res.status] }}
+                          />
+                          <span>{res.status}</span>
+                        </span>
+                        <span className="font-mono text-xs font-black text-cyan-600 dark:text-cyan-400">
+                          {fillPct}% Full
+                        </span>
+                      </div>
+
+                      {/* Identity */}
+                      <div>
+                        <h3 className="text-lg sm:text-xl font-black text-text-main tracking-tight truncate m-0">
+                          {res.rawName || res.name}
+                        </h3>
+                        <p className="text-[11px] text-text-muted font-medium mt-1 m-0">
+                          {m.statFullCapacity} {res.fullCapacityMcft.toLocaleString()} M.Cft • {m.statFullDepth} {res.fullDepthFeet} ft
+                        </p>
+                      </div>
+
+                      {/* Storage Progress */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-bold">
+                          <span className="text-text-muted">{m.statCurrentStorage}</span>
+                          <span className="font-mono text-cyan-600 dark:text-cyan-400">
+                            {res.currentStorageMcft.toLocaleString()} M.Cft
+                          </span>
+                        </div>
+                        <Progress
+                          percent={fillPct}
+                          status="active"
+                          showInfo={false}
+                          strokeColor={{ from: '#108ee9', to: '#87d068' }}
+                          size="small"
+                        />
+                      </div>
+
+                      {/* Telemetry Metrics Grid */}
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="rounded-xl glass-surface p-2 border border-border-subtle">
+                          <span className="block text-[10px] font-bold uppercase text-text-muted">
+                            {m.colCurrentLevel}
+                          </span>
+                          <span className="font-mono text-xs font-extrabold text-text-main">
+                            {res.currentLevelFeet > 0 ? `${res.currentLevelFeet} ft` : '-'}
+                          </span>
+                        </div>
+                        <div className="rounded-xl glass-surface p-2 border border-border-subtle">
+                          <span className="block text-[10px] font-bold uppercase text-text-muted">
+                            Inflow
+                          </span>
+                          <span className="font-mono text-xs font-extrabold text-emerald-600 dark:text-emerald-400">
+                            {res.currentInflowCusecs.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="rounded-xl glass-surface p-2 border border-border-subtle">
+                          <span className="block text-[10px] font-bold uppercase text-text-muted">
+                            Outflow
+                          </span>
+                          <span className="font-mono text-xs font-extrabold text-amber-600 dark:text-amber-400">
+                            {res.currentOutflowCusecs.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Footer: YoY Delta + Reflective Action Tile */}
+                      <div className="flex items-center justify-between gap-3 pt-2 border-t border-border-subtle">
+                        <div className="min-w-0">
+                          <span className="block text-[10px] font-bold uppercase text-text-muted">
+                            {m.statYoYDelta}
+                          </span>
+                          <span
+                            className={`font-mono text-xs font-black ${
+                              yoyDelta >= 0
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-rose-600 dark:text-rose-400'
+                            }`}
+                          >
+                            {yoyDelta >= 0 ? '+' : ''}
+                            {yoyDelta.toLocaleString()} M.Cft
+                          </span>
+                        </div>
+
+                        <span
+                          className="reflective-card__tile w-10 h-10 text-cyan-600 dark:text-cyan-400 shrink-0"
+                          title={m.viewDetails}
+                        >
+                          <Eye size={17} />
+                        </span>
+                      </div>
+                    </div>
+                  </ReflectiveCard>
+                );
+              })}
             </div>
           ) : (
             <div className="w-full overflow-x-auto scrollbar-thin">
@@ -561,8 +752,14 @@ export default function ReservoirsPage() {
             </div>
           )}
 
-          {/* Table Footer info note */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-5 py-3.5 border-t border-border-light bg-surface/40 text-xs text-text-muted">
+          {/* Table / Cards Footer info note */}
+          <div
+            className={`flex flex-col sm:flex-row items-center justify-between gap-2 px-5 py-3.5 text-xs text-text-muted ${
+              viewMode === 'cards'
+                ? 'rounded-2xl glass-panel border border-border-light shadow-xl'
+                : 'border-t border-border-light bg-surface/40'
+            }`}
+          >
             <div className="flex items-center gap-2 text-center sm:text-left">
               <span>📡</span>
               <span>{m.dataExtractedNote}</span>

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Modal } from 'antd';
-import { Clock, RefreshCw, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Clock, RefreshCw, ShieldCheck, AlertCircle } from '@/components/icons/FlaticonIcons';
 import CodeSlots, { type CodeSlotsStatus } from '@/components/auth/CodeSlots';
 import { useTheme } from '@/components/providers/ThemeProvider';
 

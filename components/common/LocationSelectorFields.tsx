@@ -3,7 +3,7 @@
 import React, { useRef, useEffect } from 'react';
 import { Select, Input, FloatButton, type InputRef } from 'antd';
 import type { useLocationSelector } from '@/lib/hooks/useLocationSelector';
-import { MapPin, Search, Compass, X } from 'lucide-react';
+import { MapPin, Search, Compass, X } from '@/components/icons/FlaticonIcons';
 
 interface LocationSelectorFieldsProps {
   location: ReturnType<typeof useLocationSelector>;

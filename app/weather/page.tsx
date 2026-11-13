@@ -12,12 +12,10 @@ import {
   Droplets,
   Wind,
   CloudRain,
-  ExternalLink,
   Sprout,
   AlertTriangle,
   Search,
-  FileText,
-} from 'lucide-react';
+} from '@/components/icons/FlaticonIcons';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -30,8 +28,10 @@ import {
   Legend,
 } from 'recharts';
 import { AnimatedCounter } from '@/components/reactbits/AnimatedCounter';
+import ReflectiveCard from '@/components/reactbits/ReflectiveCard';
 import {
   WeatherDayIcon,
+  getWeatherBackgroundVideo,
 } from '@/components/weather/WeatherIllustrations';
 import {
   type WeatherApiResponse,
@@ -101,6 +101,10 @@ export default function WeatherPage() {
   const [dashboard, setDashboard] = useState<WeatherDashboardData | null>(null);
   const [selectedDistrictId, setSelectedDistrictId] = useState<string>('');
   const [selectedBlockId, setSelectedBlockId] = useState<string>('');
+  const [districtSearchText, setDistrictSearchText] = useState<string>('');
+  const [districtSearching, setDistrictSearching] = useState<boolean>(false);
+  const [blockSearchText, setBlockSearchText] = useState<string>('');
+  const [blockSearching, setBlockSearching] = useState<boolean>(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -346,20 +350,24 @@ export default function WeatherPage() {
     ? activeBlockObj.block_reg_name
     : activeBlockObj?.block_name || '';
 
+  const backgroundVideoSrc = activeDay
+    ? getWeatherBackgroundVideo(activeDay.rainfall, activeDay.cloud_cover)
+    : '/videos/storm_cloud.mp4';
+
   return (
     <div className="relative min-h-screen w-full">
-      {/* Background Ambient Video Loop */}
+      {/* Background Ambient Weather Video Loop */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <video
+          key={backgroundVideoSrc}
+          src={backgroundVideoSrc}
           autoPlay
           loop
           muted
           playsInline
           poster="/images/weather.jpg"
           className="w-full h-full object-cover scale-105"
-        >
-          <source src="/videos/weather.mp4" type="video/mp4" />
-        </video>
+        />
       </div>
       <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
 
@@ -378,10 +386,35 @@ export default function WeatherPage() {
               </label>
               <Select
                 showSearch
-                value={selectedDistrictId || undefined}
+                value={districtSearchText ? undefined : (selectedDistrictId || undefined)}
+                searchValue={districtSearchText}
                 placeholder={w.districtPlaceholder}
-                onChange={handleDistrictChange}
-                className="w-full h-10 text-xs font-semibold custom-antd-select"
+                onChange={(val) => {
+                  setDistrictSearchText('');
+                  setDistrictSearching(false);
+                  setBlockSearchText('');
+                  setBlockSearching(false);
+                  handleDistrictChange(val);
+                }}
+                onSearch={(val) => {
+                  setDistrictSearchText(val);
+                  setDistrictSearching(val.length > 0);
+                }}
+                onBlur={() => {
+                  setDistrictSearchText('');
+                  setDistrictSearching(false);
+                }}
+                onSelect={() => {
+                  setDistrictSearchText('');
+                  setDistrictSearching(false);
+                }}
+                onDropdownVisibleChange={(open) => {
+                  if (!open) {
+                    setDistrictSearchText('');
+                    setDistrictSearching(false);
+                  }
+                }}
+                className={`w-full h-10 text-xs font-semibold custom-antd-select ${districtSearching ? 'is-searching' : ''}`}
                 filterOption={(input, option) =>
                   ((option?.searchStr as string) || '').includes(input.toLowerCase())
                 }
@@ -395,11 +428,34 @@ export default function WeatherPage() {
               </label>
               <Select
                 showSearch
-                value={selectedBlockId || undefined}
+                value={blockSearchText ? undefined : (selectedBlockId || undefined)}
+                searchValue={blockSearchText}
                 placeholder={w.blockPlaceholder}
-                onChange={handleBlockChange}
+                onChange={(val) => {
+                  setBlockSearchText('');
+                  setBlockSearching(false);
+                  handleBlockChange(val);
+                }}
+                onSearch={(val) => {
+                  setBlockSearchText(val);
+                  setBlockSearching(val.length > 0);
+                }}
+                onBlur={() => {
+                  setBlockSearchText('');
+                  setBlockSearching(false);
+                }}
+                onSelect={() => {
+                  setBlockSearchText('');
+                  setBlockSearching(false);
+                }}
+                onDropdownVisibleChange={(open) => {
+                  if (!open) {
+                    setBlockSearchText('');
+                    setBlockSearching(false);
+                  }
+                }}
                 disabled={blockOptions.length === 0}
-                className="w-full h-10 text-xs font-semibold custom-antd-select"
+                className={`w-full h-10 text-xs font-semibold custom-antd-select ${blockSearching ? 'is-searching' : ''}`}
                 filterOption={(input, option) =>
                   ((option?.searchStr as string) || '').includes(input.toLowerCase())
                 }
@@ -556,9 +612,8 @@ export default function WeatherPage() {
 
                 {/* ALWAYS-VISIBLE GLASSY FORECAST CARDS (TODAY + 10 DAYS) */}
                 <div
-                  className={`relative z-10 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5 ${
-                    forecastList.length >= 11 ? 'xl:grid-cols-11' : 'xl:grid-cols-10'
-                  }`}
+                  className={`relative z-10 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5 ${forecastList.length >= 11 ? 'xl:grid-cols-11' : 'xl:grid-cols-10'
+                    }`}
                 >
                   {forecastList.map((day, idx) => {
                     const meta = formatForecastDateLabel(day.forecast_date, locale);
@@ -571,38 +626,43 @@ export default function WeatherPage() {
                     const minVal = Number(day.temperature_min) || 0;
 
                     return (
-                      <button
+                      <ReflectiveCard
                         key={day.forecast_date}
-                        type="button"
                         onClick={() => setSelectedDayIndex(idx)}
-                        className={`group glass-panel flex flex-col items-center justify-between py-4 px-2 min-h-[146px] rounded-2xl transition-all cursor-pointer ${
+                        tiltStrength={10}
+                        radius={16}
+                        height="100%"
+                        intro
+                        style={{ '--rc-pad': '14px 8px' } as React.CSSProperties}
+                        className={`transition-transform ${
                           isSelected
-                            ? '!border-sky-400/80 ring-2 ring-sky-400/45 shadow-[0_12px_30px_rgba(14,165,233,0.28)] -translate-y-1'
-                            : 'hover:-translate-y-0.5 hover:!border-white/30'
+                            ? '[&_.reflective-card__body]:!border-sky-400/80 [&_.reflective-card__body]:ring-2 [&_.reflective-card__body]:ring-sky-400/45 [&_.reflective-card__body]:shadow-[0_12px_30px_rgba(14,165,233,0.28)] -translate-y-1'
+                            : ''
                         }`}
                       >
-                        <WeatherDayIcon
-                          rainfall={day.rainfall}
-                          cloudCover={day.cloud_cover}
-                          className="w-14 h-12 mb-2 group-hover:scale-110 transition-transform"
-                        />
-                        <div className="text-center">
-                          <div
-                            className={`text-xs sm:text-sm font-bold tracking-widest uppercase ${
-                              day.is_today ? 'text-emerald-500 dark:text-emerald-400' : 'text-text-main'
-                            }`}
-                          >
-                            {day.is_today ? (isTamil ? 'இன்று' : 'TODAY') : meta.shortDay}
-                          </div>
-                          <div className="text-lg font-extrabold text-text-main mt-0.5 leading-tight font-mono">
-                            +{Math.round(heroVal)}°C
-                          </div>
-                          <div className="text-[11px] text-text-muted mt-1 font-medium">
-                            {meta.sub} • {Math.round(minVal)}°
-                            {rainVal > 0 ? ` • ${rainVal.toFixed(1)}mm` : ''}
+                        <div className="flex flex-col items-center justify-between min-h-[120px] h-full">
+                          <WeatherDayIcon
+                            rainfall={day.rainfall}
+                            cloudCover={day.cloud_cover}
+                            className="w-14 h-12 mb-2 transition-transform"
+                          />
+                          <div className="text-center">
+                            <div
+                              className={`text-xs sm:text-sm font-bold tracking-widest uppercase ${day.is_today ? 'text-emerald-500 dark:text-emerald-400' : 'text-text-main'
+                                }`}
+                            >
+                              {day.is_today ? (isTamil ? 'இன்று' : 'TODAY') : meta.shortDay}
+                            </div>
+                            <div className="text-lg font-extrabold text-text-main mt-0.5 leading-tight font-mono">
+                              +{Math.round(heroVal)}°C
+                            </div>
+                            <div className="text-[11px] text-text-muted mt-1 font-medium">
+                              {meta.sub} • {Math.round(minVal)}°
+                              {rainVal > 0 ? ` • ${rainVal.toFixed(1)}mm` : ''}
+                            </div>
                           </div>
                         </div>
-                      </button>
+                      </ReflectiveCard>
                     );
                   })}
                 </div>
@@ -781,11 +841,10 @@ export default function WeatherPage() {
                           key={cat}
                           type="button"
                           onClick={() => setSelectedCategory(cat)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            selectedCategory === cat
-                              ? 'bg-emerald-500 text-white keep-white shadow-sm'
-                              : 'bg-surface border border-border-subtle text-text-secondary hover:text-text-main'
-                          }`}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${selectedCategory === cat
+                            ? 'bg-emerald-500 text-white keep-white shadow-sm'
+                            : 'bg-surface border border-border-subtle text-text-secondary hover:text-text-main'
+                            }`}
                         >
                           {cat === 'all' ? w.allCategories : cat}
                         </button>
@@ -838,77 +897,6 @@ export default function WeatherPage() {
                 )}
               </div>
             </motion.section>
-
-            {/* BOTTOM SECTION 3: OFFICIAL IMD AGROMET BULLETINS */}
-            {(dashboard?.bulletin?.english || dashboard?.bulletin?.local) && (
-              <motion.section
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.16 }}
-                className="space-y-3"
-              >
-                <div className="flex items-center gap-2 px-1">
-                  <span className="p-1.5 rounded-lg bg-sky-500/15 text-sky-500 border border-sky-500/25">
-                    <FileText size={16} />
-                  </span>
-                  <h3 className="text-sm sm:text-base font-black text-text-main m-0">
-                    {w.tabBulletin}
-                  </h3>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {dashboard?.bulletin?.english && (
-                    <div className="glass-panel rounded-2xl border border-border-light p-6 flex flex-col justify-between gap-4 shadow-xl">
-                      <div className="space-y-2">
-                        <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30">
-                          ENGLISH BULLETIN
-                        </span>
-                        <h4 className="text-base font-black text-text-main m-0">
-                          {w.bulletinEnglishTitle}
-                        </h4>
-                        <p className="text-xs text-text-secondary leading-relaxed m-0">
-                          {w.bulletinEnglishDesc}
-                        </p>
-                      </div>
-                      <a
-                        href={dashboard.bulletin.english}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white keep-white font-bold text-xs shadow-md transition-all w-fit"
-                      >
-                        <span>{w.openBulletin}</span>
-                        <ExternalLink size={14} />
-                      </a>
-                    </div>
-                  )}
-
-                  {dashboard?.bulletin?.local && (
-                    <div className="glass-panel rounded-2xl border border-border-light p-6 flex flex-col justify-between gap-4 shadow-xl">
-                      <div className="space-y-2">
-                        <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                          தமிழ் அறிக்கை (LOCAL)
-                        </span>
-                        <h4 className="text-base font-black text-text-main m-0">
-                          {w.bulletinTamilTitle}
-                        </h4>
-                        <p className="text-xs text-text-secondary leading-relaxed m-0">
-                          {w.bulletinTamilDesc}
-                        </p>
-                      </div>
-                      <a
-                        href={dashboard.bulletin.local}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white keep-white font-bold text-xs shadow-md transition-all w-fit"
-                      >
-                        <span>{w.openBulletin}</span>
-                        <ExternalLink size={14} />
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </motion.section>
-            )}
 
             {/* Footer Source Note */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-5 py-3 rounded-2xl glass-panel border border-border-light text-xs text-text-muted">

@@ -29,7 +29,7 @@ import {
   Home,
   Trash2,
   AlertTriangle,
-} from 'lucide-react';
+} from '@/components/icons/FlaticonIcons';
 import { Input, Modal, message } from 'antd';
 import { OtpVerificationModal } from '@/components/auth/OtpVerificationModal';
 import type { CodeSlotsStatus } from '@/components/auth/CodeSlots';
