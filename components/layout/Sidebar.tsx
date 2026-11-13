@@ -15,6 +15,7 @@ import {
   WavesIcon,
   CloudSunIcon,
 } from '../icons/Icons';
+import { Store, CloudRain, ShieldCheck } from '@/components/icons/FlaticonIcons';
 import type { SidebarProps } from '@/types/components';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 
@@ -37,8 +38,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { key: 'dashboard', title: messages.sidebar.dashboard, href: '/', icon: LayoutDashboardIcon },
     { key: 'fertilizer', title: messages.sidebar.fertilizer, href: '/fertilizer', icon: FlaskConicalIcon },
+    { key: 'fertilizer-stock', title: (messages.sidebar as any).fertilizerStock || 'Fertilizer Details', href: '/fertilizer-stock', icon: Store },
     { key: 'reservoirs', title: messages.sidebar.reservoirs, href: '/reservoirs', icon: WavesIcon },
     { key: 'weather', title: (messages.sidebar as any).weather || 'Agro Weather', href: '/weather', icon: CloudSunIcon },
+    { key: 'rainfall', title: (messages.sidebar as any).rainfall || 'Rainfall Report', href: '/rainfall', icon: CloudRain },
+    { key: 'crop-health', title: (messages.sidebar as any).cropHealth || 'Crop Health', href: '/crop-health', icon: ShieldCheck },
     { key: 'seeds', title: (messages.sidebar as any).seeds || 'TNAU Seeds', href: '/seeds', icon: SproutIcon },
     { key: 'settings', title: messages.sidebar.settings, href: '/settings', icon: SettingsIcon },
   ];
@@ -107,7 +111,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
         {navItems.map((item) => {
-          const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+          const isActive =
+            item.href === '/'
+              ? pathname === '/'
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
           const Icon = item.icon;
           return (
             <Link

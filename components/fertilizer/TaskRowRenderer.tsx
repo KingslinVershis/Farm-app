@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Switch, Input, Tooltip } from 'antd';
+import { Switch, Input, Tooltip, message } from 'antd';
 import type { ExpenseEntry, ExpenseTask, PhaseGroup, UserDetails } from '@/lib/fertilizer/types';
 import {
   formatCurrency as fmt,
@@ -49,6 +49,7 @@ interface TaskRowRendererProps {
   handleGrainYieldChange: (taskId: string, params: { mode?: 'tons' | 'bags'; yieldKg?: number; yieldTons?: number; bagWeightKg?: number; bagCount?: number; bagPrice: number }) => void;
   handleStrawYieldChange: (taskId: string, sackCount: number, price: number) => void;
   handleToggleNotify?: (taskId: string, notifyType: 'Herbicide_notify' | 'pesticide_notify' | 'fertilizer_notify', checked: boolean) => void;
+  maxDaysOverride?: number;
 }
 
 export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
@@ -73,13 +74,14 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
   handleGrainYieldChange,
   handleStrawYieldChange,
   handleToggleNotify,
+  maxDaysOverride,
 }) => {
   const { messages, locale } = useLanguage();
   const isTamil = locale === 'ta';
   const t = messages.fertilizer;
   const isSkipped = entry.isEnabled === false;
 
-  const maxDays = task.maxDays ?? 7;
+  const maxDays = maxDaysOverride ?? task.maxDays ?? 7;
   const activeDay = Math.min(maxDays, Math.max(1, entry.activeDay ?? 1));
   const dayEntries = entry.dayEntries || [];
   const currentDayEntry = dayEntries.find((d) => d.day === activeDay) || {
@@ -89,8 +91,10 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
     snackCost: 0,
     travelCost: 0,
   };
+  const isCurrentDayMandatoryFilled =
+    currentDayEntry.labourCount > 0 && currentDayEntry.labourWage > 0;
   const filledMultiDays = dayEntries.filter(
-    (d) => d.labourCount > 0 || d.labourWage > 0 || d.snackCost > 0 || d.travelCost > 0
+    (d) => d.day <= maxDays && (d.labourCount > 0 || d.labourWage > 0 || d.snackCost > 0 || d.travelCost > 0)
   );
 
   const requiredMark = !task.isOptional ? (
@@ -244,6 +248,19 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                 isTamil
                   ? `(${filledMultiDays.length}/${maxDays} நாள்)`
                   : `(${filledMultiDays.length}/${maxDays} days)`
+              }
+              disableNext={!isCurrentDayMandatoryFilled}
+              nextDisabledReason={
+                isTamil
+                  ? `அடுத்த நாளுக்குச் செல்ல நாள் ${activeDay}-ன் கட்டாய விவரங்களை நிரப்பவும்`
+                  : `Fill required fields for Day ${activeDay} to unlock Day ${activeDay + 1}`
+              }
+              onNextBlocked={() =>
+                message.warning(
+                  isTamil
+                    ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான ஆட்கள் எண்ணிக்கை மற்றும் கூலியை நிரப்பவும்.`
+                    : `Please fill Labour Count and Wage for Day ${activeDay} before moving to the next day.`
+                )
               }
               onChange={(nextDay) => handleMultiDayChangeActiveDay?.(task.id, nextDay, maxDays)}
             />

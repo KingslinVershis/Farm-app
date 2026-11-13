@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { message } from 'antd';
-import { AlertTriangle, CheckCircle2, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, X } from '@/components/icons/FlaticonIcons';
 import { RefreshCwIcon } from '@/components/icons/Icons';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { formatCurrency as fmt } from '@/lib/fertilizer/calc';
@@ -128,6 +128,22 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
 
   const isPhaseDone = (idx: number) =>
     phaseCompletionMap ? Boolean(phaseCompletionMap[idx]) : true;
+
+  // Derive Phase 3 herbicide max day count from Phase 2 user-filled multi-day entries
+  const phase2Group = currentPhases.find((p) => p.id === 'paddy_p2');
+  const phase2FilledDayCount = Math.max(
+    0,
+    ...(phase2Group?.tasks || [])
+      .filter((task) => task.isMultiDayLabour)
+      .map((task) => {
+        const e = expenseMap[task.id];
+        if (!e || e.isEnabled === false || e.isMachineMode) return 0;
+        return (e.dayEntries || []).filter(
+          (d) => d.labourCount > 0 || d.labourWage > 0 || d.snackCost > 0 || d.travelCost > 0
+        ).length;
+      })
+  );
+  const phase3HerbicideMaxDays = phase2FilledDayCount > 0 ? phase2FilledDayCount : undefined;
 
   const showIncompletePhaseWarning = (phaseIdx: number) => {
     const targetPhase = currentPhases[phaseIdx];
@@ -384,6 +400,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                         handleGrainYieldChange={handleGrainYieldChange}
                         handleStrawYieldChange={handleStrawYieldChange}
                         handleToggleNotify={handleToggleNotify}
+                        maxDaysOverride={task.id === 'p3_herbicide' ? phase3HerbicideMaxDays : undefined}
                       />
                     );
                   })}
@@ -556,6 +573,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                             handleGrainYieldChange={handleGrainYieldChange}
                             handleStrawYieldChange={handleStrawYieldChange}
                             handleToggleNotify={handleToggleNotify}
+                            maxDaysOverride={task.id === 'p3_herbicide' ? phase3HerbicideMaxDays : undefined}
                           />
                         );
                       })}

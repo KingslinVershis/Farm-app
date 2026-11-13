@@ -1624,3 +1624,83 @@ html[data-theme='light'] h4.keep-white,
 [data-theme='light'] h4.keep-white {
   color: #ffffff !important;
 }
+
+/* Animated Weather Forecast Card Icons */
+@keyframes weather-sun-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes weather-cloud-drift {
+  0%,
+  100% {
+    transform: translateX(0px) translateY(0px);
+  }
+  50% {
+    transform: translateX(2.5px) translateY(-1.5px);
+  }
+}
+
+@keyframes weather-rain-drop {
+  0% {
+    opacity: 0;
+    transform: translate(2px, -4px);
+  }
+  25% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-3px, 6px);
+  }
+}
+
+@keyframes weather-storm-flash {
+  0%,
+  55%,
+  65%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.95);
+  }
+  58%,
+  62% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+.weather-anim-sun-rays {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: weather-sun-spin 22s linear infinite;
+}
+
+.weather-anim-cloud {
+  animation: weather-cloud-drift 4.2s ease-in-out infinite;
+}
+
+.weather-anim-rain-1 {
+  animation: weather-rain-drop 1.15s ease-in infinite;
+}
+
+.weather-anim-rain-2 {
+  animation: weather-rain-drop 1.15s ease-in 0.38s infinite;
+}
+
+.weather-anim-rain-3 {
+  animation: weather-rain-drop 1.15s ease-in 0.72s infinite;
+}
+
+.weather-anim-flash {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: weather-storm-flash 2.6s ease-in-out infinite;
+}

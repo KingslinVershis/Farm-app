@@ -13,6 +13,9 @@ interface DayStepperProps {
   max?: number;
   dayLabel?: string;
   maxLabel?: string;
+  disableNext?: boolean;
+  nextDisabledReason?: string;
+  onNextBlocked?: () => void;
   onChange: (nextDay: number) => void;
 }
 
@@ -22,6 +25,9 @@ export const DayStepper: React.FC<DayStepperProps> = ({
   max = 7,
   dayLabel = 'Day',
   maxLabel,
+  disableNext = false,
+  nextDisabledReason,
+  onNextBlocked,
   onChange,
 }) => {
   const [direction, setDirection] = useState(1);
@@ -33,6 +39,18 @@ export const DayStepper: React.FC<DayStepperProps> = ({
   }, [value]);
 
   const step = (change: number) => {
+    if (change > 0 && disableNext) {
+      if (valueRef.current) {
+        animateValue(
+          valueRef.current,
+          { x: [0, 5, -3, 0] },
+          { duration: 0.3 }
+        );
+      }
+      onNextBlocked?.();
+      return;
+    }
+
     const next = Math.min(max, Math.max(min, latest.current + change));
 
     if (next === latest.current) {
@@ -103,8 +121,9 @@ export const DayStepper: React.FC<DayStepperProps> = ({
         <StepButton
           change={1}
           onStep={step}
-          disabled={value >= max}
+          disabled={value >= max || disableNext}
           ariaLabel={`Next ${dayLabel}`}
+          title={disableNext && value < max ? nextDisabledReason : undefined}
         />
       </div>
       {maxLabel && (
@@ -121,11 +140,13 @@ function StepButton({
   onStep,
   disabled,
   ariaLabel,
+  title,
 }: {
   change: number;
   onStep: (change: number) => void;
   disabled: boolean;
   ariaLabel: string;
+  title?: string;
 }) {
   const [scope, animate] = useAnimate();
   const holdTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -151,11 +172,13 @@ function StepButton({
     if (scope.current) {
       animate(scope.current, { scale: [0.82, 1] }, lively);
     }
-    holdTimeoutRef.current = setTimeout(() => {
-      repeatIntervalRef.current = setInterval(() => {
-        onStep(change);
-      }, 100);
-    }, 400);
+    if (!disabled) {
+      holdTimeoutRef.current = setTimeout(() => {
+        repeatIntervalRef.current = setInterval(() => {
+          onStep(change);
+        }, 100);
+      }, 400);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -169,6 +192,7 @@ function StepButton({
     <motion.button
       ref={scope}
       type="button"
+      title={title}
       aria-label={ariaLabel}
       aria-disabled={disabled || undefined}
       onPointerDown={handlePointerDown}

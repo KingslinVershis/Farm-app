@@ -16,7 +16,7 @@ import {
   AlertCircle,
   RefreshCw,
   ShieldCheck,
-} from 'lucide-react';
+} from '@/components/icons/FlaticonIcons';
 import { message } from 'antd';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { useTheme } from '@/components/providers/ThemeProvider';

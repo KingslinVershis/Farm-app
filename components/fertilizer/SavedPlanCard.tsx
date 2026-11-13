@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Trash2, X } from '@/components/icons/FlaticonIcons';
 import type { SavedPlanRecord } from '@/lib/fertilizer/types';
 import { formatCurrency as fmt } from '@/lib/fertilizer/calc';
 import { useLanguage } from '@/components/providers/LanguageProvider';

@@ -3,7 +3,7 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Check, Copy, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Check, Copy, ShieldCheck, ArrowLeft } from '@/components/icons/FlaticonIcons';
 import { message } from 'antd';
 
 function CopyOtpContent() {

@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import {
   BellIcon,
@@ -21,7 +20,9 @@ import {
   Clock,
   CloudSun,
   ShieldCheck,
-} from 'lucide-react';
+  Store,
+  CloudRain,
+} from '@/components/icons/FlaticonIcons';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { ThemeSwitch } from './ThemeSwitch';
 import { clearClientSessionStorage } from './AppShell';
@@ -46,14 +47,16 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
   const mobileNavRef = useRef<HTMLDivElement>(null);
 
   const { locale, setLocale, messages } = useLanguage();
-  const logoSrc = '/images/logo.png';
 
   // Navigation Items (clean tabs without extra badge chips)
   const navItems = [
     { key: 'dashboard', title: messages.sidebar.dashboard, href: '/', icon: LayoutDashboardIcon },
     { key: 'fertilizer', title: messages.sidebar.fertilizer, href: '/fertilizer', icon: FlaskConicalIcon },
+    { key: 'fertilizer-stock', title: (messages.sidebar as any).fertilizerStock || 'Fertilizer Details', href: '/fertilizer-stock', icon: Store },
     { key: 'reservoirs', title: messages.sidebar.reservoirs, href: '/reservoirs', icon: WavesIcon },
     { key: 'weather', title: (messages.sidebar as any).weather || 'Agro Weather', href: '/weather', icon: CloudSunIcon },
+    { key: 'rainfall', title: (messages.sidebar as any).rainfall || 'Rainfall Report', href: '/rainfall', icon: CloudRain },
+    { key: 'crop-health', title: (messages.sidebar as any).cropHealth || 'Crop Health', href: '/crop-health', icon: ShieldCheck },
     { key: 'seeds', title: (messages.sidebar as any).seeds || 'TNAU Seeds', href: '/seeds', icon: SproutIcon },
     { key: 'settings', title: messages.sidebar.settings, href: '/settings', icon: SettingsIcon },
   ];
@@ -302,26 +305,14 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
 
   return (
     <>
-      <header className="app-topbar sticky top-0 z-40 flex w-full items-center justify-between border-b border-border-subtle bg-topbar text-text-main px-3 sm:px-5 lg:px-7 transition-all backdrop-blur-xl">
-      {/* Left Section: Brand Logo */}
-      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-        <Link href="/" className="flex items-center group py-1" onClick={() => setMobileNavOpen(false)}>
-          <Image
-            src={logoSrc}
-            alt="Logo"
-            width={220}
-            height={68}
-            unoptimized
-            priority
-            className="h-9 sm:h-12 lg:h-9 w-auto object-contain group-hover:scale-105 transition-transform"
-          />
-        </Link>
-      </div>
-
-      {/* Center Section: Main Desktop Navigation Tabs */}
-      <nav className="hidden lg:flex items-center gap-1 xl:gap-2 px-1 xl:px-2 shrink-0" aria-label="Main Navigation">
+      <header className="app-topbar sticky top-0 z-40 flex w-full items-center justify-between border-b border-border-subtle bg-topbar text-text-main px-3 sm:px-5 lg:px-7 py-2 transition-all backdrop-blur-xl">
+      {/* Left/Center Section: Main Desktop Navigation Tabs */}
+      <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5 px-1 shrink-0" aria-label="Main Navigation">
         {navItems.map((item) => {
-          const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+          const isActive =
+            item.href === '/'
+              ? pathname === '/'
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
           const Icon = item.icon;
           return (
             <Link
@@ -573,7 +564,10 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
               {/* Navigation links */}
               <nav className="flex flex-col gap-1.5" aria-label="Mobile Navigation">
                 {navItems.map((item) => {
-                  const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+                  const isActive =
+                    item.href === '/'
+                      ? pathname === '/'
+                      : pathname === item.href || pathname.startsWith(`${item.href}/`);
                   const Icon = item.icon;
                   return (
                     <Link

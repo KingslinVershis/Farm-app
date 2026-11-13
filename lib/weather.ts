@@ -48,10 +48,6 @@ export interface WeatherDashboardData {
   forecast: WeatherForecastDay[];
   advisory_date?: string;
   advisory?: WeatherAdvisoryItem[];
-  bulletin?: {
-    english?: string;
-    local?: string;
-  };
   last_sync?: string;
 }
 

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion, type Variants } from 'framer-motion';
-import { ArrowRight, Eye, EyeOff, Lock, Mail, User } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, Lock, Mail, User } from '@/components/icons/FlaticonIcons';
 import { message } from 'antd';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { OtpVerificationModal } from '@/components/auth/OtpVerificationModal';
