@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
       district: '',
       city: '',
       address: '',
+      avatar_url: '',
       phone_nun: '',
       phone_number: '',
       createdAt: null as any,
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
       pool
         .query(
           `SELECT id, username, email, role, isactive, theme, language, created_at, updated_at,
-                  state, district, city, address,
+                  state, district, city, address, avatar_url,
                   COALESCE(phone_nun, phone_number) as phone_nun,
                   COALESCE(phone_nun, phone_number) as phone_number
            FROM users_table WHERE id = $1`,
@@ -87,6 +88,7 @@ export async function GET(request: NextRequest) {
         district: u.district || '',
         city: u.city || '',
         address: u.address || '',
+        avatar_url: u.avatar_url || '',
         phone_nun: u.phone_nun || u.phone_number || '',
         phone_number: u.phone_nun || u.phone_number || '',
         createdAt: u.created_at,

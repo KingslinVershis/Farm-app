@@ -212,10 +212,10 @@ export function getWeatherCondition(
 export function cleanAdvisoryLines(text: string | undefined): string[] {
   if (!text) return [];
   return text
-    .replace(/\uf076|\u2022/g, '\n• ')
+    .replace(/\uf076|\u2022|•|/g, '\n• ')
     .replace(/\t+/g, ' ')
     .split(/\r?\n/)
-    .map((line) => line.replace(/^[\s•]+/, '').trim())
+    .map((line) => line.replace(/^[\s•\-*]+/, '').trim())
     .filter(Boolean);
 }
 

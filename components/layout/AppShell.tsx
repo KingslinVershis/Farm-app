@@ -77,7 +77,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
     const verifyActiveSession = () => {
       const now = Date.now();
-      if (redirectingRef.current || now - lastVerifyRef.current < 3000) return;
+      if (redirectingRef.current || now - lastVerifyRef.current < 60000) return;
       lastVerifyRef.current = now;
       origFetch('/api/user', { cache: 'no-store' })
         .then((res) => {

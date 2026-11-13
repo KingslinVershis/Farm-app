@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import Link from 'next/link';
 import { CloudSunIcon } from '@/components/icons/Icons';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { useTheme } from '@/components/providers/ThemeProvider';
@@ -15,6 +16,7 @@ import {
   Sprout,
   AlertTriangle,
   Search,
+  Sparkles,
 } from '@/components/icons/FlaticonIcons';
 import {
   ResponsiveContainer,
@@ -305,13 +307,54 @@ export default function WeatherPage() {
   }, [forecastList, locale]);
 
   const weatherSummaryLines = useMemo(() => {
-    const firstAdv = dashboard?.advisory?.[0];
-    if (!firstAdv) return [];
-    const text = isTamil
-      ? firstAdv.weather_summary_reg || firstAdv.weather_summary_eng
-      : firstAdv.weather_summary_eng || firstAdv.weather_summary_reg;
-    return cleanAdvisoryLines(text);
-  }, [dashboard, isTamil]);
+    const advisories = dashboard?.advisory || [];
+    for (const adv of advisories) {
+      const text = isTamil
+        ? adv.weather_summary_reg || adv.weather_summary_eng
+        : adv.weather_summary_eng || adv.weather_summary_reg;
+      const lines = cleanAdvisoryLines(text);
+      if (lines.length > 0) return lines;
+    }
+
+    // Fallback: If no advisory bulletin was returned for this district/block, synthesize a smart weather summary from the forecast
+    if (forecastList && forecastList.length > 0) {
+      const next5 = forecastList.slice(0, 5);
+      const rainyDays = next5.filter((d) => Number(d.rainfall || 0) > 0);
+      const avgCloud = Math.round(
+        next5.reduce((acc, d) => acc + Number(d.cloud_cover || 2), 0) / next5.length
+      );
+      const avgWind = Math.round(
+        next5.reduce((acc, d) => acc + Number(d.wind_speed || 8), 0) / next5.length
+      );
+      const dominantDir = getCompassDirection(next5[0]?.wind_direction);
+
+      const rainSummary =
+        rainyDays.length > 0
+          ? isTamil
+            ? 'அடுத்த ஐந்து நாட்களுக்கு லேசானது முதல் மிதமான மழை பெய்ய வாய்ப்புள்ளது.'
+            : 'Light to moderate rain is expected for the next five days.'
+          : isTamil
+          ? 'அடுத்த ஐந்து நாட்களுக்கு வறண்ட வானிலை நிலவ வாய்ப்புள்ளது.'
+          : 'Dry weather conditions are expected to prevail for the next five days.';
+
+      const cloudSummary =
+        avgCloud >= 5
+          ? isTamil
+            ? 'வானம் பொதுவாக மேகமூட்டத்துடன் காணப்படும்.'
+            : 'Sky conditions will be mainly cloudy.'
+          : isTamil
+          ? 'வானம் ஓரளவு மேகமூட்டத்துடன் காணப்படும்.'
+          : 'Sky conditions will be partly cloudy to mainly clear.';
+
+      const windSummary = isTamil
+        ? `காற்றின் வேகம் சுமார் ${avgWind} கி.மீ/மணி வேகத்தில் ${dominantDir} திசையிலிருந்து வீசக்கூடும்.`
+        : `The wind speed is expected to be light breeze (${avgWind} km/h) from the ${dominantDir} directions.`;
+
+      return [rainSummary, cloudSummary, windSummary];
+    }
+
+    return [];
+  }, [dashboard, forecastList, isTamil]);
 
   const generalAdvisoryLines = useMemo(() => {
     const firstAdv = dashboard?.advisory?.[0];
@@ -489,6 +532,18 @@ export default function WeatherPage() {
                 <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
                 <span>{w.refresh}</span>
               </button>
+
+              <Link
+                href="/weather-mcp"
+                className="h-10 inline-flex items-center justify-center gap-1.5 px-3.5 rounded-xl bg-gradient-to-r from-sky-500/15 to-indigo-500/15 hover:from-sky-500/25 hover:to-indigo-500/25 text-sky-700 dark:text-sky-300 border border-sky-500/35 text-xs font-bold transition-all shadow-sm group"
+                title="Open Weather MCP Lab"
+              >
+                <Sparkles size={14} className="text-sky-500 group-hover:rotate-12 transition-transform" />
+                <span>{locale === 'ta' ? 'வானிலை MCP ஆய்வுக்கூடம்' : 'Weather MCP Lab'}</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/20 font-black uppercase tracking-wider">
+                  New
+                </span>
+              </Link>
             </div>
           </div>
         </motion.div>
@@ -667,18 +722,19 @@ export default function WeatherPage() {
                   })}
                 </div>
 
-                {/* 5-Day Summary Outlook Glassy Container */}
+                {/* WEATHER SUMMARY (Styled exactly like the official TN Agrisnet outlook alert banner) */}
                 {weatherSummaryLines.length > 0 && (
-                  <div className="relative z-10 p-4 sm:p-5 rounded-2xl glass-panel border border-border-light shadow-xl">
-                    <div className="text-[11px] font-extrabold uppercase tracking-wider text-sky-600 dark:text-sky-400 mb-2">
-                      {w.summaryHeading}
+                  <div className="relative z-10 p-4 sm:p-5 rounded-2xl glass-panel border border-sky-500/30 dark:border-sky-500/20 bg-sky-500/[0.07] dark:bg-sky-500/[0.04] shadow-xl space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-sky-700 dark:text-sky-300">
+                      <CloudSunIcon size={16} className="text-sky-500 shrink-0" />
+                      <span>{isTamil ? 'வானிலை சுருக்கம் (WEATHER SUMMARY)' : 'WEATHER SUMMARY'}</span>
                     </div>
-                    <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-xs text-text-secondary leading-relaxed">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs sm:text-sm text-slate-800 dark:text-slate-100 font-medium leading-relaxed">
                       {weatherSummaryLines.map((line, i) => (
-                        <span key={i} className="flex items-start gap-1.5">
-                          <span className="text-emerald-500 font-bold">•</span>
+                        <div key={i} className="inline-flex items-baseline gap-1.5">
+                          <span className="text-sky-500 font-black text-sm select-none">•</span>
                           <span>{line}</span>
-                        </span>
+                        </div>
                       ))}
                     </div>
                   </div>

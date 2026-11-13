@@ -29,6 +29,8 @@ function createFlaticonComponent(fiClassName: string): React.FC<FlaticonIconProp
 }
 
 export const Check = createFlaticonComponent('fi-rr-check');
+export const Camera = createFlaticonComponent('fi-rr-camera');
+export const Upload = createFlaticonComponent('fi-rr-upload');
 export const Copy = createFlaticonComponent('fi-rr-copy');
 export const ShieldCheck = createFlaticonComponent('fi-rr-shield-check');
 export const ArrowLeft = createFlaticonComponent('fi-rr-arrow-left');
