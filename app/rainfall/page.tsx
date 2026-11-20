@@ -43,6 +43,85 @@ interface TalukAggregateRow {
   maxStation: string;
 }
 
+const TN_DISTRICT_ZONE_MAP: Record<string, string> = {
+  TENKASI: 'Southern Region',
+  TIRUNELVELI: 'Southern Region',
+  THOOTHUKKUDI: 'Southern Region',
+  THOOTHUKUDI: 'Southern Region',
+  TUTICORIN: 'Southern Region',
+  KANNIYAKUMARI: 'Southern Region',
+  KANYAKUMARI: 'Southern Region',
+  MADURAI: 'Southern Region',
+  VIRUDHUNAGAR: 'Southern Region',
+  RAMANATHAPURAM: 'Southern Region',
+  THENI: 'Southern Region',
+  DINDIGUL: 'Southern Region',
+  SIVAGANGAI: 'Southern Region',
+  SIVAGANGA: 'Southern Region',
+  COIMBATORE: 'Western Region',
+  TIRUPPUR: 'Western Region',
+  TIRUPUR: 'Western Region',
+  ERODE: 'Western Region',
+  'THE-NILGIRIS': 'Western Region',
+  NILGIRIS: 'Western Region',
+  SALEM: 'Western Region',
+  NAMAKKAL: 'Western Region',
+  DHARMAPURI: 'Western Region',
+  KRISHNAGIRI: 'Western Region',
+  THANJAVUR: 'Cauvery Delta',
+  THIRUVARUR: 'Cauvery Delta',
+  TIRUVARUR: 'Cauvery Delta',
+  NAGAPATTINAM: 'Cauvery Delta',
+  MAYILADUTHURAI: 'Cauvery Delta',
+  TIRUCHIRAPPALLI: 'Cauvery Delta',
+  TRICHY: 'Cauvery Delta',
+  PUDUKKOTTAI: 'Cauvery Delta',
+  KARUR: 'Cauvery Delta',
+  PERAMBALUR: 'Cauvery Delta',
+  ARIYALUR: 'Cauvery Delta',
+  CHENNAI: 'Northern Region',
+  CHENGALPATTU: 'Northern Region',
+  KANCHIPURAM: 'Northern Region',
+  THIRUVALLUR: 'Northern Region',
+  TIRUVALLUR: 'Northern Region',
+  VELLORE: 'Northern Region',
+  RANIPET: 'Northern Region',
+  RANIPPETTAI: 'Northern Region',
+  TIRUPATTUR: 'Northern Region',
+  TIRUPPATTUR: 'Northern Region',
+  TIRUVANNAMALAI: 'Northern Region',
+  VILLUPURAM: 'Northern Region',
+  CUDDALORE: 'Northern Region',
+  KALLAKURICHI: 'Northern Region',
+  KALLAKKURICHI: 'Northern Region',
+};
+
+function resolveRegion(districtName?: string, fallbackRegion?: string): string {
+  if (districtName) {
+    const key = districtName.trim().toUpperCase().replace(/\s+/g, '-');
+    if (TN_DISTRICT_ZONE_MAP[key]) return TN_DISTRICT_ZONE_MAP[key];
+    const plainKey = key.replace(/[^A-Z]/g, '');
+    for (const [k, v] of Object.entries(TN_DISTRICT_ZONE_MAP)) {
+      if (k.replace(/[^A-Z]/g, '') === plainKey) return v;
+    }
+  }
+  if (fallbackRegion) {
+    if (/madurai/i.test(fallbackRegion)) return 'Southern Region';
+    if (/coimbatore/i.test(fallbackRegion)) return 'Western Region';
+    if (/trichy/i.test(fallbackRegion)) return 'Cauvery Delta';
+    if (/chennai/i.test(fallbackRegion)) return 'Northern Region';
+  }
+  return fallbackRegion || 'Other';
+}
+
+const REGION_LABELS: Record<string, { en: string; ta: string }> = {
+  'Southern Region': { en: 'Southern Region', ta: 'தென் மண்டலம்' },
+  'Northern Region': { en: 'Northern Region', ta: 'வட மண்டலம்' },
+  'Western Region': { en: 'Western Region', ta: 'மேற்கு மண்டலம்' },
+  'Cauvery Delta': { en: 'Cauvery Delta', ta: 'காவிரி டெல்டா' },
+  'Central Region': { en: 'Central Region', ta: 'மத்திய மண்டலம்' },
+};
+
 const CARDS_PAGE_SIZE = 24;
 
 function getRainIntensity(mm: number) {
@@ -167,18 +246,29 @@ export default function RainfallPage() {
     }
   };
 
-  const districts = useMemo(() => data?.districts || [], [data]);
-  const stations = useMemo(() => data?.stations || [], [data]);
+  const districts = useMemo(() => {
+    return (data?.districts || []).map((d) => ({
+      ...d,
+      region: resolveRegion(d.name_en || d.name_ta, d.region),
+    }));
+  }, [data]);
+
+  const stations = useMemo(() => {
+    return (data?.stations || []).map((s) => ({
+      ...s,
+      region: resolveRegion(s.district_en || s.district, s.region),
+    }));
+  }, [data]);
   const availableDates = useMemo(() => data?.dates || [], [data]);
 
   const regionCounts = useMemo(() => {
     const map = new Map<string, number>();
-    stations.forEach((s) => {
-      const reg = s.region || 'Other';
+    districts.forEach((d) => {
+      const reg = d.region || 'Other';
       map.set(reg, (map.get(reg) || 0) + 1);
     });
     return Array.from(map.entries()).map(([region, count]) => ({ region, count }));
-  }, [stations]);
+  }, [districts]);
 
   const filteredStations = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -201,17 +291,15 @@ export default function RainfallPage() {
     const q = searchQuery.trim().toLowerCase();
     return districts.filter((d) => {
       const regMatch = selectedRegion === 'all' || d.region === selectedRegion;
-      const distMatch =
-        !selectedDistrictFilter || String(d.district_id) === String(selectedDistrictFilter.id);
       const qMatch =
         !q ||
         d.name_en.toLowerCase().includes(q) ||
         d.name_ta.toLowerCase().includes(q) ||
         d.max_station.toLowerCase().includes(q) ||
         d.region.toLowerCase().includes(q);
-      return regMatch && distMatch && qMatch;
+      return regMatch && qMatch;
     });
-  }, [districts, selectedRegion, selectedDistrictFilter, searchQuery]);
+  }, [districts, selectedRegion, searchQuery]);
 
   const filteredTaluks = useMemo<TalukAggregateRow[]>(() => {
     const map = new Map<
@@ -275,7 +363,7 @@ export default function RainfallPage() {
     let heavyCount = 0;
     let veryHeavyCount = 0;
 
-    stations.forEach((s) => {
+    filteredStations.forEach((s) => {
       const mm = parseFloat(s.mm) || 0;
       if (mm > highestMm) {
         highestMm = mm;
@@ -286,15 +374,31 @@ export default function RainfallPage() {
       if (mm >= 115.6) veryHeavyCount += 1;
     });
 
+    if (highestMm === 0 && filteredDistricts.length > 0) {
+      filteredDistricts.forEach((d) => {
+        const m = Number(d.max) || 0;
+        if (m > highestMm) {
+          highestMm = m;
+          const distName = isTamil && d.name_ta ? d.name_ta : d.name_en;
+          highestLabel = `${d.max_station || distName}, ${distName}`;
+        }
+      });
+    }
+
+    const totalStationsInDistricts = filteredDistricts.reduce(
+      (sum, d) => sum + (Number(d.stations) || 0),
+      0
+    );
+
     return {
-      totalStations: stations.length,
+      totalStations: filteredStations.length || totalStationsInDistricts,
       highestMm: Math.round(highestMm * 10) / 10,
-      highestLabel,
-      totalDistricts: districts.length,
+      highestLabel: highestLabel !== '-' ? highestLabel : 'No rainfall recorded',
+      totalDistricts: filteredDistricts.length,
       heavyCount,
       veryHeavyCount,
     };
-  }, [stations, districts, isTamil]);
+  }, [filteredStations, filteredDistricts, isTamil]);
 
   const maxDistrictAvg = useMemo(
     () => Math.max(1, ...filteredDistricts.map((d) => Number(d.avg) || 0)),
@@ -526,6 +630,15 @@ export default function RainfallPage() {
 
   return (
     <div className="relative min-h-screen w-full overflow-x-hidden">
+      {/* Background Photography Layer with Soft Vignette & Frosted Overlay */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out scale-105"
+        style={{
+          backgroundImage: `url('/images/city.jpg')`,
+        }}
+      />
+      <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
+
       {/* Subtle Atmospheric Ambient Glow */}
       <div
         aria-hidden="true"
@@ -611,15 +724,7 @@ export default function RainfallPage() {
         >
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             {/* Date Stepper */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => shiftDate(-1)}
-                className="h-10 w-10 rounded-xl glass-surface border border-border-light flex items-center justify-center text-text-main hover:border-cyan-500/50 transition-colors cursor-pointer"
-                aria-label="Previous day"
-              >
-                <ArrowLeft size={14} />
-              </button>
+            <div className="flex items-center gap-2 flex-nowrap shrink-0">
               <DatePicker
                 value={selectedDate ? dayjs(selectedDate) : null}
                 disabledDate={(cur) => cur && cur > dayjs().endOf('day')}
@@ -630,6 +735,14 @@ export default function RainfallPage() {
                 }}
                 className="h-10 text-xs font-semibold rounded-xl custom-antd-picker w-44"
               />
+              <button
+                type="button"
+                onClick={() => shiftDate(-1)}
+                className="h-10 w-10 rounded-xl glass-surface border border-border-light flex items-center justify-center text-text-main hover:border-cyan-500/50 transition-colors cursor-pointer"
+                aria-label="Previous day"
+              >
+                <ArrowLeft size={14} />
+              </button>
               <button
                 type="button"
                 onClick={() => shiftDate(1)}
@@ -680,11 +793,10 @@ export default function RainfallPage() {
                     key={d}
                     type="button"
                     onClick={() => handleDateSelect(d)}
-                    className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border shrink-0 ${
-                      isActive
-                        ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm font-extrabold'
-                        : 'glass-surface border-border-subtle text-text-secondary hover:text-text-main hover:border-cyan-500/40'
-                    }`}
+                    className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border shrink-0 ${isActive
+                      ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm font-extrabold'
+                      : 'glass-surface border-border-subtle text-text-secondary hover:text-text-main hover:border-cyan-500/40'
+                      }`}
                   >
                     {dayjs(d).format('D MMM')}
                   </button>
@@ -741,7 +853,13 @@ export default function RainfallPage() {
               <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
                 <AnimatedCounter value={kpiStats.totalDistricts} />
               </div>
-              <span className="text-xs text-text-muted mt-1 block">Tamil Nadu</span>
+              <span className="text-xs text-text-muted mt-1 block">
+                {selectedRegion === 'all'
+                  ? (isTamil ? 'தமிழ்நாடு' : 'Tamil Nadu')
+                  : (isTamil && REGION_LABELS[selectedRegion]?.ta
+                      ? REGION_LABELS[selectedRegion].ta
+                      : (REGION_LABELS[selectedRegion]?.en || selectedRegion))}
+              </span>
             </SpotlightCard>
 
             <SpotlightCard className="glass-panel rounded-2xl border border-border-light p-5 shadow-lg">
@@ -769,29 +887,31 @@ export default function RainfallPage() {
             <button
               type="button"
               onClick={() => setSelectedRegion('all')}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer ${
-                selectedRegion === 'all'
-                  ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm font-extrabold'
-                  : 'glass-panel border-border-light text-text-secondary hover:text-text-main'
-              }`}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer ${selectedRegion === 'all'
+                ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm font-extrabold'
+                : 'glass-panel border-border-light text-text-secondary hover:text-text-main'
+                }`}
             >
-              {r.allRegions} ({stations.length})
+              {r.allRegions} ({districts.length})
             </button>
 
-            {regionCounts.map((rc) => (
-              <button
-                key={rc.region}
-                type="button"
-                onClick={() => setSelectedRegion(rc.region)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer ${
-                  selectedRegion === rc.region
+            {regionCounts.map((rc) => {
+              const labelObj = REGION_LABELS[rc.region];
+              const displayName = isTamil && labelObj?.ta ? labelObj.ta : (labelObj?.en || rc.region);
+              return (
+                <button
+                  key={rc.region}
+                  type="button"
+                  onClick={() => setSelectedRegion(rc.region)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer ${selectedRegion === rc.region
                     ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm font-extrabold'
                     : 'glass-panel border-border-light text-text-secondary hover:text-text-main'
-                }`}
-              >
-                {rc.region.replace(' Region', '')} ({rc.count})
-              </button>
-            ))}
+                    }`}
+                >
+                  {displayName} ({rc.count})
+                </button>
+              );
+            })}
 
             {selectedDistrictFilter && (
               <button
@@ -818,11 +938,10 @@ export default function RainfallPage() {
                   key={t.id}
                   type="button"
                   onClick={() => setViewTab(t.id)}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    viewTab === t.id
-                      ? 'bg-cyan-500 text-slate-950 shadow-sm font-extrabold'
-                      : 'text-text-secondary hover:text-text-main'
-                  }`}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewTab === t.id
+                    ? 'bg-cyan-500 text-slate-950 shadow-sm font-extrabold'
+                    : 'text-text-secondary hover:text-text-main'
+                    }`}
                 >
                   {t.label}
                 </button>
@@ -838,11 +957,10 @@ export default function RainfallPage() {
               <button
                 type="button"
                 onClick={() => setViewMode('cards')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  viewMode === 'cards'
-                    ? 'bg-cyan-500 text-slate-950 shadow-sm font-extrabold'
-                    : 'text-text-secondary hover:text-text-main'
-                }`}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewMode === 'cards'
+                  ? 'bg-cyan-500 text-slate-950 shadow-sm font-extrabold'
+                  : 'text-text-secondary hover:text-text-main'
+                  }`}
               >
                 <LayoutGrid size={13} />
                 <span>Cards</span>
@@ -850,11 +968,10 @@ export default function RainfallPage() {
               <button
                 type="button"
                 onClick={() => setViewMode('table')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  viewMode === 'table'
-                    ? 'bg-cyan-500 text-slate-950 shadow-sm font-extrabold'
-                    : 'text-text-secondary hover:text-text-main'
-                }`}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewMode === 'table'
+                  ? 'bg-cyan-500 text-slate-950 shadow-sm font-extrabold'
+                  : 'text-text-secondary hover:text-text-main'
+                  }`}
               >
                 <TableList size={13} />
                 <span>Table</span>
@@ -906,19 +1023,24 @@ export default function RainfallPage() {
                         Math.round(((Number(rec.avg) || 0) / maxDistrictAvg) * 100)
                       );
                       const distLabel = isTamil && rec.name_ta ? rec.name_ta : rec.name_en;
+                      const isSelected = selectedDistrictFilter?.id === String(rec.district_id);
                       return (
                         <ReflectiveCard
                           key={rec.district_id}
                           onClick={() => {
-                            setSelectedDistrictFilter({
-                              id: String(rec.district_id),
-                              name: distLabel,
-                            });
-                            setViewTab('stations');
+                            setSelectedDistrictFilter((prev) =>
+                              prev?.id === String(rec.district_id)
+                                ? null
+                                : { id: String(rec.district_id), name: distLabel }
+                            );
                           }}
                           tiltStrength={9}
                           radius={24}
                           intro
+                          className={`cursor-pointer transition-all ${isSelected
+                            ? 'ring-2 ring-cyan-400 border-cyan-400 shadow-lg shadow-cyan-500/20'
+                            : ''
+                            }`}
                         >
                           <div className="flex flex-col h-full justify-between gap-4">
                             <div className="flex items-center justify-between gap-2">
@@ -931,9 +1053,11 @@ export default function RainfallPage() {
                                 />
                                 <span>{intensity.label}</span>
                               </span>
-                              <span className="text-[11px] font-semibold text-text-muted truncate">
-                                {rec.region.replace(' Region', '')}
-                              </span>
+                              {isSelected && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-cyan-500 text-slate-950 shadow-sm animate-pulse">
+                                  ✓ Selected
+                                </span>
+                              )}
                             </div>
 
                             <div>
@@ -1142,16 +1266,23 @@ export default function RainfallPage() {
                   pagination={{ pageSize: 15, showSizeChanger: false }}
                   className="reservoirs-table"
                   locale={{ emptyText: r.noDataText }}
-                  onRow={(rec) => ({
-                    onClick: () => {
-                      setSelectedDistrictFilter({
-                        id: String(rec.district_id),
-                        name: isTamil && rec.name_ta ? rec.name_ta : rec.name_en,
-                      });
-                      setViewTab('stations');
-                    },
-                    className: 'hover:bg-surface/50 transition-colors cursor-pointer',
-                  })}
+                  onRow={(rec) => {
+                    const distLabel = isTamil && rec.name_ta ? rec.name_ta : rec.name_en;
+                    const isSelected = selectedDistrictFilter?.id === String(rec.district_id);
+                    return {
+                      onClick: () => {
+                        setSelectedDistrictFilter((prev) =>
+                          prev?.id === String(rec.district_id)
+                            ? null
+                            : { id: String(rec.district_id), name: distLabel }
+                        );
+                      },
+                      className: `transition-colors cursor-pointer ${isSelected
+                        ? 'bg-cyan-500/15 font-bold border-l-4 border-l-cyan-400'
+                        : 'hover:bg-surface/50'
+                        }`,
+                    };
+                  }}
                 />
               )}
 

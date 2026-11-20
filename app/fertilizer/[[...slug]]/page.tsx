@@ -34,6 +34,7 @@ export default function FertilizerCatchAllPage() {
     errors,
     validateStep1,
     clearError,
+    clearErrors,
     expenseMap,
     currentPhases,
     isStep1Valid,
@@ -46,9 +47,13 @@ export default function FertilizerCatchAllPage() {
     handleCropSelect,
     handleConfigureCrop,
     handleRateChange,
+    handleRepairCostChange,
     handleLabourChange,
     handleMultiDayChangeActiveDay,
     handleMultiDayLabourChange,
+    handleMultiDayHarvestChange,
+    handleMultiDayGunnyBagsChange,
+    handleMultiDayTransportChange,
     handleFertilizerWithLabourChange,
     handleMandiChange,
     handleToggleOptional,
@@ -84,6 +89,7 @@ export default function FertilizerCatchAllPage() {
     savePhaseProgress,
     loadPlanAndShowSummary,
     loadPlanForEditing,
+    loadPlan,
     deletePlan,
     createNewPlan,
   } = useFertilizerContext();
@@ -91,47 +97,40 @@ export default function FertilizerCatchAllPage() {
   const isInitialSync = useRef(true);
   const pendingStepGrantRef = useRef<number>(0);
 
+  const prevPathnameRef = useRef<string | null>(null);
+
+  // Clear validation errors only when route/pathname actually changes
+  useEffect(() => {
+    if (prevPathnameRef.current !== null && prevPathnameRef.current !== pathname) {
+      clearErrors();
+    }
+    prevPathnameRef.current = pathname;
+  }, [pathname, clearErrors]);
+
   // Sync state from current URL pathname and enforce sequential Step 1 -> 2 -> 3 access order
   useEffect(() => {
     if (!pathname) return;
 
     const grantedStep = pendingStepGrantRef.current;
 
+    // 1. Portfolio records view: /fertilizer or /fertilizer/
     if (pathname === '/fertilizer' || pathname === '/fertilizer/') {
       if (pageView !== 'records') {
         setPageView('records');
       }
-    } else if (pathname === '/fertilizer/create/step1') {
-      pendingStepGrantRef.current = 0;
-      if (pageView !== 'wizard' || step !== 1) {
-        setPageView('wizard');
-        setStep(1);
-      }
-    } else if (pathname === '/fertilizer/create/step2') {
-      if (!isStep1Valid && !activePlanId && grantedStep < 2) {
-        router.replace('/fertilizer/create/step1');
-        return;
-      }
-      pendingStepGrantRef.current = 0;
-      if (pageView !== 'wizard' || step !== 2) {
-        setPageView('wizard');
-        setStep(2);
-      }
-    } else if (pathname === '/fertilizer/create/step3') {
-      if (!isStep1Valid && !activePlanId && grantedStep < 3) {
-        router.replace('/fertilizer/create/step1');
-        return;
-      }
-      if (!step2Completed && !activePlanId && grantedStep < 3) {
-        router.replace('/fertilizer/create/step2');
-        return;
-      }
-      pendingStepGrantRef.current = 0;
-      if (pageView !== 'wizard' || step !== 3) {
-        setPageView('wizard');
-        setStep(3);
-      }
-    } else if (pathname.startsWith('/fertilizer/summary/')) {
+      isInitialSync.current = false;
+      return;
+    }
+
+    // 2. Direct /fertilizer/create redirect to step1
+    if (pathname === '/fertilizer/create' || pathname === '/fertilizer/create/') {
+      router.replace('/fertilizer/create/step1');
+      isInitialSync.current = false;
+      return;
+    }
+
+    // 3. Summary view: /fertilizer/summary/:planId
+    if (pathname.startsWith('/fertilizer/summary/')) {
       const planIdFromUrl = pathname.replace('/fertilizer/summary/', '').trim();
       if (pageView !== 'wizard' || step !== 4) {
         setPageView('wizard');
@@ -140,15 +139,91 @@ export default function FertilizerCatchAllPage() {
       if (planIdFromUrl && activePlanId !== planIdFromUrl) {
         loadPlanAndShowSummary(planIdFromUrl);
       }
+      isInitialSync.current = false;
+      return;
     }
+
+    // 4. Wizard Step view:
+    // New format: /fertilizer/step1/1 or /fertilizer/step1
+    const newFormatMatch = pathname.match(/^\/fertilizer\/step([1-3])(?:\/([^/]+))?\/?$/);
+    // Legacy format: /fertilizer/create/step1 or /fertilizer/1/step1
+    const legacyFormatMatch = pathname.match(/^\/fertilizer\/([^/]+)\/step([1-3])\/?$/);
+
+    let targetStep: 1 | 2 | 3 | null = null;
+    let urlPlanId: string | null = null;
+    let isCreate = false;
+
+    if (newFormatMatch) {
+      targetStep = parseInt(newFormatMatch[1], 10) as 1 | 2 | 3;
+      urlPlanId = newFormatMatch[2] ? newFormatMatch[2].trim() : null;
+      isCreate = !urlPlanId;
+    } else if (legacyFormatMatch) {
+      targetStep = parseInt(legacyFormatMatch[2], 10) as 1 | 2 | 3;
+      const part = legacyFormatMatch[1].trim();
+      if (part === 'create') {
+        isCreate = true;
+      } else {
+        urlPlanId = part;
+        isCreate = false;
+      }
+    }
+
+    if (targetStep !== null) {
+      // If viewing/editing an existing plan (e.g. /fertilizer/step1/1), load the plan if not already active
+      if (urlPlanId) {
+        if (activePlanId !== urlPlanId) {
+          const plan = savedPlans.find((p) => p.id === urlPlanId);
+          if (plan) {
+            loadPlan(urlPlanId);
+          }
+        }
+      } else {
+        // Enforce sequential access guard for new plan creation
+        if (targetStep === 2 && !isStep1Valid && !activePlanId && grantedStep < 2) {
+          router.replace('/fertilizer/create/step1');
+          return;
+        }
+        if (targetStep === 3) {
+          if (!isStep1Valid && !activePlanId && grantedStep < 3) {
+            router.replace('/fertilizer/create/step1');
+            return;
+          }
+          if (!step2Completed && !activePlanId && grantedStep < 3) {
+            router.replace('/fertilizer/create/step2');
+            return;
+          }
+        }
+      }
+
+      pendingStepGrantRef.current = 0;
+      if (pageView !== 'wizard' || step !== targetStep) {
+        setPageView('wizard');
+        setStep(targetStep);
+      }
+      isInitialSync.current = false;
+      return;
+    }
+
+    // 5. Direct /fertilizer/:planId (without /stepX) -> default to step1
+    const barePlanMatch = pathname.match(/^\/fertilizer\/([^/]+)\/?$/);
+    if (barePlanMatch) {
+      const planId = barePlanMatch[1];
+      if (planId !== 'create' && planId !== 'summary') {
+        router.replace(`/fertilizer/step1/${planId}`);
+        return;
+      }
+    }
+
     isInitialSync.current = false;
   }, [
     pathname,
     pageView,
     step,
     activePlanId,
+    savedPlans,
     isStep1Valid,
     step2Completed,
+    loadPlan,
     loadPlanAndShowSummary,
     setPageView,
     setStep,
@@ -157,49 +232,57 @@ export default function FertilizerCatchAllPage() {
 
   // Route-aware navigation helpers
   const handleNavigateToRecords = () => {
+    clearErrors();
     router.push('/fertilizer');
   };
 
   const handleNavigateToCreateNew = () => {
+    clearErrors();
     pendingStepGrantRef.current = 0;
     createNewPlan();
     router.push('/fertilizer/create/step1');
   };
 
   const handleSelectPlanSummary = (planId: string) => {
+    clearErrors();
     loadPlanAndShowSummary(planId);
     router.push(`/fertilizer/summary/${planId}`);
   };
 
   const handleEditPlan = (planId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    clearErrors();
     pendingStepGrantRef.current = 3;
     loadPlanForEditing(planId);
-    router.push('/fertilizer/create/step3');
+    router.push(`/fertilizer/step1/${planId}`);
   };
 
   const handleStepNavSelect = (targetStep: 1 | 2 | 3 | 4) => {
+    clearErrors();
+    const getStepUrl = (s: number) =>
+      activePlanId ? `/fertilizer/step${s}/${activePlanId}` : `/fertilizer/create/step${s}`;
+
     if (targetStep > maxUnlockedStep && targetStep !== 4) {
       if (!isStep1Valid) {
         validateStep1();
         message.warning('Please fill all required Step 1 Farmer Details first.');
-        if (pathname !== '/fertilizer/create/step1') {
-          router.push('/fertilizer/create/step1');
+        if (pathname !== getStepUrl(1)) {
+          router.push(getStepUrl(1));
         }
         return;
       }
       if (targetStep === 3) {
         message.warning('Please select and continue from Step 2 Crop Selection first.');
-        if (pathname !== '/fertilizer/create/step2') {
-          router.push('/fertilizer/create/step2');
+        if (pathname !== getStepUrl(2)) {
+          router.push(getStepUrl(2));
         }
         return;
       }
     }
 
-    if (targetStep === 1) router.push('/fertilizer/create/step1');
-    else if (targetStep === 2) router.push('/fertilizer/create/step2');
-    else if (targetStep === 3) router.push('/fertilizer/create/step3');
+    if (targetStep === 1) router.push(getStepUrl(1));
+    else if (targetStep === 2) router.push(getStepUrl(2));
+    else if (targetStep === 3) router.push(getStepUrl(3));
     else if (targetStep === 4) {
       const id = activePlanId || userDetails.phone || 'record';
       router.push(`/fertilizer/summary/${id}`);
@@ -210,14 +293,16 @@ export default function FertilizerCatchAllPage() {
     const success = handleStep1Submit(e);
     if (success) {
       pendingStepGrantRef.current = 2;
-      router.push('/fertilizer/create/step2');
+      const targetUrl = activePlanId ? `/fertilizer/step2/${activePlanId}` : '/fertilizer/create/step2';
+      router.push(targetUrl);
     }
   };
 
   const handleCropSelectionAndProceed = (cropType: any) => {
     pendingStepGrantRef.current = 3;
     handleConfigureCrop(cropType);
-    router.push('/fertilizer/create/step3');
+    const targetUrl = activePlanId ? `/fertilizer/step3/${activePlanId}` : '/fertilizer/create/step3';
+    router.push(targetUrl);
   };
 
   const handleSummaryNavigation = () => {
@@ -290,14 +375,18 @@ export default function FertilizerCatchAllPage() {
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.3 }}
             >
-              {/* Step Navigation Tabs (Hidden for summary page) */}
+              {/* Step Navigation Tabs (Hidden for summary page, and on mobile when in Step 3 where dedicated mobile header is present) */}
               {step !== 4 && (
-                <StepNavigation
-                  currentStep={step}
-                  maxUnlockedStep={maxUnlockedStep}
-                  onSelectStep={handleStepNavSelect}
-                  stepsList={stepsList}
-                />
+                <div className={step === 3 ? 'hidden md:block' : 'block'}>
+                  <StepNavigation
+                    currentStep={step}
+                    maxUnlockedStep={maxUnlockedStep}
+                    onSelectStep={handleStepNavSelect}
+                    stepsList={stepsList}
+                    onOpenRecords={handleNavigateToRecords}
+                    savedPlansCount={savedPlans.length}
+                  />
+                </div>
               )}
 
               {/* Step 1: Farmer Parameters & Land Area (/fertilizer/create/step1) */}
@@ -334,7 +423,10 @@ export default function FertilizerCatchAllPage() {
                     cultivation={cultivation}
                     onSelectCrop={handleCropSelect}
                     onConfigureCrop={handleCropSelectionAndProceed}
-                    onBackToStep1={() => router.push('/fertilizer/create/step1')}
+                    onBackToStep1={() => {
+                      const targetUrl = activePlanId ? `/fertilizer/step1/${activePlanId}` : '/fertilizer/create/step1';
+                      router.push(targetUrl);
+                    }}
                   />
                 </motion.div>
               )}
@@ -363,9 +455,13 @@ export default function FertilizerCatchAllPage() {
                     activePhase={activePhase}
                     activePhaseMeta={activePhaseMeta}
                     handleRateChange={handleRateChange}
+                    handleRepairCostChange={handleRepairCostChange}
                     handleLabourChange={handleLabourChange}
                     handleMultiDayChangeActiveDay={handleMultiDayChangeActiveDay}
                     handleMultiDayLabourChange={handleMultiDayLabourChange}
+                    handleMultiDayHarvestChange={handleMultiDayHarvestChange}
+                    handleMultiDayGunnyBagsChange={handleMultiDayGunnyBagsChange}
+                    handleMultiDayTransportChange={handleMultiDayTransportChange}
                     handleFertilizerWithLabourChange={handleFertilizerWithLabourChange}
                     handleMandiChange={handleMandiChange}
                     handleToggleOptional={handleToggleOptional}
@@ -406,7 +502,8 @@ export default function FertilizerCatchAllPage() {
                       } else if (activePhaseIndex > 0) {
                         setActivePhaseIndex((prev) => prev - 1);
                       } else {
-                        router.push('/fertilizer/create/step2');
+                        const targetUrl = activePlanId ? `/fertilizer/step2/${activePlanId}` : '/fertilizer/create/step2';
+                        router.push(targetUrl);
                       }
                     }}
                     onNextPhase={() => {
@@ -449,9 +546,15 @@ export default function FertilizerCatchAllPage() {
                     savedPlans={savedPlans}
                     activePlanId={activePlanId}
                     onLoadPlan={handleSelectPlanSummary}
+                    onEditPhase={(phaseIdx: number) => {
+                      setActivePhaseIndex(phaseIdx);
+                      const targetUrl = activePlanId ? `/fertilizer/step3/${activePlanId}` : '/fertilizer/create/step3';
+                      router.push(targetUrl);
+                    }}
                     onBackToPhase5={() => {
                       setActivePhaseIndex(currentPhases.length - 1);
-                      router.push('/fertilizer/create/step3');
+                      const targetUrl = activePlanId ? `/fertilizer/step3/${activePlanId}` : '/fertilizer/create/step3';
+                      router.push(targetUrl);
                     }}
                     onOpenSavedRecords={handleNavigateToRecords}
                     onCreateNewRecord={handleNavigateToCreateNew}

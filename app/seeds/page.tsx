@@ -254,7 +254,22 @@ export default function TnauSeedsPage() {
   );
 
   return (
-    <div className="relative min-h-screen w-full">
+    <div className="relative min-h-screen w-full overflow-x-hidden">
+      {/* Background Photography Layer with Soft Vignette & Frosted Overlay */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out scale-105"
+        style={{
+          backgroundImage: `url('/images/crop.jpg')`,
+        }}
+      />
+      <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
+
+      {/* Subtle Atmospheric Glow */}
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden z-0">
+        <div className="absolute -top-28 left-1/4 w-[500px] h-[500px] rounded-full bg-emerald-500/10 blur-[130px]" />
+        <div className="absolute top-1/3 -right-20 w-[420px] h-[420px] rounded-full bg-amber-500/10 blur-[120px]" />
+      </div>
+
       <div className="relative z-10 space-y-6 sm:space-y-8 p-4 sm:p-6 lg:p-8 max-w-[1720px] w-full mx-auto animate-fade-in pb-24">
         {/* Dossier Top Banner */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 glass-panel rounded-2xl p-5 sm:p-7 shadow-2xl border border-border-light relative overflow-hidden">
@@ -609,22 +624,30 @@ export default function TnauSeedsPage() {
           footer={null}
           centered
           width={480}
+          destroyOnClose
+          className="seed-detail-modal"
           styles={{
             mask: {
-              backdropFilter: 'blur(2px) saturate(170%)',
-              WebkitBackdropFilter: 'blur(2px) saturate(170%)',
-              backgroundColor: isDark ? 'rgba(0, 0, 0, 0.65)' : 'rgba(15, 23, 42, 0.40)',
+              backdropFilter: 'blur(4px) saturate(160%)',
+              WebkitBackdropFilter: 'blur(4px) saturate(160%)',
+              backgroundColor: isDark ? 'rgba(2, 6, 23, 0.72)' : 'rgba(15, 23, 42, 0.45)',
+            },
+            container: {
+              backgroundColor: isDark ? 'rgba(11, 18, 32, 0.96)' : 'rgba(255, 255, 255, 0.98)',
+              backdropFilter: 'blur(14px) saturate(170%)',
+              WebkitBackdropFilter: 'blur(14px) saturate(170%)',
+              borderRadius: '1.5rem',
+              padding: 0,
+              overflow: 'hidden',
+              border: isDark ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid rgba(226, 232, 240, 0.8)',
+              boxShadow: isDark
+                ? '0 25px 60px -15px rgba(0, 0, 0, 0.7)'
+                : '0 25px 50px -12px rgba(15, 23, 42, 0.18)',
             },
             body: {
-              backgroundColor: isDark ? 'rgba(11, 18, 32, 0.75)' : 'rgba(255, 255, 255, 0.94)',
-              backdropFilter: 'blur(2px) saturate(170%)',
-              WebkitBackdropFilter: 'blur(2px) saturate(170%)',
+              padding: '24px',
+              backgroundColor: 'transparent',
               color: isDark ? '#f1f5f9' : '#0f172a',
-              borderRadius: '1.25rem',
-              border: isDark ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid rgba(203, 213, 225, 0.85)',
-              boxShadow: isDark
-                ? '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
-                : '0 20px 40px -12px rgba(15, 23, 42, 0.18)',
             },
           }}
         >

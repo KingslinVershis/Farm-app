@@ -10,6 +10,7 @@ interface MotionFreeScrollCarouselProps {
   className?: string;
   showArrows?: boolean;
   itemCount?: number;
+  helperText?: React.ReactNode;
 }
 
 export default function MotionFreeScrollCarousel({
@@ -18,6 +19,7 @@ export default function MotionFreeScrollCarousel({
   className = '',
   showArrows = true,
   itemCount,
+  helperText,
 }: MotionFreeScrollCarouselProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -131,9 +133,11 @@ export default function MotionFreeScrollCarousel({
       {/* Top Header Controls: Navigation Arrow Buttons & Status */}
       {showArrows && maxDrag > 0 && (
         <div className="flex items-center justify-between gap-3 mb-3 px-1">
-          <div className="flex items-center gap-2 text-xs font-semibold text-text-muted">
-            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
-            <span>Free scroll carousel • Drag or swipe horizontally</span>
+          <div className="flex items-center gap-2 text-xs font-semibold text-white/90 keep-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.85)]">
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse shadow-sm" />
+            <span className="carousel-helper-text text-white/90 keep-white">
+              {helperText || 'Free scroll carousel • Drag or swipe horizontally'}
+            </span>
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -142,7 +146,7 @@ export default function MotionFreeScrollCarousel({
               onClick={() => scrollBy(340)}
               disabled={!canScrollLeft}
               aria-label="Previous items"
-              className="w-8 h-8 rounded-xl glass-surface border border-border-light hover:border-sky-400/50 flex items-center justify-center text-text-secondary hover:text-sky-400 transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer shadow-sm active:scale-95"
+              className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 hover:border-sky-400/50 flex items-center justify-center text-white keep-white transition-all disabled:opacity-20 disabled:pointer-events-none cursor-pointer shadow-sm active:scale-95 backdrop-blur-md"
             >
               <ChevronLeftIcon size={16} />
             </button>
@@ -151,7 +155,7 @@ export default function MotionFreeScrollCarousel({
               onClick={() => scrollBy(-340)}
               disabled={!canScrollRight}
               aria-label="Next items"
-              className="w-8 h-8 rounded-xl glass-surface border border-border-light hover:border-sky-400/50 flex items-center justify-center text-text-secondary hover:text-sky-400 transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer shadow-sm active:scale-95"
+              className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 hover:border-sky-400/50 flex items-center justify-center text-white keep-white transition-all disabled:opacity-20 disabled:pointer-events-none cursor-pointer shadow-sm active:scale-95 backdrop-blur-md"
             >
               <ChevronRightIcon size={16} />
             </button>

@@ -69,7 +69,7 @@ export const Step2CropSelection: React.FC<Step2CropSelectionProps> = ({
               {t.step2.paddy.desc}
             </p>
 
-            <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-200/90 dark:bg-slate-900/80 p-3.5 mb-6 text-xs border border-slate-300 dark:border-white/10 shadow-sm">
+            <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-200/90 dark:bg-slate-900/80 p-3.5 text-xs border border-slate-300 dark:border-white/10 shadow-sm">
               <div>
                 <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{t.step2.duration}</div>
                 <div className="font-black text-sm text-slate-950 dark:text-slate-50 mt-1">{t.step2.paddy.durationVal}</div>
@@ -84,27 +84,14 @@ export const Step2CropSelection: React.FC<Step2CropSelectionProps> = ({
               </div>
             </div>
           </div>
-
-          <button
-            type="button"
-            id="btn-select-paddy"
-            onClick={(e) => {
-              e.stopPropagation();
-              onConfigureCrop('paddy');
-            }}
-            className="w-full rounded-xl py-3 text-sm font-black transition-all cursor-pointer flex items-center justify-center gap-2 bg-emerald-500 text-white keep-white shadow-glow hover:bg-emerald-400"
-          >
-            <span>{t.step2.paddy.btnText}</span>
-            <span>→</span>
-          </button>
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl glass-surface border border-white/10 mt-6 shadow-md">
         <button
           type="button"
           onClick={onBackToStep1}
-          className="w-full sm:w-auto rounded-xl bg-slate-200/95 hover:bg-slate-300 dark:bg-slate-800/95 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 px-5 py-2.5 text-sm font-extrabold text-slate-950 dark:text-white transition-all cursor-pointer shadow-sm"
+          className="w-full sm:w-auto rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 px-5 py-2.5 text-sm font-extrabold text-slate-950 dark:text-white transition-all cursor-pointer shadow-sm flex items-center justify-center gap-2"
         >
           {t.step2.backBtn}
         </button>
@@ -112,7 +99,7 @@ export const Step2CropSelection: React.FC<Step2CropSelectionProps> = ({
         <button
           type="button"
           onClick={() => onConfigureCrop('paddy')}
-          className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-2.5 text-sm font-black text-white keep-white shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-400 transition-all cursor-pointer flex items-center justify-center gap-2"
+          className="w-full sm:w-auto rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white keep-white px-6 py-2.5 text-sm font-black shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
         >
           <span>{t.step2.paddy.btnText || 'Configure Paddy Cultivation Expenses'}</span>
           <span>→</span>

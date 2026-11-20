@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
 import { getServerAuthenticatedUser, clearAuthCookies } from '@/lib/serverAuth';
+import cropHealthTranslations from '@/lib/data/cropHealthTranslations.json';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export interface CropHealthRecord {
   id: string;
@@ -9,6 +13,7 @@ export interface CropHealthRecord {
   nameEn: string;
   nameTa: string;
   controlMessage: string;
+  controlMessageEn?: string;
 }
 
 export interface CropHealthApiResponse {
@@ -55,6 +60,15 @@ function parseCropHealthHtml(html: string, type: 'disease' | 'pest'): CropHealth
     if (!crop && !nameEn && !controlMessage) return;
     if (crop) cropSet.add(crop);
 
+    const translationsMap = cropHealthTranslations as Record<string, string>;
+    const normalizedMsg = controlMessage.replace(/\s+/g, ' ').trim();
+    const controlMessageEn =
+      translationsMap[normalizedMsg] ||
+      translationsMap[controlMessage] ||
+      translationsMap[`${type}-${slNo}`] ||
+      translationsMap[`${crop}:${nameEn}`] ||
+      undefined;
+
     records.push({
       id: `${type}-${slNo}-${idx}`,
       slNo,
@@ -62,11 +76,94 @@ function parseCropHealthHtml(html: string, type: 'disease' | 'pest'): CropHealth
       nameEn,
       nameTa,
       controlMessage,
+      controlMessageEn: controlMessageEn && !isMostlyTamil(controlMessageEn) ? controlMessageEn : undefined,
     });
   });
 
   return records;
 }
+
+function isMostlyTamil(str?: string): boolean {
+  if (!str) return false;
+  const tamilCount = (str.match(/[\u0B80-\u0BFF]/g) || []).length;
+  return tamilCount > 10;
+}
+
+const translationMemoryCache = new Map<string, string>();
+
+async function translateChunkWithPost(slice: { index: number; text: string }[]): Promise<string[]> {
+  const combined = slice.map((item) => item.text.replace(/\r?\n+/g, ' ')).join(' \n###\n ');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const res = await fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=ta&tl=en&dt=t', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: 'q=' + encodeURIComponent(combined),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const raw = (json?.[0] || []).map((x: any) => x?.[0] || '').join('');
+    const split = raw.split(/\s*###\s*/);
+    if (split.length === slice.length) {
+      return split.map((s: string) => s.trim());
+    }
+    return slice.map((item, idx) => (split[idx] ? split[idx].trim() : item.text));
+  } catch (err) {
+    clearTimeout(timeout);
+    return slice.map((item) => item.text);
+  }
+}
+
+async function batchTranslateTamilToEnglish(texts: string[]): Promise<string[]> {
+  const results: string[] = new Array(texts.length);
+  const toTranslate: { index: number; text: string }[] = [];
+
+  texts.forEach((text, i) => {
+    const trimmed = (text || '').trim();
+    if (!trimmed) {
+      results[i] = '';
+    } else if (translationMemoryCache.has(trimmed)) {
+      results[i] = translationMemoryCache.get(trimmed)!;
+    } else {
+      toTranslate.push({ index: i, text: trimmed });
+    }
+  });
+
+  if (toTranslate.length === 0) return results;
+
+  const CHUNK_SIZE = 10;
+  const chunks: { index: number; text: string }[][] = [];
+  for (let i = 0; i < toTranslate.length; i += CHUNK_SIZE) {
+    chunks.push(toTranslate.slice(i, i + CHUNK_SIZE));
+  }
+
+  const CONCURRENCY = 4;
+  for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+    const batch = chunks.slice(i, i + CONCURRENCY);
+    const batchResults = await Promise.all(batch.map((chunk) => translateChunkWithPost(chunk)));
+
+    batch.forEach((chunk, bIdx) => {
+      const translatedChunk = batchResults[bIdx];
+      chunk.forEach((item, cIdx) => {
+        const trans = (translatedChunk[cIdx] || '').trim();
+        if (trans && !isMostlyTamil(trans)) {
+          translationMemoryCache.set(item.text, trans);
+          results[item.index] = trans;
+        } else {
+          results[item.index] = '';
+        }
+      });
+    });
+  }
+
+  return results;
+}
+
+const cropHealthCache = new Map<string, { data: CropHealthApiResponse; timestamp: number }>();
+const CROP_CACHE_TTL_MS = 10 * 60 * 1000; // 10 min TTL
 
 export async function GET(req: NextRequest) {
   const authUser = await getServerAuthenticatedUser(req);
@@ -82,6 +179,26 @@ export async function GET(req: NextRequest) {
   try {
     const rawType = req.nextUrl.searchParams.get('type');
     const type: 'disease' | 'pest' = rawType === 'pest' ? 'pest' : 'disease';
+
+    const cached = cropHealthCache.get(type);
+    const validTranslatedCount =
+      cached?.data?.records?.filter((r) => r.controlMessageEn && !isMostlyTamil(r.controlMessageEn)).length || 0;
+    const isCacheValid =
+      cached &&
+      cached.data?.records?.length > 0 &&
+      validTranslatedCount >= Math.floor(cached.data.records.length * 0.8) &&
+      Date.now() - cached.timestamp < CROP_CACHE_TTL_MS;
+
+    if (isCacheValid) {
+      return NextResponse.json(cached.data, {
+        headers: {
+          'X-Cache': 'HIT',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      });
+    }
 
     const res = await fetch(UPSTREAM_URLS[type], {
       next: { revalidate: 3600 },
@@ -99,6 +216,23 @@ export async function GET(req: NextRequest) {
     const records = parseCropHealthHtml(html, type);
     const crops = Array.from(new Set(records.map((r) => r.crop).filter(Boolean)));
 
+    // For any record missing English translation, attempt dynamic batch translation
+    const unTranslated = records.filter((r) => !r.controlMessageEn);
+    if (unTranslated.length > 0) {
+      try {
+        const textsToTranslate = unTranslated.map((r) => r.controlMessage);
+        const translatedList = await batchTranslateTamilToEnglish(textsToTranslate);
+        unTranslated.forEach((r, idx) => {
+          const trans = translatedList[idx];
+          if (trans && !isMostlyTamil(trans)) {
+            r.controlMessageEn = trans;
+          }
+        });
+      } catch (transErr) {
+        console.warn('[API /crop-health] Fallback translation skipped on error:', transErr);
+      }
+    }
+
     const payload: CropHealthApiResponse = {
       success: true,
       type,
@@ -107,7 +241,16 @@ export async function GET(req: NextRequest) {
       total: records.length,
     };
 
-    return NextResponse.json(payload);
+    cropHealthCache.set(type, { data: payload, timestamp: Date.now() });
+
+    return NextResponse.json(payload, {
+      headers: {
+        'X-Cache': 'MISS',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
+      },
+    });
   } catch (err: any) {
     console.error('[API /crop-health] error:', err);
     return NextResponse.json(

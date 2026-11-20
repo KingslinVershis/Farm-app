@@ -1,10 +1,20 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
+import { Dropdown, Select } from 'antd';
+import ParticleChart from '@/components/reactbits/ParticleChart';
+import PlanSummaryReflectiveCard, { CheckmarkBadgeIcon, FingerPrintIcon } from '@/components/reactbits/PlanSummaryReflectiveCard';
 import { DropletsIcon, SproutIcon, TractorIcon } from '@/components/icons/Icons';
 import { useLanguage } from '@/components/providers/LanguageProvider';
+import { useTheme } from '@/components/providers/ThemeProvider';
 import { formatCurrency as fmt, computeDailyLabourCost } from '@/lib/fertilizer/calc';
-import { printDossierAsPdf } from '@/lib/fertilizer/printDossier';
+import {
+  printDossierAsPdf,
+  printSimplePhaseSummaryPdf,
+  downloadSimplePhaseSummaryFile,
+  downloadSimplePhaseSummaryCsv,
+} from '@/lib/fertilizer/printDossier';
 import type {
   CultivationType,
   ExpenseEntry,
@@ -13,6 +23,52 @@ import type {
   SavedPlanRecord,
   UserDetails,
 } from '@/lib/fertilizer/types';
+
+const CheckCircleIcon: React.FC<{ size?: number; className?: string }> = ({ size = 16, className = '' }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <circle cx="12" cy="12" r="10" />
+    <path d="m9 12 2 2 4-4" />
+  </svg>
+);
+
+const MapPinIcon: React.FC<{ size?: number; className?: string }> = ({ size = 14, className = '' }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+    <circle cx="12" cy="10" r="3" />
+  </svg>
+);
+
+const SparkleIcon: React.FC<{ size?: number; className?: string }> = ({ size = 28, className = '' }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+  >
+    <path d="M12 0L14.6 9.4L24 12L14.6 14.6L12 24L9.4 14.6L0 12L9.4 9.4L12 0Z" />
+  </svg>
+);
 
 interface Step4ExecutiveSummaryProps {
   userDetails: UserDetails;
@@ -32,10 +88,361 @@ interface Step4ExecutiveSummaryProps {
   savedPlans: SavedPlanRecord[];
   activePlanId: string | null;
   onLoadPlan: (planId: string) => void;
+  onEditPhase?: (phaseIdx: number) => void;
   onBackToPhase5?: () => void;
   onOpenSavedRecords?: () => void;
   onCreateNewRecord?: () => void;
 }
+
+function getWorkBreakdownDetails(
+  task: ExpenseTask,
+  entry: ExpenseEntry | undefined,
+  isTamil: boolean
+): Array<{ label: string; value: string; icon?: string }> {
+  if (!entry) return [];
+  const lines: Array<{ label: string; value: string; icon?: string }> = [];
+
+  const isBagTask = task.id === 'p3_fert_dose3' || task.id === 'p2_fert_labour';
+  const isPesticide = task.id === 'p1_fert' || task.id === 'p2_tillering';
+
+  if (task.isGunnyBags) {
+    const isPlastic = entry.isPlasticBag !== false;
+    const bagType = isPlastic
+      ? (isTamil ? 'பிளாஸ்டிக் சாக்கு' : 'Plastic bags')
+      : (isTamil ? 'பாரம்பரிய சாக்கு' : 'Gunny bags');
+    const bCount = entry.bagCount ?? 0;
+    const bPrice = entry.bagPrice ?? (isPlastic ? 20 : 45);
+    lines.push({
+      icon: '🛍️',
+      label: bagType,
+      value: `${bCount} ${isTamil ? 'சாக்குகள்' : 'bags'} × ₹${fmt(bPrice)}`,
+    });
+  } else if (task.isTransportLoading) {
+    if ((entry.transportRent ?? 0) > 0) {
+      lines.push({
+        icon: '🚚',
+        label: isTamil ? 'வாகன வாடகை' : 'Transport Rent',
+        value: `₹${fmt(entry.transportRent ?? 0)}`,
+      });
+    }
+    const loadW = entry.loadingWorkers ?? 0;
+    const loadWage = entry.loadingWage ?? 0;
+    if (loadW > 0 || loadWage > 0) {
+      lines.push({
+        icon: '📦',
+        label: isTamil ? 'சுமை ஏற்றுதல் ஆட்கள்' : 'Loading Labour',
+        value: `${loadW} ${isTamil ? 'ஆட்கள்' : 'workers'} × ₹${fmt(loadWage)}`,
+      });
+    }
+    if ((entry.loadingSnacks ?? 0) > 0) {
+      lines.push({
+        icon: '☕',
+        label: isTamil ? 'சிற்றுண்டி' : 'Snacks',
+        value: `₹${fmt(entry.loadingSnacks ?? 0)}`,
+      });
+    }
+    if (lines.length === 0 && (entry.totalCost || entry.ratePerCent)) {
+      lines.push({
+        icon: '🚚',
+        label: isTamil ? 'போக்குவரத்து' : 'Transport',
+        value: `₹${fmt(entry.totalCost || entry.ratePerCent)}`,
+      });
+    }
+  } else if (task.isGrainYield) {
+    if (entry.yieldMode !== 'bags') {
+      lines.push({
+        icon: '🌾',
+        label: isTamil ? 'மகசூல் (டன்)' : 'Yield (Tons)',
+        value: `${entry.yieldTons ?? 0} T (${entry.bagWeightKg ?? 50} kg/${isTamil ? 'மூட்டை' : 'bag'})`,
+      });
+    }
+    lines.push({
+      icon: '💰',
+      label: isTamil ? 'தானிய விற்பனை' : 'Grain Sales',
+      value: `${entry.grainBagCount ?? 0} ${isTamil ? 'மூட்டைகள்' : 'bags'} × ₹${fmt(entry.grainBagPrice ?? 0)}`,
+    });
+  } else if (task.isStrawYield) {
+    lines.push({
+      icon: '🌾',
+      label: isTamil ? 'வைக்கோல் விற்பனை' : 'Straw Sales',
+      value: `${entry.strawSackCount ?? 0} ${isTamil ? 'கட்டுகள்' : 'sacks'} × ₹${fmt(entry.strawPrice ?? 0)}`,
+    });
+  } else if (task.isMandiTrip) {
+    lines.push({
+      icon: '🏪',
+      label: isTamil ? 'மண்டி செலவு' : 'Mandi Trips',
+      value: `${entry.mandiCount ?? 0} ${isTamil ? 'முறை' : 'trips'} × ₹${fmt(entry.mandiRate ?? 0)}`,
+    });
+  } else if (task.isFertilizerWithLabour) {
+    if (isBagTask) {
+      lines.push({
+        icon: '🌱',
+        label: isTamil ? 'உரம்' : 'Fertilizer',
+        value: `${entry.fertQty ?? 0} ${isTamil ? 'மூட்டை' : 'Bags'} × ₹${fmt(entry.fertPrice ?? 0)}`,
+      });
+    } else if (isPesticide) {
+      lines.push({
+        icon: '🧪',
+        label: isTamil ? 'பூச்சிக்கொல்லி' : 'Pesticide',
+        value: `${entry.fertQty ?? 0} L × ₹${fmt(entry.fertPrice ?? 0)}`,
+      });
+    } else {
+      lines.push({
+        icon: '🌱',
+        label: isTamil ? 'பொருட்கள்' : 'Material',
+        value: `${entry.fertQty ?? 0} × ₹${fmt(entry.fertPrice ?? 0)}`,
+      });
+    }
+
+    if (task.isMultiDayLabour && !entry.isMachineMode) {
+      const activeDays = (entry.dayEntries || []).filter(
+        (d) => d.labourCount > 0 || d.labourWage > 0 || d.snackCost > 0 || d.travelCost > 0
+      );
+      if (activeDays.length > 0) {
+        activeDays.forEach((d) => {
+          const dayCost = computeDailyLabourCost(d);
+          const extras: string[] = [];
+          if (d.snackCost > 0) extras.push(`+ ₹${fmt(d.snackCost)} ${isTamil ? 'சிற்றுண்டி' : 'snacks'}`);
+          if (d.travelCost > 0) extras.push(`+ ₹${fmt(d.travelCost)} ${isTamil ? 'பயணம்' : 'travel'}`);
+          lines.push({
+            icon: '👷',
+            label: `${isTamil ? 'நாள்' : 'Day'} ${d.day}`,
+            value: `${d.labourCount} ${isTamil ? 'ஆட்கள்' : 'workers'} × ₹${fmt(d.labourWage)} ${extras.join(' ')} (₹${fmt(dayCost)})`,
+          });
+        });
+      }
+    } else {
+      const lCount = entry.labourCount ?? 0;
+      const lWage = entry.labourWage ?? 0;
+      if (lCount > 0 || lWage > 0) {
+        lines.push({
+          icon: '👷',
+          label: isTamil ? 'கூலி ஆட்கள்' : 'Labour',
+          value: `${lCount} ${isTamil ? 'ஆட்கள்' : 'workers'} × ₹${fmt(lWage)}`,
+        });
+      }
+      if ((entry.snackCost ?? 0) > 0) {
+        lines.push({
+          icon: '☕',
+          label: isTamil ? 'சிற்றுண்டி' : 'Snacks',
+          value: `₹${fmt(entry.snackCost ?? 0)}`,
+        });
+      }
+      if ((entry.travelCost ?? 0) > 0) {
+        lines.push({
+          icon: '🚗',
+          label: isTamil ? 'பயணச் செலவு' : 'Travel',
+          value: `₹${fmt(entry.travelCost ?? 0)}`,
+        });
+      }
+    }
+  } else if (task.id === 'p1_nursery') {
+    lines.push({
+      icon: '🌱',
+      label: isTamil ? 'விதை செலவு' : 'Seeds Cost',
+      value: `₹${fmt(entry.ratePerCent)}`,
+    });
+    if (entry.hasTravelCost !== false && (entry.travelCost ?? 0) > 0) {
+      lines.push({
+        icon: '🚗',
+        label: isTamil ? 'விதை போக்குவரத்து' : 'Travel',
+        value: `₹${fmt(entry.travelCost ?? 0)}`,
+      });
+    }
+  } else if (task.id === 'p1_fuel') {
+    lines.push({
+      icon: '⛽',
+      label: isTamil ? 'எரிபொருள்' : 'Fuel',
+      value: `₹${fmt(entry.ratePerCent)}`,
+    });
+    if (entry.hasRepairCost && (entry.repairCost ?? 0) > 0) {
+      lines.push({
+        icon: '🔧',
+        label: isTamil ? 'பழுதுபார்த்தல்' : 'Repair',
+        value: `₹${fmt(entry.repairCost ?? 0)}${entry.mechanicName ? ` (${entry.mechanicName})` : ''}`,
+      });
+    }
+  } else if (task.isMultiDayLabour && !entry.isMachineMode) {
+    const activeDays = (entry.dayEntries || []).filter(
+      (d) => d.labourCount > 0 || d.labourWage > 0 || d.snackCost > 0 || d.travelCost > 0
+    );
+    if (activeDays.length > 0) {
+      activeDays.forEach((d) => {
+        const dayCost = computeDailyLabourCost(d);
+        const extras: string[] = [];
+        if (d.snackCost > 0) extras.push(`+ ₹${fmt(d.snackCost)} ${isTamil ? 'சிற்றுண்டி' : 'snacks'}`);
+        if (d.travelCost > 0) extras.push(`+ ₹${fmt(d.travelCost)} ${isTamil ? 'பயணம்' : 'travel'}`);
+        lines.push({
+          icon: '👷',
+          label: `${isTamil ? 'நாள்' : 'Day'} ${d.day}`,
+          value: `${d.labourCount} ${isTamil ? 'ஆட்கள்' : 'workers'} × ₹${fmt(d.labourWage)} ${extras.join(' ')} (₹${fmt(dayCost)})`,
+        });
+      });
+    }
+  } else if (task.isLabour) {
+    if (entry.isMachineMode) {
+      lines.push({
+        icon: '🚜',
+        label: isTamil ? 'இயந்திர வாடகை' : 'Machine Hire',
+        value: `₹${fmt(entry.ratePerCent)}`,
+      });
+    } else {
+      const lCount = entry.labourCount ?? 0;
+      const lWage = entry.labourWage ?? 0;
+      if (lCount > 0 || lWage > 0) {
+        lines.push({
+          icon: '👷',
+          label: isTamil ? 'கூலி ஆட்கள்' : 'Labour',
+          value: `${lCount} ${isTamil ? 'ஆட்கள்' : 'workers'} × ₹${fmt(lWage)}`,
+        });
+      }
+      if ((entry.snackCost ?? 0) > 0) {
+        lines.push({
+          icon: '☕',
+          label: isTamil ? 'சிற்றுண்டி' : 'Snacks',
+          value: `₹${fmt(entry.snackCost ?? 0)}`,
+        });
+      }
+      if ((entry.travelCost ?? 0) > 0) {
+        lines.push({
+          icon: '🚗',
+          label: isTamil ? 'பயணச் செலவு' : 'Travel',
+          value: `₹${fmt(entry.travelCost ?? 0)}`,
+        });
+      }
+    }
+  } else if (entry.totalCost > 0) {
+    lines.push({
+      icon: '💵',
+      label: isTamil ? 'செலவு' : 'Cost',
+      value: `₹${fmt(entry.ratePerCent || entry.totalCost)}`,
+    });
+  }
+
+  return lines;
+}
+
+const PhaseParticleBarChart: React.FC<{
+  phase: PhaseGroup;
+  tasks: ExpenseTask[];
+  expenseMap: Record<string, ExpenseEntry>;
+  getTaskMeta: (task: ExpenseTask) => { name: string; dayRange: string; description: string; costEstimateHint: string };
+  isDark: boolean;
+  isTamil: boolean;
+  mounted: boolean;
+}> = ({ phase, tasks, expenseMap, getTaskMeta, isDark, isTamil, mounted }) => {
+  if (!mounted) {
+    return (
+      <div className="w-full h-72 rounded-xl bg-black/10 dark:bg-white/[0.02] animate-pulse flex items-center justify-center text-xs text-text-muted">
+        Loading chart...
+      </div>
+    );
+  }
+
+  const chartData = tasks.map((task, idx) => {
+    const tMeta = getTaskMeta(task);
+    const entry = expenseMap[task.id];
+    const isSkipped = task.isOptional && entry?.isEnabled === false;
+    const cost = isSkipped ? 0 : (entry?.totalCost || 0);
+    const workIndex = idx + 1;
+    const breakdown = getWorkBreakdownDetails(task, entry, isTamil);
+
+    return {
+      label: String(workIndex),
+      value: cost,
+      fullName: tMeta.name,
+      dayRange: tMeta.dayRange,
+      breakdown,
+      isSkipped,
+      isProfit: phase.isProfitPhase,
+      workIndex,
+    };
+  });
+
+  return (
+    <div className="w-full py-2">
+      <ParticleChart
+        data={chartData}
+        accentColor={phase.color}
+        theme={isDark ? "dark" : "light"}
+        height={260}
+        barWidth={Math.max(48, Math.min(84, Math.floor(580 / Math.max(1, tasks.length))))}
+        grain={2.2}
+        spacing={2.8}
+        mound={0.6}
+        pour="stream"
+        arc={0.5}
+        speed={1.1}
+        gravity={1}
+        prefix="₹"
+        suffix=""
+        decimals={0}
+        summary={false}
+        values={true}
+        labels={true}
+        track={true}
+        baseline={true}
+        surface={false}
+        interactive={true}
+        renderTooltip={(hoveredIdx) => {
+          const d = chartData[hoveredIdx];
+          if (!d) return null;
+          return (
+            <div className="rounded-xl glass-panel p-3.5 shadow-2xl border border-slate-200/60 dark:border-white/20 text-xs space-y-2 backdrop-blur-md min-w-[250px] max-w-sm pointer-events-none bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-white">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="w-5 h-5 rounded-md flex items-center justify-center text-[11px] font-black text-white shrink-0 shadow-sm"
+                    style={{ backgroundColor: phase.color }}
+                  >
+                    {d.workIndex}
+                  </span>
+                  <div className="font-extrabold text-slate-900 dark:text-white text-xs line-clamp-2">
+                    {d.fullName}
+                  </div>
+                </div>
+                {d.dayRange && (
+                  <span className="text-[10px] text-slate-600 dark:text-slate-300 font-medium bg-black/5 dark:bg-black/40 px-1.5 py-0.5 rounded border border-black/5 dark:border-white/5 whitespace-nowrap shrink-0">
+                    {d.dayRange}
+                  </span>
+                )}
+              </div>
+
+              {d.isSkipped ? (
+                <div className="text-amber-600 dark:text-amber-400 font-semibold text-xs py-1">
+                  ⚠️ {isTamil ? 'தவிர்க்கப்பட்டது (₹0)' : 'Skipped (₹0)'}
+                </div>
+              ) : d.breakdown && d.breakdown.length > 0 ? (
+                <div className="pt-2 pb-1 border-t border-slate-200 dark:border-white/10 space-y-1.5">
+                  {d.breakdown.map((item: any, bIdx: number) => (
+                    <div key={bIdx} className="flex items-center justify-between gap-3 text-[11px]">
+                      <span className="text-slate-600 dark:text-slate-400 flex items-center gap-1.5 truncate font-medium">
+                        {item.icon && <span>{item.icon}</span>}
+                        <span>{item.label}:</span>
+                      </span>
+                      <span className="font-semibold text-slate-900 dark:text-white shrink-0">
+                        {item.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="pt-2 border-t border-slate-200 dark:border-white/10 flex items-center justify-between gap-4">
+                <span className="text-slate-600 dark:text-slate-400 font-bold text-xs">
+                  {d.isProfit ? (isTamil ? 'மொத்த வருவாய்' : 'Total Revenue') : (isTamil ? 'வேலை செலவு' : 'Work Cost')}:
+                </span>
+                <span className="font-black text-emerald-600 dark:text-emerald-400 text-sm font-mono">
+                  {d.isSkipped ? '₹0' : `₹${fmt(d.value)}`}
+                </span>
+              </div>
+            </div>
+          );
+        }}
+      />
+    </div>
+  );
+};
 
 export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
   userDetails,
@@ -55,14 +462,50 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
   savedPlans,
   activePlanId,
   onLoadPlan,
+  onEditPhase,
   onBackToPhase5,
   onOpenSavedRecords,
   onCreateNewRecord,
 }) => {
-  const { messages } = useLanguage();
+  const router = useRouter();
+  const { messages, locale } = useLanguage();
+  const isTamil = locale === 'ta';
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const t = messages.fertilizer;
   const [activePhaseIdx, setActivePhaseIdx] = React.useState<number>(0);
-  const [summaryView, setSummaryView] = React.useState<'all' | 'phase'>('all');
+  const [mounted, setMounted] = React.useState<boolean>(false);
+
+  const currentPlan = savedPlans.find((p) => String(p.id) === String(activePlanId));
+  const isPlanCompleted = currentPlan ? Boolean(currentPlan.isCompleted) : false;
+
+  // Complete location information string
+  const completeLocation = [
+    userDetails.address,
+    userDetails.village || userDetails.city,
+    userDetails.taluk,
+    userDetails.district,
+    userDetails.state,
+    userDetails.pincode ? `PIN: ${userDetails.pincode}` : '',
+  ]
+    .filter(Boolean)
+    .filter((item, idx, arr) => arr.indexOf(item) === idx)
+    .join(', ');
+
+  const completeInfo = completeLocation || userDetails.location || userDetails.address || 'Melakrishnaneri, Tenkasi, Tamil Nadu';
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleNavigateToPhase = (phaseIdx: number) => {
+    if (onEditPhase) {
+      onEditPhase(phaseIdx);
+    } else {
+      const targetUrl = activePlanId ? `/fertilizer/step3/${activePlanId}` : '/fertilizer/create/step3';
+      router.push(targetUrl);
+    }
+  };
 
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-in">
@@ -74,8 +517,14 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
               {t.step4.badge}
             </span>
             {activePlanId && (
-              <span className="rounded-full bg-cyan-500/15 dark:bg-cyan-500/20 px-2.5 py-0.5 text-[11px] font-bold text-cyan-800 dark:text-cyan-300 border border-cyan-500/40 dark:border-cyan-500/30">
-                💾 Stored Plan Record
+              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold border ${
+                isPlanCompleted
+                  ? 'bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border-emerald-500/40'
+                  : 'bg-cyan-500/15 dark:bg-cyan-500/20 text-cyan-800 dark:text-cyan-300 border-cyan-500/40'
+              }`}>
+                {isPlanCompleted
+                  ? (isTamil ? '✅ நிறைவுற்ற திட்டம்' : '✅ Finalized Plan')
+                  : (isTamil ? '💾 சேமிக்கப்பட்ட திட்டம்' : '💾 Stored Plan Record')}
               </span>
             )}
           </div>
@@ -87,6 +536,16 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {!isPlanCompleted && (
+            <button
+              type="button"
+              onClick={() => handleNavigateToPhase(activePhaseIdx)}
+              className="rounded-xl glass-surface px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 border border-emerald-500/30 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+            >
+              <span>✏️</span>
+              <span>{isTamil ? 'திட்டத்தைத் திருத்து' : 'Edit Plan'}</span>
+            </button>
+          )}
           {onOpenSavedRecords && (
             <button
               type="button"
@@ -97,6 +556,110 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
               <span>All Saved Records</span>
             </button>
           )}
+          {/* Download Cost Summary (Simple Phase 1-5 design) */}
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: 'pdf',
+                  icon: <span className="text-sm">📄</span>,
+                  label: (
+                    <span className="font-semibold text-xs">
+                      {isTamil ? 'PDF வடிவில் சேமி / அச்சிடு (A4)' : 'Save as PDF / Print (A4)'}
+                    </span>
+                  ),
+                  onClick: () =>
+                    printSimplePhaseSummaryPdf({
+                      activePlanId,
+                      userDetails,
+                      cultivation,
+                      totalCropDays,
+                      grandTotal,
+                      revenueTotal,
+                      netProfit,
+                      costPerCent,
+                      revenuePerCent,
+                      roiPercentage,
+                      currentPhases,
+                      phaseTotals,
+                      expenseMap,
+                      getPhaseMeta,
+                      getTaskMeta,
+                      isTamil,
+                    }),
+                },
+                {
+                  key: 'html',
+                  icon: <span className="text-sm">🌐</span>,
+                  label: (
+                    <span className="font-semibold text-xs">
+                      {isTamil ? 'HTML அறிக்கையாக பதிவிறக்கு' : 'Download HTML Report'}
+                    </span>
+                  ),
+                  onClick: () =>
+                    downloadSimplePhaseSummaryFile({
+                      activePlanId,
+                      userDetails,
+                      cultivation,
+                      totalCropDays,
+                      grandTotal,
+                      revenueTotal,
+                      netProfit,
+                      costPerCent,
+                      revenuePerCent,
+                      roiPercentage,
+                      currentPhases,
+                      phaseTotals,
+                      expenseMap,
+                      getPhaseMeta,
+                      getTaskMeta,
+                      isTamil,
+                    }),
+                },
+                {
+                  key: 'csv',
+                  icon: <span className="text-sm">📊</span>,
+                  label: (
+                    <span className="font-semibold text-xs">
+                      {isTamil ? 'CSV கோப்பாக பதிவிறக்கு' : 'Download CSV Spreadsheet'}
+                    </span>
+                  ),
+                  onClick: () =>
+                    downloadSimplePhaseSummaryCsv({
+                      activePlanId,
+                      userDetails,
+                      cultivation,
+                      totalCropDays,
+                      grandTotal,
+                      revenueTotal,
+                      netProfit,
+                      costPerCent,
+                      revenuePerCent,
+                      roiPercentage,
+                      currentPhases,
+                      phaseTotals,
+                      expenseMap,
+                      getPhaseMeta,
+                      getTaskMeta,
+                      isTamil,
+                    }),
+                },
+              ],
+            }}
+            trigger={['click']}
+            placement="bottomRight"
+          >
+            <button
+              type="button"
+              className="rounded-xl glass-surface px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 border border-emerald-500/30 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+              title={isTamil ? 'கட்ட வாரியான எளிய செலவு சுருக்கம் பதிவிறக்கு' : 'Download Simple Phase Cost Summary'}
+            >
+              <span>📥</span>
+              <span>{isTamil ? 'செலவு சுருக்கம்' : 'Download Summary'}</span>
+              <span className="text-[10px] opacity-60 ml-0.5">▾</span>
+            </button>
+          </Dropdown>
+
           <button
             type="button"
             onClick={() =>
@@ -116,6 +679,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
                 expenseMap,
                 getPhaseMeta,
                 getTaskMeta,
+                isTamil,
               })
             }
             className="rounded-xl glass-surface px-3.5 py-2 text-xs font-bold text-text-main hover:bg-white/10 border border-white/10 transition-all cursor-pointer"
@@ -125,213 +689,345 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
         </div>
       </div>
 
-      {/* Saved Records Quick Switcher in Step 4 */}
+      {/* Saved Records Dropdown Selector */}
       {savedPlans.length > 0 && (
-        <div className="rounded-xl glass-surface p-3 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="rounded-xl glass-surface p-3.5 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-sm">🗂️</span>
+            <span className="text-base">🗂️</span>
             <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
-              Saved Plans ({savedPlans.length}):
+              {isTamil ? 'சேமிக்கப்பட்ட திட்டங்கள்' : 'Saved Plans'} ({savedPlans.length}):
             </span>
           </div>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-thin">
-            {savedPlans.map((plan, idx) => {
-              const isCurrent = activePlanId === plan.id;
-              return (
-                <button
-                  key={plan.id}
-                  type="button"
-                  onClick={() => onLoadPlan(plan.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-2 border ${
-                    isCurrent
-                      ? 'bg-emerald-500 text-white keep-white border-emerald-400 shadow-md font-black'
-                      : 'glass-surface text-text-secondary hover:text-text-main hover:bg-white/10 border-white/10'
-                  }`}
-                >
-                  <span>#{savedPlans.length - idx} {plan.userDetails.name || 'Plan'}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded font-extrabold ${isCurrent ? 'bg-black/25 text-white keep-white' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                    {plan.userDetails.landSize}c
-                  </span>
-                  <span className={`text-[11px] ${isCurrent ? 'text-white keep-white font-extrabold' : 'text-emerald-700 dark:text-emerald-300'}`}>
-                    ₹{fmt(plan.totals.netProfit)}
-                  </span>
-                </button>
-              );
-            })}
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            <Select
+              value={activePlanId || (savedPlans[0]?.id ?? undefined)}
+              onChange={(val) => onLoadPlan(val)}
+              className="w-full sm:w-80 custom-antd-select"
+              dropdownMatchSelectWidth={false}
+              options={savedPlans.map((plan, idx) => ({
+                value: plan.id,
+                label: (
+                  <div className="flex items-center justify-between gap-3 py-0.5 text-xs">
+                    <span className="font-bold truncate">#{savedPlans.length - idx} {plan.userDetails.name || 'Plan'}</span>
+                    <span className="text-[10px] text-text-muted shrink-0 font-medium">{plan.userDetails.landSize}c</span>
+                    <span className="font-extrabold text-emerald-500 shrink-0">₹{fmt(plan.totals.netProfit)}</span>
+                  </div>
+                ),
+              }))}
+            />
           </div>
         </div>
       )}
 
-      {/* Dossier Meta + 3 High-Impact KPI Cards */}
+      {/* Dossier Meta + 3 High-Impact Reflective KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        {/* Farmer Plot Card */}
-        <div className="rounded-2xl glass-card glass-card-hover p-5 sm:p-6 shadow-xl flex flex-col justify-between">
-          <div>
-            <h3 className="font-display text-xs font-extrabold uppercase tracking-wider text-text-muted mb-4">
-              {t.step4.farmerDossier}
-            </h3>
-            <div className="space-y-2.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-text-muted">{t.step1.nameLabel}:</span>
-                <span className="font-bold text-text-main">{userDetails.name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-text-muted">{t.step4.mobile}</span>
-                <span className="font-bold text-text-main">+91 {userDetails.phone}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-text-muted">{t.step4.totalArea}</span>
-                <span className="font-extrabold text-emerald-700 dark:text-emerald-400">
-                  {userDetails.landSize} {messages.common.cents}
+        {/* Card 1: Farmer & Plot Parameters Card */}
+        <PlanSummaryReflectiveCard
+          videoSrc="/videos/fertilizer.mp4"
+          theme="dark"
+          tint="#ffffff"
+          metalness={0.9}
+          roughness={0.3}
+          blurStrength={6}
+          shine={1}
+          glare={0.5}
+          warp={0.5}
+          bevel={3}
+          radius={20}
+          enableTilt
+          height="100%"
+          className="min-h-[295px] shadow-xl"
+        >
+          <div className="h-full flex flex-col justify-between text-left select-none">
+            {/* Header: Checkmark icon + two-line title on left, Location badge on right */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full border border-white/30 flex items-center justify-center text-white shrink-0">
+                  <CheckCircleIcon size={12} />
                 </span>
+                <div className="leading-tight text-left">
+                  <div className="text-[11px] font-bold text-white">
+                    {isTamil ? 'விவசாயி & நில' : 'Farmer & Plot'}
+                  </div>
+                  <div className="text-[11px] font-bold text-white">
+                    {isTamil ? 'அளவுருக்கள்' : 'Parameters'}
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-text-muted">{t.step4.zone}</span>
-                <span className="font-medium text-text-main">{userDetails.location}</span>
+              <div
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold shadow-sm max-w-[210px] sm:max-w-[250px]"
+                title={completeInfo}
+              >
+                <MapPinIcon size={11} className="shrink-0 text-emerald-400" />
+                <span className="truncate">{completeInfo}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-text-muted">{t.step4.cropPackage}</span>
-                <span className="font-bold capitalize text-text-main">
+            </div>
+
+            {/* DETAILS AT CENTER: Name, Crop Type, Key-Values */}
+            <div className="my-auto py-2.5 space-y-2 text-left">
+              <div>
+                <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                  {userDetails.name || 'kings'}
+                </h3>
+                <p className="text-xs font-bold text-emerald-400 mt-0.5">
                   {cultivation} ({totalCropDays} {messages.common.days})
-                </span>
+                </p>
+              </div>
+
+              <div className="space-y-1 text-xs pt-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-white/70 font-medium">
+                    {t.step4.totalArea}:
+                  </span>
+                  <span className="font-extrabold text-emerald-400">
+                    {userDetails.landSize} {messages.common.cents}
+                  </span>
+                </div>
+                <div className="flex justify-between items-start gap-2">
+                  <span className="text-white/70 font-medium shrink-0 pt-0.5">
+                    {t.step4.zone}:
+                  </span>
+                  <span className="font-semibold text-slate-200 text-right line-clamp-2" title={completeInfo}>
+                    {completeInfo}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-white/70 font-medium">
+                    PIN:
+                  </span>
+                  <span className="font-semibold text-slate-200 font-mono">
+                    {userDetails.pincode || '627808'}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="mt-4 pt-3 border-t border-border-subtle text-[11px] text-text-secondary">
-            {userDetails.address}
-          </div>
-        </div>
 
-        {/* KPI 1: Total Outlay */}
-        <div className="rounded-2xl glass-card glass-card-hover border-amber-500/30 p-5 sm:p-6 shadow-xl relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute -right-4 -bottom-4 text-amber-500/5 pointer-events-none">
-            <SproutIcon size={120} />
-          </div>
-          <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-text-muted mb-1">
-              {t.step4.kpi1Title}
+            {/* Footer: MOBILE & Fingerprint tile */}
+            <div className="plan-reflective-card__footer !pt-2">
+              <div className="plan-reflective-card__id text-left">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-white/60">
+                  {t.step4.mobile || 'MOBILE:'}
+                </span>
+                <span className="text-sm font-bold text-white font-mono">
+                  +91 {userDetails.phone || '1111111111'}
+                </span>
+              </div>
+              <span className="plan-reflective-card__tile text-slate-300">
+                <FingerPrintIcon size={20} />
+              </span>
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400">
-              ₹{fmt(grandTotal)}
-            </div>
-            <p className="text-xs text-text-secondary mt-1">
-              {t.step4.kpi1Desc}
-            </p>
           </div>
-          <div className="mt-4 rounded-xl glass-surface px-3 py-2 text-xs flex justify-between border border-white/5">
-            <span className="text-text-muted">{t.step4.costRateLabel}</span>
-            <span className="font-bold text-amber-700 dark:text-amber-400">
-              ₹{fmt(costPerCent)} / {messages.common.cents}
-            </span>
-          </div>
-        </div>
+        </PlanSummaryReflectiveCard>
 
-        {/* KPI 2: Gross Revenue */}
-        <div className="rounded-2xl glass-card glass-card-hover border-cyan-500/30 p-5 sm:p-6 shadow-xl relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute -right-4 -bottom-4 text-cyan-500/5 pointer-events-none">
-            <TractorIcon size={120} />
-          </div>
-          <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-text-muted mb-1">
-              {t.step4.kpi2Title}
+        {/* Card 2: Total Cultivation Outlay */}
+        <PlanSummaryReflectiveCard
+          videoSrc="/videos/fertilizer.mp4"
+          theme="dark"
+          tint="#f59e0b"
+          metalness={0.9}
+          roughness={0.3}
+          blurStrength={6}
+          shine={1}
+          glare={0.5}
+          warp={0.5}
+          bevel={3}
+          radius={20}
+          enableTilt
+          height="100%"
+          className="min-h-[295px] shadow-xl"
+        >
+          <div className="h-full flex flex-col justify-between text-left select-none">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-white">
+                <SproutIcon size={18} className="text-amber-400 shrink-0" />
+                <span className="text-xs font-bold leading-tight">
+                  {isTamil ? t.step4.kpi1Title : 'Total Cultivation Outlay'}
+                </span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/35 text-amber-300 text-[11px] font-bold shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_6px_#f59e0b]" />
+                Cost
+              </div>
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-cyan-600 dark:text-cyan-400">
-              ₹{fmt(revenueTotal)}
-            </div>
-            <p className="text-xs text-text-secondary mt-1">
-              {t.step4.kpi2Desc}
-            </p>
-          </div>
-          <div className="mt-4 rounded-xl glass-surface px-3 py-2 text-xs flex justify-between border border-white/5">
-            <span className="text-text-muted">{t.step4.revenueRateLabel}</span>
-            <span className="font-bold text-cyan-700 dark:text-cyan-400">
-              ₹{fmt(revenuePerCent)} / {messages.common.cents}
-            </span>
-          </div>
-        </div>
 
-        {/* KPI 3: Net Profit */}
-        <div className="rounded-2xl glass-card glass-card-hover border-emerald-500/40 p-5 sm:p-6 shadow-xl relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute -right-4 -bottom-4 text-emerald-500/10 pointer-events-none">
-            <DropletsIcon size={120} />
-          </div>
-          <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-1">
-              {t.step4.kpi3Title}
+            {/* DETAILS AT CENTER */}
+            <div className="my-auto py-2.5 space-y-1 text-left">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-white/60">
+                {isTamil ? 'மொத்த சாகுபடி செலவு' : 'TOTAL CULTIVATION OUTLAY'}
+              </div>
+              <div className="text-3xl sm:text-4xl font-black text-amber-400 tracking-tight my-1 drop-shadow-sm">
+                ₹{fmt(grandTotal)}
+              </div>
+              <p className="text-xs text-white/70 leading-relaxed line-clamp-2">
+                {t.step4.kpi1Desc || 'Comprehensive cost across operations'}
+              </p>
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">
-              ₹{fmt(netProfit)}
+
+            {/* Footer */}
+            <div className="plan-reflective-card__footer !pt-2">
+              <div className="plan-reflective-card__id text-left">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-white/60">
+                  COST / CENT
+                </span>
+                <span className="text-sm font-black text-white font-mono">
+                  ₹{fmt(costPerCent)}
+                </span>
+              </div>
+              <span className="plan-reflective-card__tile text-amber-400">
+                <SproutIcon size={20} />
+              </span>
             </div>
-            <p className="text-xs text-text-secondary mt-1">
-              {t.step4.kpi3Desc}
-            </p>
           </div>
-          <div className="mt-4 rounded-xl bg-emerald-500/15 dark:bg-emerald-500/15 border border-emerald-500/30 px-3 py-2 text-xs flex justify-between">
-            <span className="font-semibold text-text-main">{t.step4.roiLabel}</span>
-            <span className="font-extrabold text-emerald-800 dark:text-emerald-300">
-              {roiPercentage > 0 ? `+${roiPercentage}%` : `${roiPercentage}%`} ROI
-            </span>
+        </PlanSummaryReflectiveCard>
+
+        {/* Card 3: Gross Revenue Realization (Ph 5) */}
+        <PlanSummaryReflectiveCard
+          videoSrc="/videos/fertilizer.mp4"
+          theme="dark"
+          tint="#06b6d4"
+          metalness={0.9}
+          roughness={0.3}
+          blurStrength={6}
+          shine={1}
+          glare={0.5}
+          warp={0.5}
+          bevel={3}
+          radius={20}
+          enableTilt
+          height="100%"
+          className="min-h-[295px] shadow-xl"
+        >
+          <div className="h-full flex flex-col justify-between text-left select-none">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-white">
+                <TractorIcon size={18} className="text-cyan-400 shrink-0" />
+                <span className="text-xs font-bold leading-tight">
+                  {isTamil ? t.step4.kpi2Title : 'Gross Revenue Realization (Ph 5)'}
+                </span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/35 text-cyan-300 text-[11px] font-bold shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#06b6d4]" />
+                Yield
+              </div>
+            </div>
+
+            {/* DETAILS AT CENTER */}
+            <div className="my-auto py-2.5 space-y-1 text-left">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-white/60">
+                {isTamil ? 'மொத்த வருவாய் உணர்தல் (கட்டம் 5)' : 'GROSS REVENUE REALIZATION (PH 5)'}
+              </div>
+              <div className="text-3xl sm:text-4xl font-black text-cyan-400 tracking-tight my-1 drop-shadow-sm">
+                ₹{fmt(revenueTotal)}
+              </div>
+              <p className="text-xs text-white/70 leading-relaxed line-clamp-2">
+                {t.step4.kpi2Desc || 'Yield & by-product commercial sales across plot'}
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="plan-reflective-card__footer !pt-2">
+              <div className="plan-reflective-card__id text-left">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-white/60">
+                  REVENUE / CENT
+                </span>
+                <span className="text-sm font-black text-white font-mono">
+                  ₹{fmt(revenuePerCent)}
+                </span>
+              </div>
+              <span className="plan-reflective-card__tile text-cyan-400">
+                <TractorIcon size={20} />
+              </span>
+            </div>
           </div>
-        </div>
+        </PlanSummaryReflectiveCard>
+
+        {/* Card 4: Net Farm Profit & ROI */}
+        <PlanSummaryReflectiveCard
+          videoSrc="/videos/fertilizer.mp4"
+          theme="dark"
+          tint="#10b981"
+          metalness={0.9}
+          roughness={0.3}
+          blurStrength={6}
+          shine={1}
+          glare={0.5}
+          warp={0.5}
+          bevel={3}
+          radius={20}
+          enableTilt
+          height="100%"
+          className="min-h-[295px] shadow-xl"
+        >
+          <div className="h-full flex flex-col justify-between text-left select-none">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-white">
+                <DropletsIcon size={18} className="text-emerald-400 shrink-0" />
+                <span className="text-xs font-bold leading-tight">
+                  {isTamil ? t.step4.kpi3Title : 'Net Farm Profit & ROI'}
+                </span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 text-[11px] font-bold shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]" />
+                Return
+              </div>
+            </div>
+
+            {/* DETAILS AT CENTER */}
+            <div className="relative my-auto py-2.5 space-y-1 text-left">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-white/60">
+                {isTamil ? 'நிகர பண்ணை லாபம் & ROI' : 'NET FARM PROFIT & ROI'}
+              </div>
+              <div className="text-3xl sm:text-4xl font-black text-emerald-400 tracking-tight my-1 drop-shadow-sm">
+                ₹{fmt(netProfit)}
+              </div>
+              <p className="text-xs text-white/70 leading-relaxed line-clamp-2 pr-7">
+                {t.step4.kpi3Desc || 'Net profit after deducting all inputs, labour, tractor, fertilizers & operations'}
+              </p>
+              <span className="absolute right-0 bottom-1 text-emerald-300/40 pointer-events-none">
+                <SparkleIcon size={30} />
+              </span>
+            </div>
+
+            {/* Footer */}
+            <div className="plan-reflective-card__footer !pt-2">
+              <div className="plan-reflective-card__id text-left">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-white/60">
+                  PROFIT RATIO
+                </span>
+                <span className="text-sm font-black text-white font-mono">
+                  {roiPercentage}%
+                </span>
+              </div>
+              <span className="plan-reflective-card__tile text-emerald-400">
+                <DropletsIcon size={20} />
+              </span>
+            </div>
+          </div>
+        </PlanSummaryReflectiveCard>
       </div>
 
       {/* Phase-wise Distribution Bar */}
       <div className="rounded-2xl glass-panel p-5 sm:p-6 shadow-2xl">
         <h3 className="font-display text-sm sm:text-base font-bold text-text-main mb-4 flex items-center justify-between">
           <span>{t.step4.distributionTitle}</span>
-          <div className="flex items-center gap-2">
-            {/* All / Phase Switch */}
-            <div className="flex rounded-xl glass-surface p-1 shadow-inner border border-white/10">
-              <button
-                type="button"
-                onClick={() => setSummaryView('all')}
-                className={`rounded-lg px-3 py-1 text-xs font-bold transition-all cursor-pointer ${
-                  summaryView === 'all' ? 'bg-emerald-500 text-white keep-white shadow-sm' : 'text-text-secondary hover:text-text-main'
-                }`}
-              >
-                All
-              </button>
-              <button
-                type="button"
-                onClick={() => setSummaryView('phase')}
-                className={`rounded-lg px-3 py-1 text-xs font-bold transition-all cursor-pointer ${
-                  summaryView === 'phase' ? 'bg-emerald-500 text-white keep-white shadow-sm' : 'text-text-secondary hover:text-text-main'
-                }`}
-              >
-                Phases
-              </button>
-            </div>
-            <span className="text-xs font-normal text-text-muted">
-              {currentPhases.length} {messages.common.phases}
-            </span>
-          </div>
+          <span className="text-xs font-normal text-text-muted">
+            {currentPhases.length} {messages.common.phases}
+          </span>
         </h3>
-        <div className="h-3.5 rounded-full overflow-hidden flex bg-black/40 mb-4 p-0.5 border border-white/5">
-          {currentPhases.map((phase) => {
-            const pTot = phaseTotals[phase.id]?.total || 0;
-            const pct = grandTotal > 0 ? (pTot / grandTotal) * 100 : 0;
-            if (pct <= 0) return null;
-            return (
-              <div
-                key={phase.id}
-                className="h-full rounded-sm transition-all first:rounded-l-full last:rounded-r-full"
-                style={{ width: `${pct}%`, backgroundColor: phase.color }}
-                title={`${phase.name}: ₹${fmt(pTot)} (${pct.toFixed(1)}%)`}
-              />
-            );
-          })}
-        </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
           {currentPhases.map((phase, idx) => {
             const pMeta = getPhaseMeta(phase);
             const pTot = phaseTotals[phase.id]?.total || 0;
             const pct = grandTotal > 0 ? ((pTot / grandTotal) * 100).toFixed(1) : '0';
-            const isSelected = summaryView === 'phase' && activePhaseIdx === idx;
+            const isSelected = activePhaseIdx === idx;
             return (
               <button
                 type="button"
                 key={phase.id}
-                onClick={() => { setActivePhaseIdx(idx); setSummaryView('phase'); }}
+                onClick={() => setActivePhaseIdx(idx)}
                 className={`rounded-xl border p-3 text-xs flex flex-col justify-between text-left transition-all cursor-pointer ${
                   isSelected
                     ? 'glass-panel ring-2 ring-emerald-500/50 bg-emerald-950/40 border-emerald-500 shadow-lg scale-[1.02]'
@@ -354,8 +1050,8 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
         </div>
       </div>
 
-      {/* Individual Phase Audit Breakdown — only in Phase mode */}
-      {summaryView === 'phase' && (() => {
+      {/* Individual Phase Audit Breakdown — Always rendered as Simple Bar Chart */}
+      {(() => {
         const selectedPhase = currentPhases[activePhaseIdx] || currentPhases[0];
         const selectedPhaseMeta = getPhaseMeta(selectedPhase);
         return (
@@ -381,7 +1077,17 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 self-start sm:self-auto">
+              <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                {!isPlanCompleted && (
+                  <button
+                    type="button"
+                    onClick={() => handleNavigateToPhase(activePhaseIdx)}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-600 dark:text-emerald-300 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
+                  >
+                    <span>✏️</span>
+                    <span>{isTamil ? 'கட்டத்தை திருத்து' : 'Edit Phase'}</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={activePhaseIdx === 0}
@@ -401,166 +1107,18 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {selectedPhase.tasks.map((task) => {
-                const tMeta = getTaskMeta(task);
-                const entry = expenseMap[task.id] || {
-                  ratePerCent: 0,
-                  days: task.defaultDays,
-                  totalCost: 0,
-                  costPerDay: 0,
-                };
-                const isSkipped = task.isOptional && entry.isEnabled === false;
-                return (
-                  <div
-                    key={task.id}
-                    className={`rounded-xl glass-surface border border-white/5 p-3.5 flex flex-col justify-between transition-all hover:border-white/15 ${
-                      isSkipped ? 'opacity-50' : ''
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <span className={`font-bold text-xs line-clamp-1 ${isSkipped ? 'line-through text-text-muted' : 'text-text-main'}`}>
-                          {tMeta.name}
-                        </span>
-                        <span className="text-[10px] text-text-muted font-medium rounded px-1.5 py-0.2 bg-black/20 border border-white/5 whitespace-nowrap">
-                          {tMeta.dayRange}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-text-muted line-clamp-2 leading-relaxed">{tMeta.description}</p>
-                    </div>
-                    <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between">
-                      <span className="text-[11px] text-text-secondary pr-2">
-                        {isSkipped ? (
-                          <span className="text-amber-400 font-semibold">{t.step3.skipped || 'Skipped (₹0)'}</span>
-                        ) : task.isFertilizerWithLabour ? (
-                          <span className="flex flex-col text-[10px] text-text-secondary leading-tight">
-                            <span>🌱 {task.id === 'p3_fert_dose3' ? 'Bags' : 'Qty'}: {entry.fertQty ?? 0} × ₹{fmt(entry.fertPrice ?? 0)}</span>
-                            <span>
-                              👷 Labour: {entry.labourCount ?? 0} × ₹{fmt(entry.labourWage ?? 0)}
-                              {(entry.snackCost ?? 0) > 0 ? ` + ₹${fmt(entry.snackCost ?? 0)} snacks` : ''}
-                              {(entry.travelCost ?? 0) > 0 ? ` + ₹${fmt(entry.travelCost ?? 0)} travel` : ''}
-                            </span>
-                          </span>
-                        ) : task.isMultiDayLabour && !entry.isMachineMode ? (
-                          <span className="flex flex-col text-[10px] text-text-secondary leading-tight gap-0.5">
-                            {(entry.dayEntries || [])
-                              .filter((d) => d.labourCount > 0 || d.labourWage > 0 || d.snackCost > 0 || d.travelCost > 0)
-                              .map((d) => (
-                                <span key={d.day}>
-                                  Day {d.day}: {d.labourCount} workers × ₹{fmt(d.labourWage)}
-                                  {d.snackCost > 0 ? ` + ₹${fmt(d.snackCost)} snacks` : ''}
-                                  {d.travelCost > 0 ? ` + ₹${fmt(d.travelCost)} travel` : ''} (₹{fmt(computeDailyLabourCost(d))})
-                                </span>
-                              ))}
-                          </span>
-                        ) : task.isLabour ? (
-                          entry.isMachineMode ? (
-                            `🚜 Machine: ₹${fmt(entry.ratePerCent)}`
-                          ) : (
-                            `${entry.labourCount ?? 0} workers × ₹${fmt(entry.labourWage ?? 0)}${
-                              task.hasSnacks && (entry.snackCost ?? 0) > 0 ? ` + ₹${fmt(entry.snackCost ?? 0)} snacks` : ''
-                            }${task.hasTravel && (entry.travelCost ?? 0) > 0 ? ` + ₹${fmt(entry.travelCost ?? 0)} travel` : ''}`
-                          )
-                        ) : task.isGunnyBags ? (
-                          `${entry.bagCount ?? 0} ${entry.isPlasticBag !== false ? 'plastic' : 'traditional'} bags × ₹${fmt(entry.bagPrice ?? 0)}`
-                        ) : task.isTransportLoading ? (
-                          `Rent ₹${fmt(entry.transportRent ?? 0)} + Load (${entry.loadingWorkers ?? 0} × ₹${fmt(entry.loadingWage ?? 0)}) + ₹${fmt(entry.loadingSnacks ?? 0)} snacks`
-                        ) : task.isGrainYield ? (
-                          entry.yieldMode !== 'bags'
-                            ? `${entry.yieldTons ?? 0} T → ${entry.grainBagCount ?? 0} bags (${entry.bagWeightKg ?? 0} kg/bag) × ₹${fmt(entry.grainBagPrice ?? 0)}`
-                            : `${entry.grainBagCount ?? 0} bags × ₹${fmt(entry.grainBagPrice ?? 0)}`
-                        ) : task.isStrawYield ? (
-                          `${entry.strawSackCount ?? 0} sacks × ₹${fmt(entry.strawPrice ?? 0)}`
-                        ) : task.isMandiTrip ? (
-                          `${entry.mandiCount ?? 0} trips × ₹${fmt(entry.mandiRate ?? 0)}`
-                        ) : task.id === 'p1_nursery' ? (
-                          `Seed: ₹${fmt(entry.ratePerCent)}${entry.hasTravelCost !== false && (entry.travelCost ?? 0) > 0 ? ` + ₹${fmt(entry.travelCost ?? 0)} travel` : ''}`
-                        ) : (
-                          `Cost: ₹${fmt(entry.ratePerCent)}`
-                        )}
-                      </span>
-                      <span
-                        className={`text-sm font-black whitespace-nowrap ${
-                          isSkipped
-                            ? 'text-text-muted'
-                            : selectedPhase.isProfitPhase
-                              ? 'text-emerald-700 dark:text-emerald-400'
-                              : 'text-emerald-700 dark:text-emerald-300'
-                        }`}
-                      >
-                        ₹{fmt(isSkipped ? 0 : entry.totalCost)}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <PhaseParticleBarChart
+              phase={selectedPhase}
+              tasks={selectedPhase.tasks}
+              expenseMap={expenseMap}
+              getTaskMeta={getTaskMeta}
+              isDark={isDark}
+              isTamil={isTamil}
+              mounted={mounted}
+            />
           </div>
         );
       })()}
-
-      {/* All Phases Overview — only in All mode */}
-      {summaryView === 'all' && (
-        <div className="space-y-4">
-          {currentPhases.map((phase) => {
-            const pMeta = getPhaseMeta(phase);
-            const pTot = phaseTotals[phase.id]?.total || 0;
-            return (
-              <div key={phase.id} className="rounded-2xl glass-table-panel overflow-hidden shadow-xl">
-                <div
-                  className="flex items-center justify-between px-5 py-3 border-b border-border-subtle"
-                  style={{ backgroundColor: phase.bgSoft }}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="font-extrabold text-xs uppercase tracking-wider" style={{ color: phase.color }}>{pMeta.month}</span>
-                    <span className="font-bold text-sm text-text-main">{pMeta.name}</span>
-                    <span className="text-[11px] text-text-muted">{pMeta.daySpan}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-text-muted">{phase.tasks.length} tasks</span>
-                    <span className="font-extrabold text-base" style={{ color: phase.color }}>₹{fmt(pTot)}</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 p-4">
-                  {phase.tasks.map((task) => {
-                    const tMeta = getTaskMeta(task);
-                    const entry = expenseMap[task.id] || {
-                      ratePerCent: 0,
-                      days: task.defaultDays,
-                      totalCost: 0,
-                      costPerDay: 0,
-                    };
-                    const isSkipped = task.isOptional && entry.isEnabled === false;
-                    return (
-                      <div
-                        key={task.id}
-                        className={`rounded-xl glass-surface border border-white/5 p-3 flex items-center justify-between gap-2 ${
-                          isSkipped ? 'opacity-40' : ''
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <div className={`text-xs font-bold line-clamp-1 ${isSkipped ? 'line-through text-text-muted' : 'text-text-main'}`}>
-                            {tMeta.name}
-                          </div>
-                          <div className="text-[10px] text-text-muted truncate mt-0.5">{tMeta.dayRange}</div>
-                        </div>
-                        <div
-                          className={`text-sm font-black whitespace-nowrap shrink-0 ${
-                            isSkipped ? 'text-text-muted' : phase.isProfitPhase ? 'text-emerald-700 dark:text-emerald-400' : 'text-emerald-700 dark:text-emerald-300'
-                          }`}
-                        >
-                          ₹{fmt(isSkipped ? 0 : entry.totalCost)}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 };

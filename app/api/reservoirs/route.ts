@@ -74,6 +74,9 @@ function parseNum(val: string | number | null | undefined): number {
   return isNaN(parsed) ? 0 : parsed;
 }
 
+const reservoirCache = new Map<string, { data: ReservoirsResponse; timestamp: number }>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes in-memory cache
+
 export async function GET(request: NextRequest) {
   const authUser = await getServerAuthenticatedUser(request);
   if (!authUser?.id) {
@@ -87,6 +90,18 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const dateParam = searchParams.get('date')?.trim();
+  const cacheKey = dateParam || 'today';
+
+  // Fast In-Memory Cache Return (< 2ms)
+  const cached = reservoirCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return NextResponse.json(cached.data, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        'X-Cache': 'HIT',
+      },
+    });
+  }
 
   // Official JSON API endpoint
   const targetUrl = dateParam
@@ -95,7 +110,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000); // 12s timeout
+    const timeout = setTimeout(() => controller.abort(), 7000); // 7s timeout
 
     const res = await fetch(targetUrl, {
       signal: controller.signal,
@@ -213,13 +228,27 @@ export async function GET(request: NextRequest) {
       reservoirs,
     };
 
+    // Store in-memory cache for fast repeated visits & instant page transitions
+    reservoirCache.set(cacheKey, { data: payload, timestamp: Date.now() });
+
     return NextResponse.json(payload, {
       headers: {
         'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        'X-Cache': 'MISS',
       },
     });
   } catch (error: any) {
     console.error('Error fetching reservoir data from tnagriculture.in:', error);
+
+    // If we have stale cache, serve it immediately rather than breaking the UI
+    if (cached) {
+      return NextResponse.json(cached.data, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+          'X-Cache': 'STALE-FALLBACK',
+        },
+      });
+    }
 
     // Return empty array when no data is available or extraction fails as requested
     return NextResponse.json({

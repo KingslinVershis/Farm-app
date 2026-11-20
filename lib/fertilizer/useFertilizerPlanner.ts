@@ -33,10 +33,46 @@ const DEFAULT_USER_DETAILS: UserDetails = {
   address: '',
 };
 
+const toSafeNum = (val: unknown, fallback = 0): number => {
+  const n = Number(val);
+  return isNaN(n) ? fallback : Math.max(0, n);
+};
+
+export function sanitizeUserDetails(userDetails?: Partial<UserDetails> | null): UserDetails {
+  return {
+    name: userDetails?.name || '',
+    phone: userDetails?.phone || '',
+    landSize: toSafeNum(userDetails?.landSize),
+    state: userDetails?.state || 'Tamil Nadu',
+    district: userDetails?.district || '',
+    city: userDetails?.city || '',
+    village: userDetails?.village || '',
+    address: userDetails?.address || '',
+  };
+}
+
 /** Checks whether a single task entry has been filled (optional tasks do not block phase progression). */
 export function isTaskEntryFilled(task: ExpenseTask, entry?: ExpenseEntry): boolean {
   if (task.isOptional) return true;
   if (!entry) return false;
+
+  const days = Array.isArray(entry.dayEntries) ? entry.dayEntries : [];
+  const anyDay = (pred: (d: DailyLabourEntry) => boolean) => days.some(pred);
+
+  if (task.id === 'p4_harvest') {
+    return (entry.ratePerCent ?? 0) > 0 || anyDay((d) => (d.ratePerCent ?? 0) > 0);
+  }
+  if (task.isGunnyBags) {
+    const isBagFilled = (c?: number, p?: number) => (c ?? 0) > 0 && (p ?? 0) > 0;
+    return isBagFilled(entry.bagCount, entry.bagPrice) || anyDay((d) => isBagFilled(d.bagCount, d.bagPrice));
+  }
+  if (task.isTransportLoading) {
+    const isTransFilled = (b?: number) => (b ?? 0) > 0;
+    return (
+      isTransFilled(entry.bagCount ?? entry.transportRent) ||
+      anyDay((d) => isTransFilled(d.bagCount ?? d.transportRent))
+    );
+  }
   if (task.isFertilizerWithLabour) {
     return (
       ((entry.fertQty ?? 0) > 0 && (entry.fertPrice ?? 0) > 0) ||
@@ -44,26 +80,16 @@ export function isTaskEntryFilled(task: ExpenseTask, entry?: ExpenseEntry): bool
     );
   }
   if (task.isMultiDayLabour && !entry.isMachineMode) {
-    const entries = entry.dayEntries || [];
-    return entries.some((d) => (d.labourCount ?? 0) > 0 && (d.labourWage ?? 0) > 0);
+    const hasLabour = (c?: number, w?: number) => (c ?? 0) > 0 && (w ?? 0) > 0;
+    return hasLabour(entry.labourCount, entry.labourWage) || anyDay((d) => hasLabour(d.labourCount, d.labourWage));
   }
   if (task.isLabour && !entry.isMachineMode) {
     return (entry.labourCount ?? 0) > 0 && (entry.labourWage ?? 0) > 0;
   }
-  if (task.isGunnyBags) {
-    return (entry.bagCount ?? 0) > 0 && (entry.bagPrice ?? 0) > 0;
-  }
-  if (task.isTransportLoading) {
-    return (
-      (entry.transportRent ?? 0) > 0 ||
-      ((entry.loadingWorkers ?? 0) > 0 && (entry.loadingWage ?? 0) > 0)
-    );
-  }
   if (task.isGrainYield) {
     return (
-      (entry.yieldKg ?? 0) > 0 &&
-      (entry.bagWeightKg ?? 0) > 0 &&
-      (entry.grainBagPrice ?? 0) > 0
+      ((entry.yieldKg ?? 0) > 0 || (entry.yieldTons ?? 0) > 0 || (entry.grainBagCount ?? 0) > 0) &&
+      ((entry.grainBagPrice ?? 0) > 0 || (entry.bagWeightKg ?? 0) > 0)
     );
   }
   if (task.isStrawYield) {
@@ -72,10 +98,10 @@ export function isTaskEntryFilled(task: ExpenseTask, entry?: ExpenseEntry): bool
   if (task.isMandiTrip) {
     return (entry.mandiCount ?? 0) > 0 && (entry.mandiRate ?? 0) > 0;
   }
-  return (entry.ratePerCent ?? 0) > 0;
+  return (entry.ratePerCent ?? 0) > 0 || anyDay((d) => (d.ratePerCent ?? 0) > 0);
 }
 
-/** Checks whether all required (non-skipped) tasks inside a phase have filled values. */
+/** Checks whether all required tasks inside a phase have filled values. */
 export function isPhaseComplete(
   phase: PhaseGroup,
   expenseMap: Record<string, ExpenseEntry>
@@ -98,6 +124,46 @@ export function areStep1DetailsValid(details: UserDetails): boolean {
   const hasAddress = Boolean(details.address?.trim());
   return hasName && hasPhone && hasLandSize && hasLocation && hasAddress;
 }
+
+const getStorageKey = (userId?: string | null): string => {
+  let resolvedId = userId;
+  if (!resolvedId && typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('farmhub_user') || localStorage.getItem('agripulse_user');
+      if (stored) {
+        const u = JSON.parse(stored);
+        if (u?.id) resolvedId = String(u.id);
+      }
+    } catch (_) {}
+  }
+  return resolvedId ? `farm_app_saved_plans_${resolvedId}` : 'farm_app_saved_plans';
+};
+
+const sanitizePlanRecord = (p: any): SavedPlanRecord => {
+  const userDetails = sanitizeUserDetails(p.userDetails);
+  const landSize = userDetails.landSize || 100;
+  const createdAt = p.created_at || p.Created_at || p.savedAt || '';
+  const updatedAt = p.updated_at || p.savedAt || createdAt;
+
+  const nestedExpenseMap = p.expenseMap?.phase_1
+    ? p.expenseMap
+    : formatToNestedExpenseMap('paddy', p.expenseMap || {}, landSize);
+
+  return {
+    id: String(p.id),
+    created_at: createdAt,
+    updated_at: updatedAt,
+    isCompleted: Boolean(p.isCompleted),
+    cultivation: 'paddy',
+    userDetails,
+    expenseMap: nestedExpenseMap,
+    totals: {
+      grandTotal: p.totals?.grandTotal || 0,
+      revenueTotal: p.totals?.revenueTotal || 0,
+      netProfit: p.totals?.netProfit || 0,
+    },
+  };
+};
 
 /**
  * Owns all fertilizer-planner state, cost handlers, validation and derived
@@ -124,25 +190,84 @@ export function useFertilizerPlanner() {
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
   const dirtyQtyTasksRef = useRef<Set<string>>(new Set());
 
-  // ─── API sync helper ────────────────────────────────────────────────────────
-  // Syncs a plan to the server-side API and retrieves DB-assigned id & timestamps.
-  const getStorageKey = (userId?: string | null): string => {
-    let resolvedId = userId;
-    if (!resolvedId && typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('farmhub_user') || localStorage.getItem('agripulse_user');
-        if (stored) {
-          const u = JSON.parse(stored);
-          if (u?.id) resolvedId = String(u.id);
-        }
-      } catch (_) {}
-    }
-    return resolvedId ? `farm_app_saved_plans_${resolvedId}` : 'farm_app_saved_plans';
+  // ─── Reusable Common Task Updaters ──────────────────────────────────────────
+  /** Standard single-task updater that computes costPerDay and merges immutably */
+  const updateTask = (
+    taskId: string,
+    updater: (current: ExpenseEntry) => Partial<ExpenseEntry> & { totalCost?: number }
+  ) => {
+    setExpenseMap((prev) => {
+      const current = prev[taskId];
+      if (!current) return prev;
+      const updates = updater(current);
+      const totalCost = updates.totalCost !== undefined ? updates.totalCost : current.totalCost;
+      const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
+      return {
+        ...prev,
+        [taskId]: {
+          ...current,
+          ...updates,
+          totalCost,
+          costPerDay,
+        },
+      };
+    });
   };
 
-  const syncPlanToApi = async (
-    planPayload: any
-  ): Promise<SavedPlanRecord | null> => {
+  /** Generic multi-day array updater that coordinates day entries, totalCost, and day-1 sync */
+  const updateMultiDayTask = (
+    taskId: string,
+    day: number,
+    maxDays: number,
+    buildDayEntry: (existing?: DailyLabourEntry) => DailyLabourEntry,
+    computeTotalCost: (entries: DailyLabourEntry[]) => number,
+    isDayFilled: (d: DailyLabourEntry) => boolean,
+    syncTopLevel: (day1: DailyLabourEntry) => Partial<ExpenseEntry>
+  ) => {
+    const safeDay = Math.min(maxDays, Math.max(1, Math.round(day || 1)));
+    setExpenseMap((prev) => {
+      const current = prev[taskId];
+      if (!current) return prev;
+      const existingEntries: DailyLabourEntry[] = Array.isArray(current.dayEntries) ? current.dayEntries : [];
+      const existingForDay = existingEntries.find((d) => d.day === safeDay);
+      const updatedDayEntry = buildDayEntry(existingForDay);
+      const nextEntries = [...existingEntries.filter((d) => d.day !== safeDay), updatedDayEntry].sort(
+        (a, b) => a.day - b.day
+      );
+      const totalCost = computeTotalCost(nextEntries);
+      const filledCount = nextEntries.filter(isDayFilled).length;
+      const activeTotalDays = filledCount > 0 ? filledCount : 1;
+      const costPerDay = activeTotalDays > 0 ? Math.round(totalCost / activeTotalDays) : 0;
+      const day1Entry = nextEntries.find((d) => d.day === 1) || updatedDayEntry;
+
+      return {
+        ...prev,
+        [taskId]: {
+          ...current,
+          activeDay: safeDay,
+          days: activeTotalDays,
+          dayEntries: nextEntries,
+          totalCost,
+          costPerDay,
+          ...syncTopLevel(day1Entry),
+        },
+      };
+    });
+  };
+
+  const updateSavedPlansStateAndStorage = (plans: SavedPlanRecord[]) => {
+    setSavedPlans(plans);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(getStorageKey(), JSON.stringify(plans));
+      } catch (e) {
+        console.error('Failed to save plans to localStorage', e);
+      }
+    }
+  };
+
+  // ─── API Sync Helpers ───────────────────────────────────────────────────────
+  const syncPlanToApi = async (planPayload: any): Promise<SavedPlanRecord | null> => {
     if (typeof window === 'undefined') return null;
     try {
       const res = await fetch('/api/user', {
@@ -168,66 +293,23 @@ export function useFertilizerPlanner() {
       console.warn('[FertilizerAPI] Could not delete plan from API:', e);
     }
   };
-  // ───────────────────────────────────────────────────────────────────────────
-
-  // Helper to ensure every plan strictly adheres to the Paddy JSON schema
-  const sanitizePlanRecord = (p: any): SavedPlanRecord => {
-    const userDetails = p.userDetails || {};
-    const landSize = Number(userDetails.landSize) || 100;
-    const cleanUserDetails = {
-      name: userDetails.name || '',
-      phone: userDetails.phone || '',
-      landSize: Number(userDetails.landSize) || 0,
-      state: userDetails.state || 'Tamil Nadu',
-      district: userDetails.district || '',
-      city: userDetails.city || '',
-      village: userDetails.village || '',
-      address: userDetails.address || '',
-    };
-
-    const createdAt = p.created_at || p.Created_at || p.savedAt || '';
-    const updatedAt = p.updated_at || p.savedAt || createdAt;
-
-    const nestedExpenseMap = p.expenseMap?.phase_1
-      ? p.expenseMap
-      : formatToNestedExpenseMap('paddy', p.expenseMap || {}, landSize);
-
-    return {
-      id: String(p.id),
-      created_at: createdAt,
-      updated_at: updatedAt,
-      isCompleted: Boolean(p.isCompleted),
-      cultivation: 'paddy',
-      userDetails: cleanUserDetails,
-      expenseMap: nestedExpenseMap,
-      totals: {
-        grandTotal: p.totals?.grandTotal || 0,
-        revenueTotal: p.totals?.revenueTotal || 0,
-        netProfit: p.totals?.netProfit || 0,
-      },
-    };
-  };
 
   // Hydrate user-specific saved plans from /api/user and user-scoped storage
   useEffect(() => {
     let active = true;
 
-    // Purge legacy unscoped key to prevent cross-account contamination
     if (typeof window !== 'undefined') {
       try {
         localStorage.removeItem('farm_app_saved_plans');
       } catch (_) {}
     }
 
-    // Authoritative fetch from /api/user which returns { success: true, user, plans }
     fetch('/api/user')
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
         if (!active || !json || !json.success) return;
         const plansList = json.plans || [];
-        const sanitized: SavedPlanRecord[] = Array.isArray(plansList)
-          ? plansList.map(sanitizePlanRecord)
-          : [];
+        const sanitized: SavedPlanRecord[] = Array.isArray(plansList) ? plansList.map(sanitizePlanRecord) : [];
         setSavedPlans(sanitized);
 
         if (json.user?.id && typeof window !== 'undefined') {
@@ -238,7 +320,6 @@ export function useFertilizerPlanner() {
       })
       .catch((e) => {
         console.warn('[FertilizerAPI] Error fetching from /api/user:', e);
-        // Offline fallback to current user-scoped storage
         if (typeof window !== 'undefined') {
           try {
             const key = getStorageKey();
@@ -258,13 +339,9 @@ export function useFertilizerPlanner() {
     };
   }, []);
 
-  const currentPhases = useMemo(
-    () => PADDY_PHASES,
-    []
-  );
+  const currentPhases = useMemo(() => PADDY_PHASES, []);
 
-  // Auto-populate recommended initial quantities for Dose 1, Dose 2 (litres), and Panicle Fertilizer (bags)
-  // whenever landSize changes, without overwriting values already customized/saved by the user.
+  // Auto-populate recommended initial quantities whenever landSize changes
   useEffect(() => {
     const cents = userDetails.landSize > 0 ? userDetails.landSize : 0;
     const pesticideLitres = computeRecommendedPesticideLitres(cents);
@@ -283,37 +360,33 @@ export function useFertilizerPlanner() {
         if (dirtyQtyTasksRef.current.has(target.id)) continue;
         const entry = next[target.id];
         if (!entry || entry.fertQty === target.qty) continue;
-        const materialCost = Math.round(target.qty * (entry.fertPrice ?? 0));
+        const isBagTask = target.id === 'p2_fert_labour' || target.id === 'p3_fert_dose3';
+        const isPesticideTask = target.id === 'p1_fert' || target.id === 'p2_tillering';
+        const materialCost = isBagTask || isPesticideTask ? (entry.fertPrice ?? 0) : Math.round(target.qty * (entry.fertPrice ?? 0));
         const workerCost = Math.round((entry.labourCount ?? 0) * (entry.labourWage ?? 0));
         const totalCost = materialCost + workerCost + (entry.snackCost ?? 0) + (entry.travelCost ?? 0);
         const costPerDay = entry.days > 0 ? Math.round(totalCost / entry.days) : 0;
-        next[target.id] = {
-          ...entry,
-          fertQty: target.qty,
-          totalCost,
-          costPerDay,
-        };
+        next[target.id] = { ...entry, fertQty: target.qty, totalCost, costPerDay };
         changed = true;
       }
       return changed ? next : prev;
     });
   }, [userDetails.landSize]);
 
-  const handleCropSelect = (crop: CultivationType = 'paddy') => {
+  // ─── Step & Cultivation Handlers ───────────────────────────────────────────
+  const handleCropSelect = (_crop: CultivationType = 'paddy') => {
     setCultivation('paddy');
     setStep2Completed(true);
-    // Stay on step 2 - do NOT advance step!
   };
 
-  const handleConfigureCrop = (crop: CultivationType = 'paddy') => {
+  const handleConfigureCrop = (_crop: CultivationType = 'paddy') => {
     setCultivation('paddy');
     setStep2Completed(true);
     setActivePhaseIndex(0);
-    const phases = PADDY_PHASES;
     if (!activePlanId) {
       setExpenseMap((prev) => {
-        const hasExisting = phases[0]?.tasks.some((t) => prev[t.id] !== undefined);
-        return hasExisting ? prev : buildEmptyExpenses(phases, userDetails.landSize);
+        const hasExisting = PADDY_PHASES[0]?.tasks.some((t) => prev[t.id] !== undefined);
+        return hasExisting ? prev : buildEmptyExpenses(PADDY_PHASES, userDetails.landSize);
       });
     }
     setStep(3);
@@ -321,35 +394,45 @@ export function useFertilizerPlanner() {
 
   const handleCultivationSelect = handleCropSelect;
 
+  // ─── Field Change Handlers ─────────────────────────────────────────────────
   const handleRateChange = (
     taskId: string,
     rate: number,
     travelCost?: number,
     hasTravelCost?: boolean
   ) => {
-    const safeRate = isNaN(rate) ? 0 : Math.max(0, rate);
-    setExpenseMap((prev) => {
-      const current = prev[taskId];
-      if (!current) return prev;
-      const isTravelActive =
-        hasTravelCost !== undefined ? hasTravelCost : (current.hasTravelCost ?? false);
-      const safeTravel =
-        travelCost !== undefined
-          ? (isNaN(travelCost) ? 0 : Math.max(0, travelCost))
-          : (current.travelCost ?? 0);
-      const addedTravel = isTravelActive ? safeTravel : 0;
-      const totalCost = Math.round(safeRate + addedTravel);
-      const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
+    const safeRate = toSafeNum(rate);
+    updateTask(taskId, (current) => {
+      const isTravelActive = hasTravelCost !== undefined ? hasTravelCost : (current.hasTravelCost ?? false);
+      const safeTravel = travelCost !== undefined ? toSafeNum(travelCost) : (current.travelCost ?? 0);
+      const totalCost = Math.round(safeRate + (isTravelActive ? safeTravel : 0));
       return {
-        ...prev,
-        [taskId]: {
-          ...current,
-          ratePerCent: safeRate,
-          travelCost: safeTravel,
-          hasTravelCost: isTravelActive,
-          totalCost,
-          costPerDay,
-        },
+        ratePerCent: safeRate,
+        travelCost: safeTravel,
+        hasTravelCost: isTravelActive,
+        totalCost,
+      };
+    });
+  };
+
+  const handleRepairCostChange = (
+    taskId: string,
+    params: {
+      hasRepairCost: boolean;
+      mechanicName?: string;
+      mechanicNumber?: string;
+      repairCost?: number;
+    }
+  ) => {
+    const safeRepair = toSafeNum(params.repairCost);
+    updateTask(taskId, (current) => {
+      const addedRepair = params.hasRepairCost ? safeRepair : 0;
+      return {
+        hasRepairCost: params.hasRepairCost,
+        mechanicName: params.mechanicName ?? '',
+        mechanicNumber: params.mechanicNumber ?? '',
+        repairCost: safeRepair,
+        totalCost: Math.round((current.ratePerCent || 0) + addedRepair),
       };
     });
   };
@@ -361,51 +444,26 @@ export function useFertilizerPlanner() {
     snacks?: number,
     travel?: number
   ) => {
-    const safeCount = isNaN(count) ? 0 : Math.max(0, count);
-    const safeWage = isNaN(wage) ? 0 : Math.max(0, wage);
-    setExpenseMap((prev) => {
-      const current = prev[taskId];
-      if (!current) return prev;
-      const safeSnacks =
-        snacks !== undefined ? (isNaN(snacks) ? 0 : Math.max(0, snacks)) : (current.snackCost ?? 0);
-      const safeTravel =
-        travel !== undefined ? (isNaN(travel) ? 0 : Math.max(0, travel)) : (current.travelCost ?? 0);
-      const totalCost = Math.round(safeCount * safeWage + safeSnacks + safeTravel);
-      const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = 0;
+    const safeCount = toSafeNum(count);
+    const safeWage = toSafeNum(wage);
+    updateTask(taskId, (current) => {
+      const safeSnacks = snacks !== undefined ? toSafeNum(snacks) : (current.snackCost ?? 0);
+      const safeTravel = travel !== undefined ? toSafeNum(travel) : (current.travelCost ?? 0);
       return {
-        ...prev,
-        [taskId]: {
-          ...current,
-          labourCount: safeCount,
-          labourWage: safeWage,
-          snackCost: safeSnacks,
-          travelCost: safeTravel,
-          totalCost,
-          costPerDay,
-          ratePerCent,
-        },
+        labourCount: safeCount,
+        labourWage: safeWage,
+        snackCost: safeSnacks,
+        travelCost: safeTravel,
+        totalCost: Math.round(safeCount * safeWage + safeSnacks + safeTravel),
+        ratePerCent: 0,
       };
     });
   };
 
-  const handleMultiDayChangeActiveDay = (
-    taskId: string,
-    nextDay: number,
-    maxDays: number = 7
-  ) => {
-    const safeDay = Math.min(maxDays, Math.max(1, Math.round(nextDay || 1)));
-    setExpenseMap((prev) => {
-      const current = prev[taskId];
-      if (!current) return prev;
-      return {
-        ...prev,
-        [taskId]: {
-          ...current,
-          activeDay: safeDay,
-        },
-      };
-    });
+  const handleMultiDayChangeActiveDay = (taskId: string, nextDay: number, maxDays = 7) => {
+    updateTask(taskId, () => ({
+      activeDay: Math.min(maxDays, Math.max(1, Math.round(nextDay || 1))),
+    }));
   };
 
   const handleMultiDayLabourChange = (
@@ -415,77 +473,31 @@ export function useFertilizerPlanner() {
     wage: number,
     snacks?: number,
     travel?: number,
-    maxDays: number = 7
+    maxDays = 7
   ) => {
-    const safeDay = Math.min(maxDays, Math.max(1, Math.round(day || 1)));
-    const safeCount = isNaN(count) ? 0 : Math.max(0, count);
-    const safeWage = isNaN(wage) ? 0 : Math.max(0, wage);
-
-    setExpenseMap((prev) => {
-      const current = prev[taskId];
-      if (!current) return prev;
-
-      const existingEntries: DailyLabourEntry[] = Array.isArray(current.dayEntries)
-        ? current.dayEntries
-        : [];
-      const existingForDay = existingEntries.find((d) => d.day === safeDay);
-
-      const safeSnacks =
-        snacks !== undefined
-          ? isNaN(snacks)
-            ? 0
-            : Math.max(0, snacks)
-          : (existingForDay?.snackCost ?? 0);
-      const safeTravel =
-        travel !== undefined
-          ? isNaN(travel)
-            ? 0
-            : Math.max(0, travel)
-          : (existingForDay?.travelCost ?? 0);
-
-      const updatedDayEntry: DailyLabourEntry = {
-        day: safeDay,
+    const safeCount = toSafeNum(count);
+    const safeWage = toSafeNum(wage);
+    updateMultiDayTask(
+      taskId,
+      day,
+      maxDays,
+      (existing) => ({
+        day: Math.max(1, Math.round(day || 1)),
         labourCount: safeCount,
         labourWage: safeWage,
-        snackCost: safeSnacks,
-        travelCost: safeTravel,
-      };
-
-      const nextEntries = [
-        ...existingEntries.filter((d) => d.day !== safeDay),
-        updatedDayEntry,
-      ].sort((a, b) => a.day - b.day);
-
-      const totalCost = nextEntries.reduce(
-        (sum, d) => sum + computeDailyLabourCost(d),
-        0
-      );
-      const filledDaysCount = nextEntries.filter(
-        (d) => d.labourCount > 0 || d.labourWage > 0 || d.snackCost > 0 || d.travelCost > 0
-      ).length;
-      const activeTotalDays = filledDaysCount > 0 ? filledDaysCount : 1;
-      const costPerDay = activeTotalDays > 0 ? Math.round(totalCost / activeTotalDays) : 0;
-      const ratePerCent = 0;
-
-      const day1Entry = nextEntries.find((d) => d.day === 1) || updatedDayEntry;
-
-      return {
-        ...prev,
-        [taskId]: {
-          ...current,
-          activeDay: safeDay,
-          days: activeTotalDays,
-          dayEntries: nextEntries,
-          labourCount: day1Entry.labourCount,
-          labourWage: day1Entry.labourWage,
-          snackCost: day1Entry.snackCost,
-          travelCost: day1Entry.travelCost,
-          totalCost,
-          costPerDay,
-          ratePerCent,
-        },
-      };
-    });
+        snackCost: snacks !== undefined ? toSafeNum(snacks) : (existing?.snackCost ?? 0),
+        travelCost: travel !== undefined ? toSafeNum(travel) : (existing?.travelCost ?? 0),
+      }),
+      (entries) => entries.reduce((sum, d) => sum + computeDailyLabourCost(d), 0),
+      (d) => d.labourCount > 0 || d.labourWage > 0 || (d.snackCost ?? 0) > 0 || (d.travelCost ?? 0) > 0,
+      (day1) => ({
+        labourCount: day1.labourCount,
+        labourWage: day1.labourWage,
+        snackCost: day1.snackCost,
+        travelCost: day1.travelCost,
+        ratePerCent: 0,
+      })
+    );
   };
 
   const handleFertilizerWithLabourChange = (
@@ -495,107 +507,170 @@ export function useFertilizerPlanner() {
     labourCount: number,
     labourWage: number,
     snackCost?: number,
-    travelCost?: number
+    travelCost?: number,
+    pesticideMl?: number
   ) => {
-    const safeQty = isNaN(fertQty) ? 0 : Math.max(0, fertQty);
-    const safePrice = isNaN(fertPrice) ? 0 : Math.max(0, fertPrice);
-    const safeWorkers = isNaN(labourCount) ? 0 : Math.max(0, labourCount);
-    const safeWage = isNaN(labourWage) ? 0 : Math.max(0, labourWage);
-    setExpenseMap((prev) => {
-      const current = prev[taskId];
-      if (!current) return prev;
+    const safeQty = toSafeNum(fertQty);
+    const safePrice = toSafeNum(fertPrice);
+    const safeWorkers = toSafeNum(labourCount);
+    const safeWage = toSafeNum(labourWage);
+    updateTask(taskId, (current) => {
       if (safeQty !== (current.fertQty ?? 0)) {
         dirtyQtyTasksRef.current.add(taskId);
       }
-      const safeSnacks =
-        snackCost !== undefined
-          ? isNaN(snackCost)
-            ? 0
-            : Math.max(0, snackCost)
-          : (current.snackCost ?? 0);
-      const safeTravel =
-        travelCost !== undefined
-          ? isNaN(travelCost)
-            ? 0
-            : Math.max(0, travelCost)
-          : (current.travelCost ?? 0);
-      const materialCost = Math.round(safeQty * safePrice);
-      const workerCost = Math.round(safeWorkers * safeWage);
-      const totalCost = materialCost + workerCost + safeSnacks + safeTravel;
-      const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = 0;
+      const safeSnacks = snackCost !== undefined ? toSafeNum(snackCost) : (current.snackCost ?? 0);
+      const safeTravel = travelCost !== undefined ? toSafeNum(travelCost) : (current.travelCost ?? 0);
+      const isBagTask = taskId === 'p2_fert_labour' || taskId === 'p3_fert_dose3';
+      const isPesticideTask = taskId === 'p1_fert' || taskId === 'p2_tillering';
+      const materialCost = isBagTask || isPesticideTask ? safePrice : Math.round(safeQty * safePrice);
+      const dayEntries = current.dayEntries;
+      const workerCost =
+        dayEntries && dayEntries.length > 0
+          ? dayEntries.reduce((sum, d) => sum + computeDailyLabourCost(d), 0)
+          : Math.round(safeWorkers * safeWage) + safeSnacks + safeTravel;
       return {
-        ...prev,
-        [taskId]: {
-          ...current,
-          fertQty: safeQty,
-          fertPrice: safePrice,
-          labourCount: safeWorkers,
-          labourWage: safeWage,
-          snackCost: safeSnacks,
-          travelCost: safeTravel,
-          totalCost,
-          costPerDay,
-          ratePerCent,
-        },
+        fertQty: safeQty,
+        fertPrice: safePrice,
+        labourCount: safeWorkers,
+        labourWage: safeWage,
+        snackCost: safeSnacks,
+        travelCost: safeTravel,
+        pesticideMl: pesticideMl !== undefined ? pesticideMl : current.pesticideMl,
+        totalCost: materialCost + workerCost,
+        ratePerCent: 0,
       };
     });
+  };
+
+  const handleMultiDayHarvestChange = (taskId: string, day: number, rate: number) => {
+    const safeRate = toSafeNum(rate);
+    updateMultiDayTask(
+      taskId,
+      day,
+      7,
+      (existing) => ({
+        ...(existing || { day, labourCount: 0, labourWage: 0, snackCost: 0, travelCost: 0 }),
+        day: Math.max(1, Math.round(day || 1)),
+        ratePerCent: safeRate,
+      }),
+      (entries) => entries.reduce((sum, d) => sum + (d.ratePerCent || 0), 0),
+      (d) => (d.ratePerCent || 0) > 0,
+      (day1) => ({ ratePerCent: day1.ratePerCent ?? safeRate })
+    );
+  };
+
+  const handleMultiDayGunnyBagsChange = (
+    taskId: string,
+    day: number,
+    bagCount: number,
+    bagPrice: number
+  ) => {
+    const safeCount = toSafeNum(bagCount);
+    const safePrice = toSafeNum(bagPrice);
+    updateMultiDayTask(
+      taskId,
+      day,
+      7,
+      (existing) => ({
+        ...(existing || { day, labourCount: 0, labourWage: 0, snackCost: 0, travelCost: 0 }),
+        day: Math.max(1, Math.round(day || 1)),
+        bagCount: safeCount,
+        bagPrice: safePrice,
+      }),
+      (entries) => entries.reduce((sum, d) => sum + (d.bagCount || 0) * (d.bagPrice || 0), 0),
+      (d) => (d.bagCount || 0) > 0 || (d.bagPrice || 0) > 0,
+      (day1) => ({ bagCount: day1.bagCount, bagPrice: day1.bagPrice })
+    );
+  };
+
+  const handleMultiDayTransportChange = (
+    taskId: string,
+    day: number,
+    params: {
+      bagCount?: number;
+      transportRent?: number;
+      perBagLiftingCost?: number;
+      loadingWorkers?: number;
+      loadingWage?: number;
+      loadingSnacks?: number;
+    }
+  ) => {
+    updateMultiDayTask(
+      taskId,
+      day,
+      7,
+      (existing) => {
+        const safeCount =
+          params.bagCount !== undefined
+            ? toSafeNum(params.bagCount)
+            : params.transportRent !== undefined
+            ? toSafeNum(params.transportRent)
+            : existing?.bagCount ?? existing?.transportRent ?? 0;
+        const safeLifting =
+          params.perBagLiftingCost !== undefined
+            ? toSafeNum(params.perBagLiftingCost)
+            : params.loadingWorkers !== undefined
+            ? toSafeNum(params.loadingWorkers)
+            : existing?.perBagLiftingCost ?? existing?.loadingWorkers ?? 0;
+        const safeSnacks =
+          params.loadingSnacks !== undefined ? toSafeNum(params.loadingSnacks) : existing?.loadingSnacks ?? 0;
+        return {
+          ...(existing || { day, labourCount: 0, labourWage: 0, snackCost: 0, travelCost: 0 }),
+          day: Math.max(1, Math.round(day || 1)),
+          bagCount: safeCount,
+          transportRent: safeCount,
+          loadingWorkers: safeLifting,
+          perBagLiftingCost: safeLifting,
+          loadingWage: 0,
+          loadingSnacks: safeSnacks,
+        };
+      },
+      (entries) =>
+        entries.reduce(
+          (sum, d) =>
+            sum +
+            (d.bagCount ?? d.transportRent ?? 0) * (d.perBagLiftingCost ?? d.loadingWorkers ?? 0) +
+            (d.loadingSnacks || 0),
+          0
+        ),
+      (d) => (d.bagCount ?? d.transportRent ?? 0) > 0 && (d.perBagLiftingCost ?? d.loadingWorkers ?? 0) > 0,
+      (day1) => ({
+        bagCount: day1.bagCount,
+        transportRent: day1.bagCount,
+        loadingWorkers: day1.perBagLiftingCost,
+        perBagLiftingCost: day1.perBagLiftingCost,
+        loadingWage: 0,
+        loadingSnacks: day1.loadingSnacks,
+      })
+    );
   };
 
   const handleMandiChange = (taskId: string, count: number, rate: number) => {
-    const safeCount = isNaN(count) ? 0 : Math.max(0, count);
-    const safeRate = isNaN(rate) ? 0 : Math.max(0, rate);
-    setExpenseMap((prev) => {
-      const current = prev[taskId];
-      if (!current) return prev;
-      const totalCost = Math.round(safeCount * safeRate);
-      const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = 0;
-      return {
-        ...prev,
-        [taskId]: {
-          ...current,
-          mandiCount: safeCount,
-          mandiRate: safeRate,
-          totalCost,
-          costPerDay,
-          ratePerCent,
-        },
-      };
-    });
+    const safeCount = toSafeNum(count);
+    const safeRate = toSafeNum(rate);
+    updateTask(taskId, () => ({
+      mandiCount: safeCount,
+      mandiRate: safeRate,
+      totalCost: Math.round(safeCount * safeRate),
+      ratePerCent: 0,
+    }));
   };
 
   const handleToggleOptional = (taskId: string) => {
-    setExpenseMap((prev) => {
-      const current = prev[taskId];
-      if (!current) return prev;
-      return {
-        ...prev,
-        [taskId]: {
-          ...current,
-          isEnabled: current.isEnabled === false ? true : false,
-        },
-      };
-    });
+    updateTask(taskId, (current) => ({ isEnabled: current.isEnabled === false }));
   };
 
-  const handleToggleMachineMode = (taskId: string, defaultMachineRate: number = 25) => {
-    setExpenseMap((prev) => {
-      const current = prev[taskId];
-      if (!current) return prev;
+  const handleToggleMachineMode = (taskId: string, _defaultMachineRate = 25) => {
+    updateTask(taskId, (current) => {
       const nextIsMachine = !current.isMachineMode;
       let totalCost = 0;
-      let ratePerCent = current.ratePerCent;
+      let ratePerCent = current.ratePerCent || 0;
 
       if (nextIsMachine) {
-        ratePerCent = current.ratePerCent || 0;
         totalCost = Math.round(ratePerCent);
       } else {
         if (Array.isArray(current.dayEntries) && current.dayEntries.length > 0) {
-          totalCost = current.dayEntries.reduce(
-            (sum, d) => sum + computeDailyLabourCost(d),
-            0
-          );
+          totalCost = current.dayEntries.reduce((sum, d) => sum + computeDailyLabourCost(d), 0);
         } else {
           const count = current.labourCount ?? 0;
           const wage = current.labourWage ?? 0;
@@ -606,109 +681,64 @@ export function useFertilizerPlanner() {
         ratePerCent = 0;
       }
 
-      const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-
-      return {
-        ...prev,
-        [taskId]: {
-          ...current,
-          isMachineMode: nextIsMachine,
-          ratePerCent,
-          totalCost,
-          costPerDay,
-        },
-      };
+      return { isMachineMode: nextIsMachine, ratePerCent, totalCost };
     });
   };
 
   const handleToggleBagType = (
     taskId: string,
-    plasticPrice: number = 20,
-    traditionalPrice: number = 45
+    plasticPrice = 20,
+    traditionalPrice = 45
   ) => {
-    setExpenseMap((prev) => {
-      const current = prev[taskId];
-      if (!current) return prev;
-      const nextIsPlastic = current.isPlasticBag === false ? true : false;
+    updateTask(taskId, (current) => {
+      const nextIsPlastic = current.isPlasticBag === false;
       const bagPrice = nextIsPlastic ? plasticPrice : traditionalPrice;
       const bagCount = current.bagCount ?? 0;
-      const totalCost = Math.round(bagCount * bagPrice);
-      const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = 0;
       return {
-        ...prev,
-        [taskId]: {
-          ...current,
-          isPlasticBag: nextIsPlastic,
-          bagPrice,
-          totalCost,
-          costPerDay,
-          ratePerCent,
-        },
+        isPlasticBag: nextIsPlastic,
+        bagPrice,
+        totalCost: Math.round(bagCount * bagPrice),
+        ratePerCent: 0,
       };
     });
   };
 
   const handleGunnyBagsChange = (taskId: string, count: number, price: number) => {
-    const safeCount = isNaN(count) ? 0 : Math.max(0, count);
-    const safePrice = isNaN(price) ? 0 : Math.max(0, price);
-    setExpenseMap((prev) => {
-      const current = prev[taskId];
-      if (!current) return prev;
-      const totalCost = Math.round(safeCount * safePrice);
-      const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = 0;
-      return {
-        ...prev,
-        [taskId]: {
-          ...current,
-          bagCount: safeCount,
-          bagPrice: safePrice,
-          totalCost,
-          costPerDay,
-          ratePerCent,
-        },
-      };
-    });
+    const safeCount = toSafeNum(count);
+    const safePrice = toSafeNum(price);
+    updateTask(taskId, () => ({
+      bagCount: safeCount,
+      bagPrice: safePrice,
+      totalCost: Math.round(safeCount * safePrice),
+      ratePerCent: 0,
+    }));
   };
 
   const handleTransportLoadingChange = (
     taskId: string,
-    transportRent: number,
-    workers: number,
-    wage: number,
-    snacks: number
+    transportRentOrBags: number,
+    workersOrLiftingCost: number,
+    wageOrSnacks?: number,
+    snacksMaybe?: number
   ) => {
-    const safeRent = isNaN(transportRent) ? 0 : Math.max(0, transportRent);
-    const safeWorkers = isNaN(workers) ? 0 : Math.max(0, workers);
-    const safeWage = isNaN(wage) ? 0 : Math.max(0, wage);
-    const safeSnacks = isNaN(snacks) ? 0 : Math.max(0, snacks);
-    setExpenseMap((prev) => {
-      const current = prev[taskId];
-      if (!current) return prev;
-      const totalCost = Math.round(safeRent + safeWorkers * safeWage + safeSnacks);
-      const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = 0;
-      return {
-        ...prev,
-        [taskId]: {
-          ...current,
-          transportRent: safeRent,
-          loadingWorkers: safeWorkers,
-          loadingWage: safeWage,
-          loadingSnacks: safeSnacks,
-          totalCost,
-          costPerDay,
-          ratePerCent,
-        },
-      };
-    });
+    const isLegacy4Args = snacksMaybe !== undefined;
+    const safeBags = toSafeNum(transportRentOrBags);
+    const safeLiftingCost = toSafeNum(workersOrLiftingCost);
+    const safeSnacks = isLegacy4Args ? toSafeNum(snacksMaybe) : toSafeNum(wageOrSnacks);
+    updateTask(taskId, () => ({
+      bagCount: safeBags,
+      transportRent: safeBags,
+      perBagLiftingCost: safeLiftingCost,
+      loadingWorkers: safeLiftingCost,
+      loadingWage: 0,
+      loadingSnacks: safeSnacks,
+      totalCost: Math.round(safeBags * safeLiftingCost + safeSnacks),
+      ratePerCent: 0,
+    }));
   };
 
   const handleToggleYieldMode = (taskId: string) => {
-    setExpenseMap((prev) => {
-      const current = prev[taskId];
-      if (!current) return prev;
+    updateTask(taskId, (current) => {
       const nextMode: 'tons' | 'bags' = current.yieldMode === 'bags' ? 'tons' : 'bags';
       const yieldTons = current.yieldTons ?? 0;
       const bagWeightKg = current.bagWeightKg ?? 0;
@@ -724,19 +754,11 @@ export function useFertilizerPlanner() {
         totalCost = Math.round(grainBagCount * grainBagPrice);
       }
 
-      const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = 0;
-
       return {
-        ...prev,
-        [taskId]: {
-          ...current,
-          yieldMode: nextMode,
-          grainBagCount,
-          totalCost,
-          costPerDay,
-          ratePerCent,
-        },
+        yieldMode: nextMode,
+        grainBagCount,
+        totalCost,
+        ratePerCent: 0,
       };
     });
   };
@@ -752,65 +774,40 @@ export function useFertilizerPlanner() {
       bagPrice: number;
     }
   ) => {
-    setExpenseMap((prev) => {
-      const current = prev[taskId];
-      if (!current) return prev;
-
-      const safePrice = isNaN(params.bagPrice) ? 0 : Math.max(0, params.bagPrice);
+    const safePrice = toSafeNum(params.bagPrice);
+    updateTask(taskId, (current) => {
       const safeYieldKg =
         params.yieldKg !== undefined && !isNaN(params.yieldKg)
           ? Math.max(0, params.yieldKg)
-          : (current.yieldKg ?? ((current.yieldTons ?? 0) * 1000));
+          : current.yieldKg ?? (current.yieldTons ?? 0) * 1000;
       const safeYieldTons = Number((safeYieldKg / 1000).toFixed(2));
       const safeBagWeight =
         params.bagWeightKg !== undefined && !isNaN(params.bagWeightKg)
           ? Math.max(0, params.bagWeightKg)
-          : (current.bagWeightKg ?? 0);
-      const grainBagCount =
-        safeBagWeight > 0 ? Number((safeYieldKg / safeBagWeight).toFixed(2)) : 0;
-      const totalCost = Math.round(grainBagCount * safePrice);
-      const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = 0;
-
+          : current.bagWeightKg ?? 0;
+      const grainBagCount = safeBagWeight > 0 ? Number((safeYieldKg / safeBagWeight).toFixed(2)) : 0;
       return {
-        ...prev,
-        [taskId]: {
-          ...current,
-          yieldMode: 'tons',
-          yieldKg: safeYieldKg,
-          yieldTons: safeYieldTons,
-          bagWeightKg: safeBagWeight,
-          grainBagCount,
-          grainBagPrice: safePrice,
-          totalCost,
-          costPerDay,
-          ratePerCent,
-        },
+        yieldMode: 'tons',
+        yieldKg: safeYieldKg,
+        yieldTons: safeYieldTons,
+        bagWeightKg: safeBagWeight,
+        grainBagCount,
+        grainBagPrice: safePrice,
+        totalCost: Math.round(grainBagCount * safePrice),
+        ratePerCent: 0,
       };
     });
   };
 
   const handleStrawYieldChange = (taskId: string, sackCount: number, price: number) => {
-    const safeCount = isNaN(sackCount) ? 0 : Math.max(0, sackCount);
-    const safePrice = isNaN(price) ? 0 : Math.max(0, price);
-    setExpenseMap((prev) => {
-      const current = prev[taskId];
-      if (!current) return prev;
-      const totalCost = Math.round(safeCount * safePrice);
-      const costPerDay = current.days > 0 ? Math.round(totalCost / current.days) : 0;
-      const ratePerCent = 0;
-      return {
-        ...prev,
-        [taskId]: {
-          ...current,
-          strawSackCount: safeCount,
-          strawPrice: safePrice,
-          totalCost,
-          costPerDay,
-          ratePerCent,
-        },
-      };
-    });
+    const safeCount = toSafeNum(sackCount);
+    const safePrice = toSafeNum(price);
+    updateTask(taskId, () => ({
+      strawSackCount: safeCount,
+      strawPrice: safePrice,
+      totalCost: Math.round(safeCount * safePrice),
+      ratePerCent: 0,
+    }));
   };
 
   const resetToRecommendedDefaults = () => {
@@ -823,19 +820,15 @@ export function useFertilizerPlanner() {
     notifyType: 'Herbicide_notify' | 'pesticide_notify' | 'fertilizer_notify',
     checked: boolean
   ) => {
-    setExpenseMap((prev) => {
-      const current = prev[taskId];
-      if (!current) return prev;
-      if (notifyType === 'Herbicide_notify') {
-        return { ...prev, [taskId]: { ...current, herbicideNotify: checked } };
-      } else if (notifyType === 'pesticide_notify') {
-        return { ...prev, [taskId]: { ...current, pesticideNotify: checked } };
-      } else {
-        return { ...prev, [taskId]: { ...current, fertilizerNotify: checked } };
-      }
-    });
+    const keyMap = {
+      Herbicide_notify: 'herbicideNotify',
+      pesticide_notify: 'pesticideNotify',
+      fertilizer_notify: 'fertilizerNotify',
+    } as const;
+    updateTask(taskId, () => ({ [keyMap[notifyType]]: checked }));
   };
 
+  // ─── Validation & Calculations ─────────────────────────────────────────────
   const totals = useMemo(
     () => computePlanTotals(currentPhases, expenseMap),
     [currentPhases, expenseMap]
@@ -870,7 +863,7 @@ export function useFertilizerPlanner() {
     return true;
   };
 
-  const handleJumpToStep3 = (phaseIdx: number = 0) => {
+  const handleJumpToStep3 = (phaseIdx = 0) => {
     validateStep1();
     setActivePhaseIndex(phaseIdx);
     setStep(3);
@@ -878,12 +871,9 @@ export function useFertilizerPlanner() {
 
   const totalCropDays = getCropDurationDays(cultivation);
   const costPerCent = userDetails.landSize > 0 ? Math.round(totals.grandTotal / userDetails.landSize) : 0;
-  const revenuePerCent =
-    userDetails.landSize > 0 ? Math.round(totals.revenueTotal / userDetails.landSize) : 0;
-  const netProfitPerCent =
-    userDetails.landSize > 0 ? Math.round(totals.netProfit / userDetails.landSize) : 0;
-  const roiPercentage =
-    totals.grandTotal > 0 ? Math.round((totals.netProfit / totals.grandTotal) * 100) : 0;
+  const revenuePerCent = userDetails.landSize > 0 ? Math.round(totals.revenueTotal / userDetails.landSize) : 0;
+  const netProfitPerCent = userDetails.landSize > 0 ? Math.round(totals.netProfit / userDetails.landSize) : 0;
+  const roiPercentage = totals.grandTotal > 0 ? Math.round((totals.netProfit / totals.grandTotal) * 100) : 0;
 
   const getPhaseMeta = (phase: PhaseGroup) => {
     const localized = t.phases[phase.id as keyof typeof t.phases];
@@ -922,6 +912,9 @@ export function useFertilizerPlanner() {
     });
   };
 
+  const clearErrors = () => setErrors({});
+
+  // ─── Persistence ────────────────────────────────────────────────────────────
   const persistPlanToServer = async ({
     isDraft = false,
     isCompleted = false,
@@ -932,17 +925,7 @@ export function useFertilizerPlanner() {
     redirectToRecords?: boolean;
   }) => {
     const nestedExpenses = formatToNestedExpenseMap(cultivation, expenseMap, userDetails.landSize);
-
-    const cleanUserDetails = {
-      name: userDetails.name || '',
-      phone: userDetails.phone || '',
-      landSize: Number(userDetails.landSize) || 0,
-      state: userDetails.state || '',
-      district: userDetails.district || '',
-      city: userDetails.city || '',
-      village: userDetails.village || '',
-      address: userDetails.address || '',
-    };
+    const cleanUserDetails = sanitizeUserDetails(userDetails);
 
     const payload = {
       id: activePlanId || undefined,
@@ -957,29 +940,23 @@ export function useFertilizerPlanner() {
       },
     };
 
-    // Save to PostgreSQL via API to get authoritative id, created_at, and updated_at directly from DB
     const savedRecord = await syncPlanToApi(payload);
-
     let planId = activePlanId;
+
     if (savedRecord) {
       planId = savedRecord.id;
       const updatedPlans = [
         savedRecord,
         ...savedPlans.filter((p) => p.id !== activePlanId && p.id !== savedRecord.id).map(sanitizePlanRecord),
       ];
-      setSavedPlans(updatedPlans);
+      updateSavedPlansStateAndStorage(updatedPlans);
       setActivePlanId(savedRecord.id);
-
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(getStorageKey(), JSON.stringify(updatedPlans));
-        } catch (e) {
-          console.error('Failed to save plans to localStorage', e);
-        }
-      }
     } else if (redirectToRecords) {
-      // Offline fallback only if network/fetch completely fails during explicit save
-      const fallbackId = activePlanId || `plan_${Date.now()}`;
+      const maxNumericId = savedPlans.reduce((max, p) => {
+        const num = parseInt(p.id, 10);
+        return !isNaN(num) && num > max ? num : max;
+      }, 0);
+      const fallbackId = activePlanId || String(maxNumericId + 1);
       planId = fallbackId;
       const nowFormatted = new Date().toLocaleDateString('en-IN', {
         day: 'numeric',
@@ -1007,34 +984,25 @@ export function useFertilizerPlanner() {
         fallbackRecord,
         ...savedPlans.filter((p) => p.id !== activePlanId).map(sanitizePlanRecord),
       ];
-      setSavedPlans(updatedPlans);
+      updateSavedPlansStateAndStorage(updatedPlans);
       setActivePlanId(fallbackId);
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(getStorageKey(), JSON.stringify(updatedPlans));
-        } catch (_) {}
-      }
     }
 
     if (redirectToRecords) {
-      if (isCompleted) {
-        setSaveSuccessMessage('Cultivation plan marked as Completed and finalized!');
-      } else if (isDraft) {
-        setSaveSuccessMessage('Cultivation draft saved successfully!');
-      } else {
-        setSaveSuccessMessage(t.step3?.savedSuccessToast || 'Cultivation record saved successfully!');
-      }
+      const msg = isCompleted
+        ? 'Cultivation plan marked as Completed and finalized!'
+        : isDraft
+        ? 'Cultivation draft saved successfully!'
+        : t.step3?.savedSuccessToast || 'Cultivation record saved successfully!';
+      setSaveSuccessMessage(msg);
       setPageView('records');
-
-      setTimeout(() => {
-        setSaveSuccessMessage(null);
-      }, 4000);
+      setTimeout(() => setSaveSuccessMessage(null), 4000);
     }
 
     return planId;
   };
 
-  const saveCurrentPlan = async (isDraft: boolean = false, isCompleted: boolean = false) =>
+  const saveCurrentPlan = async (isDraft = false, isCompleted = false) =>
     persistPlanToServer({ isDraft, isCompleted, redirectToRecords: true });
 
   const savePhaseProgress = async () =>
@@ -1049,9 +1017,10 @@ export function useFertilizerPlanner() {
     }
   };
 
-  const loadPlanAndShowSummary = (planId: string) => {
+  /** Common plan-to-state loader */
+  const applyPlanToState = (planId: string): SavedPlanRecord | null => {
     const plan = savedPlans.find((p) => p.id === planId);
-    if (!plan) return;
+    if (!plan) return null;
     const flatExpenses = plan.expenseMap?.phase_1
       ? nestedToFlatExpenseMap(plan.expenseMap, plan.cultivation, plan.userDetails?.landSize || 100)
       : plan.expenseMap;
@@ -1060,53 +1029,35 @@ export function useFertilizerPlanner() {
     setUserDetails({
       ...DEFAULT_USER_DETAILS,
       ...plan.userDetails,
-      location: [plan.userDetails?.village, plan.userDetails?.district, plan.userDetails?.state].filter(Boolean).join(', ') || plan.userDetails?.address || '',
+      location:
+        [plan.userDetails?.village, plan.userDetails?.district, plan.userDetails?.state]
+          .filter(Boolean)
+          .join(', ') ||
+        plan.userDetails?.address ||
+        '',
     });
     setExpenseMap(flatExpenses || {});
     setActivePlanId(plan.id);
     setStep2Completed(true);
+    return plan;
+  };
+
+  const loadPlanAndShowSummary = (planId: string) => {
+    if (!applyPlanToState(planId)) return;
     setStep(4);
     setPageView('wizard');
   };
 
   const loadPlanForEditing = (planId: string) => {
-    const plan = savedPlans.find((p) => p.id === planId);
-    if (!plan) return;
-    if (plan.isCompleted) return;
-    const flatExpenses = plan.expenseMap?.phase_1
-      ? nestedToFlatExpenseMap(plan.expenseMap, plan.cultivation, plan.userDetails?.landSize || 100)
-      : plan.expenseMap;
-    syncDirtyQtyFlagsFromPlan(flatExpenses || {});
-    setCultivation(plan.cultivation);
-    setUserDetails({
-      ...DEFAULT_USER_DETAILS,
-      ...plan.userDetails,
-      location: [plan.userDetails?.village, plan.userDetails?.district, plan.userDetails?.state].filter(Boolean).join(', ') || plan.userDetails?.address || '',
-    });
-    setExpenseMap(flatExpenses || {});
-    setActivePlanId(plan.id);
-    setStep2Completed(true);
+    const plan = applyPlanToState(planId);
+    if (!plan || plan.isCompleted) return;
     setActivePhaseIndex(0);
     setStep(1);
     setPageView('wizard');
   };
 
   const loadPlan = (planId: string) => {
-    const plan = savedPlans.find((p) => p.id === planId);
-    if (!plan) return;
-    const flatExpenses = plan.expenseMap?.phase_1
-      ? nestedToFlatExpenseMap(plan.expenseMap, plan.cultivation, plan.userDetails?.landSize || 100)
-      : plan.expenseMap;
-    syncDirtyQtyFlagsFromPlan(flatExpenses || {});
-    setCultivation(plan.cultivation);
-    setUserDetails({
-      ...DEFAULT_USER_DETAILS,
-      ...plan.userDetails,
-      location: [plan.userDetails?.village, plan.userDetails?.district, plan.userDetails?.state].filter(Boolean).join(', ') || plan.userDetails?.address || '',
-    });
-    setExpenseMap(flatExpenses || {});
-    setActivePlanId(plan.id);
-    setStep2Completed(true);
+    applyPlanToState(planId);
   };
 
   const deletePlan = (planId: string, e?: SyntheticEvent) => {
@@ -1114,18 +1065,10 @@ export function useFertilizerPlanner() {
       e.stopPropagation();
     }
     const updatedPlans = savedPlans.filter((p) => p.id !== planId);
-    setSavedPlans(updatedPlans);
+    updateSavedPlansStateAndStorage(updatedPlans);
     if (activePlanId === planId) {
       setActivePlanId(null);
     }
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(getStorageKey(), JSON.stringify(updatedPlans));
-      } catch (err) {
-        console.error('Failed to update localStorage', err);
-      }
-    }
-    // Mirror deletion to API
     deletePlanFromApi(planId);
   };
 
@@ -1149,9 +1092,7 @@ export function useFertilizerPlanner() {
     setPageView('wizard');
   };
 
-  const openSavedRecords = () => {
-    setPageView('records');
-  };
+  const openSavedRecords = () => setPageView('records');
 
   const isStep1Valid = useMemo(() => areStep1DetailsValid(userDetails), [userDetails]);
 
@@ -1199,6 +1140,7 @@ export function useFertilizerPlanner() {
     errors,
     validateStep1,
     clearError,
+    clearErrors,
     expenseMap,
     currentPhases,
     isStep1Valid,
@@ -1211,9 +1153,13 @@ export function useFertilizerPlanner() {
     handleCropSelect,
     handleConfigureCrop,
     handleRateChange,
+    handleRepairCostChange,
     handleLabourChange,
     handleMultiDayChangeActiveDay,
     handleMultiDayLabourChange,
+    handleMultiDayHarvestChange,
+    handleMultiDayGunnyBagsChange,
+    handleMultiDayTransportChange,
     handleFertilizerWithLabourChange,
     handleMandiChange,
     handleToggleOptional,

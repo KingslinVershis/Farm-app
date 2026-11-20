@@ -7,6 +7,8 @@ import {
   formatCurrency as fmt,
   computeRecommendedFertilizerBagRange,
   computeRecommendedFertilizerMix,
+  computeRecommendedPesticideLitres,
+  computeDailyLabourCost,
 } from '@/lib/fertilizer/calc';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { DayStepper } from './DayStepper';
@@ -19,6 +21,15 @@ interface TaskRowRendererProps {
   entry: ExpenseEntry;
   meta: { name: string; dayRange: string; description: string; costEstimateHint: string };
   handleRateChange: (taskId: string, rate: number, travelCost?: number, hasTravelCost?: boolean) => void;
+  handleRepairCostChange?: (
+    taskId: string,
+    params: {
+      hasRepairCost: boolean;
+      mechanicName?: string;
+      mechanicNumber?: string;
+      repairCost?: number;
+    }
+  ) => void;
   handleLabourChange: (taskId: string, count: number, wage: number, snacks?: number, travel?: number) => void;
   handleMultiDayChangeActiveDay?: (taskId: string, nextDay: number, maxDays?: number) => void;
   handleMultiDayLabourChange?: (
@@ -30,6 +41,20 @@ interface TaskRowRendererProps {
     travel?: number,
     maxDays?: number
   ) => void;
+  handleMultiDayHarvestChange?: (taskId: string, day: number, rate: number) => void;
+  handleMultiDayGunnyBagsChange?: (taskId: string, day: number, count: number, price: number) => void;
+  handleMultiDayTransportChange?: (
+    taskId: string,
+    day: number,
+    params: {
+      bagCount?: number;
+      perBagLiftingCost?: number;
+      transportRent?: number;
+      loadingWorkers?: number;
+      loadingWage?: number;
+      loadingSnacks?: number;
+    }
+  ) => void;
   handleFertilizerWithLabourChange: (
     taskId: string,
     fertQty: number,
@@ -37,7 +62,8 @@ interface TaskRowRendererProps {
     labourCount: number,
     labourWage: number,
     snackCost?: number,
-    travelCost?: number
+    travelCost?: number,
+    pesticideMl?: number
   ) => void;
   handleMandiChange: (taskId: string, count: number, rate: number) => void;
   handleToggleOptional: (taskId: string) => void;
@@ -60,9 +86,13 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
   entry,
   meta,
   handleRateChange,
+  handleRepairCostChange,
   handleLabourChange,
   handleMultiDayChangeActiveDay,
   handleMultiDayLabourChange,
+  handleMultiDayHarvestChange,
+  handleMultiDayGunnyBagsChange,
+  handleMultiDayTransportChange,
   handleFertilizerWithLabourChange,
   handleMandiChange,
   handleToggleOptional,
@@ -81,7 +111,8 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
   const t = messages.fertilizer;
   const isSkipped = entry.isEnabled === false;
 
-  const maxDays = maxDaysOverride ?? task.maxDays ?? 7;
+  const isDynamicMultiDay = Boolean(task.isMultiDayLabour) && task.id !== 'p3_herbicide';
+  const maxDays = maxDaysOverride ?? (isDynamicMultiDay ? 60 : (task.maxDays ?? 7));
   const activeDay = Math.min(maxDays, Math.max(1, entry.activeDay ?? 1));
   const dayEntries = entry.dayEntries || [];
   const currentDayEntry = dayEntries.find((d) => d.day === activeDay) || {
@@ -91,10 +122,56 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
     snackCost: 0,
     travelCost: 0,
   };
-  const isCurrentDayMandatoryFilled =
-    currentDayEntry.labourCount > 0 && currentDayEntry.labourWage > 0;
-  const filledMultiDays = dayEntries.filter(
-    (d) => d.day <= maxDays && (d.labourCount > 0 || d.labourWage > 0 || d.snackCost > 0 || d.travelCost > 0)
+  let isCurrentDayMandatoryFilled = false;
+  if (task.id === 'p4_harvest') {
+    isCurrentDayMandatoryFilled =
+      (currentDayEntry.ratePerCent ?? 0) > 0 ||
+      (activeDay === 1 && (entry.ratePerCent ?? 0) > 0);
+  } else if (task.isGunnyBags) {
+    isCurrentDayMandatoryFilled =
+      ((currentDayEntry.bagCount ?? 0) > 0 && (currentDayEntry.bagPrice ?? 0) > 0) ||
+      (activeDay === 1 && (entry.bagCount ?? 0) > 0 && (entry.bagPrice ?? 0) > 0);
+  } else if (task.isTransportLoading) {
+    const bCount = currentDayEntry.bagCount ?? currentDayEntry.transportRent ?? (activeDay === 1 ? (entry.bagCount ?? entry.transportRent ?? 0) : 0);
+    const liftCost = currentDayEntry.perBagLiftingCost ?? currentDayEntry.loadingWorkers ?? (activeDay === 1 ? (entry.perBagLiftingCost ?? entry.loadingWorkers ?? 0) : 0);
+    isCurrentDayMandatoryFilled = bCount > 0 && liftCost > 0;
+  } else {
+    isCurrentDayMandatoryFilled =
+      currentDayEntry.labourCount > 0 && currentDayEntry.labourWage > 0;
+  }
+
+  const filledMultiDays = dayEntries.filter((d) => {
+    if (d.day > maxDays) return false;
+    if (task.id === 'p4_harvest') {
+      return (d.ratePerCent ?? 0) > 0;
+    }
+    if (task.isGunnyBags) {
+      return (d.bagCount ?? 0) > 0 || (d.bagPrice ?? 0) > 0;
+    }
+    if (task.isTransportLoading) {
+      return ((d.bagCount ?? d.transportRent ?? 0) > 0 && (d.perBagLiftingCost ?? d.loadingWorkers ?? 0) > 0) || (d.loadingSnacks ?? 0) > 0;
+    }
+    return d.labourCount > 0 || d.labourWage > 0 || d.snackCost > 0 || d.travelCost > 0;
+  });
+  const maxFilledDay = filledMultiDays.length > 0
+    ? Math.max(...filledMultiDays.map((d) => d.day))
+    : 0;
+  const canGoNext = activeDay < maxFilledDay || isCurrentDayMandatoryFilled;
+
+  const totalDynamicDays = isDynamicMultiDay
+    ? Math.max(1, activeDay, maxFilledDay)
+    : maxDays;
+
+  const stepperMax = isDynamicMultiDay
+    ? (canGoNext ? Math.max(activeDay + 1, maxFilledDay, 1) : Math.max(activeDay, maxFilledDay, 1))
+    : maxDays;
+
+  const cents = userDetails.landSize > 0 ? userDetails.landSize : 0;
+  const isPesticideDose = task.id === 'p1_fert' || task.id === 'p2_tillering';
+  const activePesticideMl = entry.pesticideMl ?? (
+    cents > 0 && entry.fertQty
+      ? Math.round((Number(entry.fertQty) * 1000) / (cents / 2))
+      : 80
   );
 
   const requiredMark = !task.isOptional ? (
@@ -175,6 +252,23 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               </span>
             </button>
           )}
+          {task.id === 'p1_fuel' && (
+            <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold border border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-300 shadow-xs">
+              <span>{isTamil ? 'பழுது செலவு' : 'Repair Cost'}:</span>
+              <Switch
+                size="small"
+                checked={entry.hasRepairCost === true}
+                onChange={(checked) =>
+                  handleRepairCostChange?.(task.id, {
+                    hasRepairCost: checked,
+                    mechanicName: entry.mechanicName || '',
+                    mechanicNumber: entry.mechanicNumber || '',
+                    repairCost: entry.repairCost || 0,
+                  })
+                }
+              />
+            </div>
+          )}
           {task.id === 'p1_nursery' && (
             <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold border border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-300 shadow-xs">
               <span>{t.step3.tableHeaders.travelCost || 'Seed Travel Cost'}:</span>
@@ -236,18 +330,59 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
 
       {/* 2. Benchmark */}
       <td className="py-4 px-4 text-xs">
+        {isPesticideDose && (
+          <div className={`mb-1.5 ${isSkipped ? 'pointer-events-none opacity-50' : ''}`}>
+            <Tooltip
+              title={
+                isTamil
+                  ? 'ஒரு தெளிப்பான் கேனுக்கான பூச்சிக்கொல்லி மருந்து அளவு (50மி.லி – 100மி.லி)'
+                  : 'Pesticide dosage per spray can (50ml – 100ml)'
+              }
+              placement="top"
+            >
+              <div className="flex items-center gap-1 flex-wrap cursor-help">
+                {[50, 60, 70, 80, 90, 100].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      const calculatedLitres = computeRecommendedPesticideLitres(cents, preset);
+                      handleFertilizerWithLabourChange(
+                        task.id,
+                        calculatedLitres,
+                        entry.fertPrice ?? 0,
+                        entry.labourCount ?? 0,
+                        entry.labourWage ?? 0,
+                        entry.snackCost ?? 0,
+                        entry.travelCost ?? 0,
+                        preset
+                      );
+                    }}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                      activePesticideMl === preset
+                        ? 'bg-emerald-500 text-white keep-white shadow-xs'
+                        : 'glass-surface text-text-muted hover:text-text-main'
+                    }`}
+                  >
+                    {preset}ml
+                  </button>
+                ))}
+              </div>
+            </Tooltip>
+          </div>
+        )}
         <span className="font-bold text-text-main">{meta.costEstimateHint}</span>
         {task.isMultiDayLabour && !entry.isMachineMode ? (
           <div className={`mt-2 ${isSkipped ? 'pointer-events-none opacity-50' : ''}`}>
             <DayStepper
               value={activeDay}
               min={1}
-              max={maxDays}
+              max={stepperMax}
               dayLabel={isTamil ? 'நாள்' : 'Day'}
               maxLabel={
                 isTamil
-                  ? `(${filledMultiDays.length}/${maxDays} நாள்)`
-                  : `(${filledMultiDays.length}/${maxDays} days)`
+                  ? `(${filledMultiDays.length}/${totalDynamicDays} ${totalDynamicDays === 1 ? 'நாள்' : 'நாட்கள்'})`
+                  : `(${filledMultiDays.length}/${totalDynamicDays} ${totalDynamicDays === 1 ? 'day' : 'days'})`
               }
               disableNext={!isCurrentDayMandatoryFilled}
               nextDisabledReason={
@@ -255,13 +390,29 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                   ? `அடுத்த நாளுக்குச் செல்ல நாள் ${activeDay}-ன் கட்டாய விவரங்களை நிரப்பவும்`
                   : `Fill required fields for Day ${activeDay} to unlock Day ${activeDay + 1}`
               }
-              onNextBlocked={() =>
-                message.warning(
-                  isTamil
-                    ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான ஆட்கள் எண்ணிக்கை மற்றும் கூலியை நிரப்பவும்.`
-                    : `Please fill Labour Count and Wage for Day ${activeDay} before moving to the next day.`
-                )
-              }
+              onNextBlocked={() => {
+                let msg = isTamil
+                  ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான ஆட்கள் எண்ணிக்கை மற்றும் கூலியை நிரப்பவும்.`
+                  : `Please fill Labour Count and Wage for Day ${activeDay} before moving to the next day.`;
+                if (task.id === 'p4_harvest') {
+                  msg = isTamil
+                    ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான இயந்திர அறுவடை செலவை நிரப்பவும்.`
+                    : `Please fill Machine Harvest Cost for Day ${activeDay} before moving to the next day.`;
+                } else if (task.isGunnyBags) {
+                  msg = isTamil
+                    ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான சாக்கு எண்ணிக்கை மற்றும் விலையை நிரப்பவும்.`
+                    : `Please fill Gunny Bag Count and Price for Day ${activeDay} before moving to the next day.`;
+                } else if (task.id === 'p4_sack_stitcher') {
+                  msg = isTamil
+                    ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான தையல் சாக்கு எண்ணிக்கை மற்றும் ஒரு சாக்கு கூலியை நிரப்பவும்.`
+                    : `Please fill Stitched Bag Count and Cost per Bag for Day ${activeDay} before moving to the next day.`;
+                } else if (task.isTransportLoading) {
+                  msg = isTamil
+                    ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான சாக்கு எண்ணிக்கை மற்றும் ஒரு சாக்கு ஏற்றுக் கூலியை நிரப்பவும்.`
+                    : `Please fill Bag Count and Per Bag Lifting Cost for Day ${activeDay} before moving to the next day.`;
+                }
+                message.warning(msg);
+              }}
               onChange={(nextDay) => handleMultiDayChangeActiveDay?.(task.id, nextDay, maxDays)}
             />
           </div>
@@ -279,17 +430,23 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
           (() => {
             const cents = userDetails.landSize > 0 ? userDetails.landSize : 0;
             const isPesticideDose = task.id === 'p1_fert' || task.id === 'p2_tillering';
-            const isBagCountDose = task.id === 'p3_fert_dose3';
+            const isBagCountDose = task.id === 'p3_fert_dose3' || task.id === 'p2_fert_labour';
             const isPotashSulphide = task.id === 'p3_potash_sulphide';
             const bagRange = computeRecommendedFertilizerBagRange(cents);
             const fertMix = computeRecommendedFertilizerMix(cents);
             const enteredQty = Number(entry.fertQty) || 0;
             const splitHalfQty = Number((enteredQty / 2).toFixed(2));
 
+            const activePesticideMl = entry.pesticideMl ?? (
+              cents > 0 && entry.fertQty
+                ? Math.round((Number(entry.fertQty) * 1000) / (cents / 2))
+                : 80
+            );
+
             const qtyTooltipContent = isPesticideDose
               ? (isTamil
-                  ? 'ஒரு கேனுக்கு 80 மி.லி பூச்சிக்கொல்லி அளவு'
-                  : '80 ml pesticide dose per can')
+                  ? `ஒரு கேனுக்கு ${activePesticideMl} மி.லி பூச்சிக்கொல்லி அளவு`
+                  : `${activePesticideMl} ml pesticide dose per can`)
               : isBagCountDose
                 ? (
                   <div className="space-y-1 text-[11px]">
@@ -420,18 +577,35 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                     min="0"
                     placeholder="0"
                     disabled={isSkipped}
-                    value={entry.labourCount !== undefined && entry.labourCount !== 0 ? entry.labourCount : ''}
-                    onChange={(e) =>
-                      handleFertilizerWithLabourChange(
-                        task.id,
-                        entry.fertQty ?? 0,
-                        entry.fertPrice ?? 0,
-                        parseFloat(e.target.value) || 0,
-                        entry.labourWage ?? 0,
-                        entry.snackCost ?? 0,
-                        entry.travelCost ?? 0
-                      )
+                    value={
+                      task.isMultiDayLabour
+                        ? (currentDayEntry.labourCount !== 0 ? currentDayEntry.labourCount : '')
+                        : (entry.labourCount !== undefined && entry.labourCount !== 0 ? entry.labourCount : '')
                     }
+                    onChange={(e) => {
+                      const num = parseFloat(e.target.value) || 0;
+                      if (task.isMultiDayLabour) {
+                        handleMultiDayLabourChange?.(
+                          task.id,
+                          activeDay,
+                          num,
+                          currentDayEntry.labourWage,
+                          currentDayEntry.snackCost,
+                          currentDayEntry.travelCost,
+                          maxDays
+                        );
+                      } else {
+                        handleFertilizerWithLabourChange(
+                          task.id,
+                          entry.fertQty ?? 0,
+                          entry.fertPrice ?? 0,
+                          num,
+                          entry.labourWage ?? 0,
+                          entry.snackCost ?? 0,
+                          entry.travelCost ?? 0
+                        );
+                      }
+                    }}
                     className="w-full rounded-lg text-xs font-bold text-text-main"
                   />
                 </div>
@@ -445,18 +619,35 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                     min="0"
                     placeholder="0"
                     disabled={isSkipped}
-                    value={entry.labourWage !== undefined && entry.labourWage !== 0 ? entry.labourWage : ''}
-                    onChange={(e) =>
-                      handleFertilizerWithLabourChange(
-                        task.id,
-                        entry.fertQty ?? 0,
-                        entry.fertPrice ?? 0,
-                        entry.labourCount ?? 0,
-                        parseFloat(e.target.value) || 0,
-                        entry.snackCost ?? 0,
-                        entry.travelCost ?? 0
-                      )
+                    value={
+                      task.isMultiDayLabour
+                        ? (currentDayEntry.labourWage !== 0 ? currentDayEntry.labourWage : '')
+                        : (entry.labourWage !== undefined && entry.labourWage !== 0 ? entry.labourWage : '')
                     }
+                    onChange={(e) => {
+                      const num = parseFloat(e.target.value) || 0;
+                      if (task.isMultiDayLabour) {
+                        handleMultiDayLabourChange?.(
+                          task.id,
+                          activeDay,
+                          currentDayEntry.labourCount,
+                          num,
+                          currentDayEntry.snackCost,
+                          currentDayEntry.travelCost,
+                          maxDays
+                        );
+                      } else {
+                        handleFertilizerWithLabourChange(
+                          task.id,
+                          entry.fertQty ?? 0,
+                          entry.fertPrice ?? 0,
+                          entry.labourCount ?? 0,
+                          num,
+                          entry.snackCost ?? 0,
+                          entry.travelCost ?? 0
+                        );
+                      }
+                    }}
                     className="w-full rounded-lg text-xs font-bold text-text-main"
                   />
                 </div>
@@ -469,18 +660,35 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                     min="0"
                     placeholder="0"
                     disabled={isSkipped}
-                    value={entry.snackCost !== undefined && entry.snackCost !== 0 ? entry.snackCost : ''}
-                    onChange={(e) =>
-                      handleFertilizerWithLabourChange(
-                        task.id,
-                        entry.fertQty ?? 0,
-                        entry.fertPrice ?? 0,
-                        entry.labourCount ?? 0,
-                        entry.labourWage ?? 0,
-                        parseFloat(e.target.value) || 0,
-                        entry.travelCost ?? 0
-                      )
+                    value={
+                      task.isMultiDayLabour
+                        ? (currentDayEntry.snackCost !== 0 ? currentDayEntry.snackCost : '')
+                        : (entry.snackCost !== undefined && entry.snackCost !== 0 ? entry.snackCost : '')
                     }
+                    onChange={(e) => {
+                      const num = parseFloat(e.target.value) || 0;
+                      if (task.isMultiDayLabour) {
+                        handleMultiDayLabourChange?.(
+                          task.id,
+                          activeDay,
+                          currentDayEntry.labourCount,
+                          currentDayEntry.labourWage,
+                          num,
+                          currentDayEntry.travelCost,
+                          maxDays
+                        );
+                      } else {
+                        handleFertilizerWithLabourChange(
+                          task.id,
+                          entry.fertQty ?? 0,
+                          entry.fertPrice ?? 0,
+                          entry.labourCount ?? 0,
+                          entry.labourWage ?? 0,
+                          num,
+                          entry.travelCost ?? 0
+                        );
+                      }
+                    }}
                     className="w-full rounded-lg text-xs font-bold text-text-main"
                   />
                 </div>
@@ -493,38 +701,226 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                     min="0"
                     placeholder="0"
                     disabled={isSkipped}
-                    value={entry.travelCost !== undefined && entry.travelCost !== 0 ? entry.travelCost : ''}
-                    onChange={(e) =>
-                      handleFertilizerWithLabourChange(
-                        task.id,
-                        entry.fertQty ?? 0,
-                        entry.fertPrice ?? 0,
-                        entry.labourCount ?? 0,
-                        entry.labourWage ?? 0,
-                        entry.snackCost ?? 0,
-                        parseFloat(e.target.value) || 0
-                      )
+                    value={
+                      task.isMultiDayLabour
+                        ? (currentDayEntry.travelCost !== 0 ? currentDayEntry.travelCost : '')
+                        : (entry.travelCost !== undefined && entry.travelCost !== 0 ? entry.travelCost : '')
                     }
+                    onChange={(e) => {
+                      const num = parseFloat(e.target.value) || 0;
+                      if (task.isMultiDayLabour) {
+                        handleMultiDayLabourChange?.(
+                          task.id,
+                          activeDay,
+                          currentDayEntry.labourCount,
+                          currentDayEntry.labourWage,
+                          currentDayEntry.snackCost,
+                          num,
+                          maxDays
+                        );
+                      } else {
+                        handleFertilizerWithLabourChange(
+                          task.id,
+                          entry.fertQty ?? 0,
+                          entry.fertPrice ?? 0,
+                          entry.labourCount ?? 0,
+                          entry.labourWage ?? 0,
+                          entry.snackCost ?? 0,
+                          num
+                        );
+                      }
+                    }}
                     className="w-full rounded-lg text-xs font-bold text-text-main"
                   />
                 </div>
               </div>
             );
           })()
-        ) : task.isMultiDayLabour && !entry.isMachineMode ? (
+        ) : task.id === 'p4_harvest' ? (
+          /* Day-Wise Machine Harvesting Cost */
+          <div className="relative max-w-[170px]">
+            <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
+              {isTamil ? `நாள் ${activeDay} இயந்திர வாடகை` : `Day ${activeDay} Machine Cost`}
+              {requiredMark}
+            </label>
+            <Input
+              type="number"
+              min="0"
+              placeholder="0"
+              disabled={isSkipped}
+              value={
+                currentDayEntry.ratePerCent !== undefined && currentDayEntry.ratePerCent !== 0
+                  ? currentDayEntry.ratePerCent
+                  : (activeDay === 1 && entry.ratePerCent !== undefined && entry.ratePerCent !== 0 ? entry.ratePerCent : '')
+              }
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || 0;
+                handleMultiDayHarvestChange?.(task.id, activeDay, val);
+              }}
+              suffix={
+                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                  ₹
+                </span>
+              }
+              className={`w-full rounded-lg text-xs font-bold text-text-main outline-none transition-all ${
+                isSkipped ? 'bg-slate-900/50 cursor-not-allowed opacity-50' : 'focus:border-emerald-500'
+              }`}
+            />
+          </div>
+        ) : task.isGunnyBags ? (
+          /* Day-Wise Gunny Bags (Count, Price) */
+          <div className="grid grid-cols-2 gap-2 max-w-xs">
+            <div>
+              <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
+                {t.step3.tableHeaders.bagCount}
+                {requiredMark}
+              </label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="0"
+                disabled={isSkipped}
+                value={
+                  currentDayEntry.bagCount !== undefined && currentDayEntry.bagCount !== 0
+                    ? currentDayEntry.bagCount
+                    : (activeDay === 1 && entry.bagCount !== undefined && entry.bagCount !== 0 ? entry.bagCount : '')
+                }
+                onChange={(e) => {
+                  const count = parseFloat(e.target.value) || 0;
+                  const price = currentDayEntry.bagPrice !== undefined && currentDayEntry.bagPrice !== 0
+                    ? currentDayEntry.bagPrice
+                    : (activeDay === 1 ? (entry.bagPrice ?? 0) : 0);
+                  handleMultiDayGunnyBagsChange?.(task.id, activeDay, count, price);
+                }}
+                className="w-full rounded-lg text-xs font-bold text-text-main"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
+                {t.step3.tableHeaders.bagPrice}
+                {requiredMark}
+              </label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="0"
+                disabled={isSkipped}
+                value={
+                  currentDayEntry.bagPrice !== undefined && currentDayEntry.bagPrice !== 0
+                    ? currentDayEntry.bagPrice
+                    : (activeDay === 1 && entry.bagPrice !== undefined && entry.bagPrice !== 0 ? entry.bagPrice : '')
+                }
+                onChange={(e) => {
+                  const price = parseFloat(e.target.value) || 0;
+                  const count = currentDayEntry.bagCount !== undefined && currentDayEntry.bagCount !== 0
+                    ? currentDayEntry.bagCount
+                    : (activeDay === 1 ? (entry.bagCount ?? 0) : 0);
+                  handleMultiDayGunnyBagsChange?.(task.id, activeDay, count, price);
+                }}
+                suffix={<span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">₹</span>}
+                className="w-full rounded-lg text-xs font-bold text-text-main"
+              />
+            </div>
+          </div>
+        ) : task.isTransportLoading ? (
+          /* Day-Wise Transport & Mandi Logistics */
+          <div className="grid grid-cols-2 gap-2 max-w-sm">
+            <div>
+              <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
+                {t.step3.tableHeaders.transportBagCount || (isTamil ? 'சாக்கு எண்ணிக்கை' : 'Bag Count')}
+                {requiredMark}
+              </label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="0"
+                disabled={isSkipped}
+                value={
+                  currentDayEntry.bagCount !== undefined && currentDayEntry.bagCount !== 0
+                    ? currentDayEntry.bagCount
+                    : (currentDayEntry.transportRent !== undefined && currentDayEntry.transportRent !== 0
+                        ? currentDayEntry.transportRent
+                        : (activeDay === 1 && (entry.bagCount || entry.transportRent) ? (entry.bagCount || entry.transportRent) : ''))
+                }
+                onChange={(e) => {
+                  const count = parseFloat(e.target.value) || 0;
+                  handleMultiDayTransportChange?.(task.id, activeDay, {
+                    bagCount: count,
+                    transportRent: count,
+                  });
+                }}
+                className="w-full rounded-lg text-xs font-bold text-text-main"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
+                {t.step3.tableHeaders.perBagLiftingCost || (isTamil ? 'ஒரு சாக்கு ஏற்றுக் கூலி (₹)' : 'Per Bag Lifting Cost (₹)')}
+                {requiredMark}
+              </label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="0"
+                disabled={isSkipped}
+                value={
+                  currentDayEntry.perBagLiftingCost !== undefined && currentDayEntry.perBagLiftingCost !== 0
+                    ? currentDayEntry.perBagLiftingCost
+                    : (currentDayEntry.loadingWorkers !== undefined && currentDayEntry.loadingWorkers !== 0
+                        ? currentDayEntry.loadingWorkers
+                        : (activeDay === 1 && (entry.perBagLiftingCost || entry.loadingWorkers) ? (entry.perBagLiftingCost || entry.loadingWorkers) : ''))
+                }
+                onChange={(e) => {
+                  const cost = parseFloat(e.target.value) || 0;
+                  handleMultiDayTransportChange?.(task.id, activeDay, {
+                    perBagLiftingCost: cost,
+                    loadingWorkers: cost,
+                  });
+                }}
+                suffix={<span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">₹</span>}
+                className="w-full rounded-lg text-xs font-bold text-text-main"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
+                {t.step3.tableHeaders.snackCost}
+              </label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="0"
+                disabled={isSkipped}
+                value={
+                  currentDayEntry.loadingSnacks !== undefined && currentDayEntry.loadingSnacks !== 0
+                    ? currentDayEntry.loadingSnacks
+                    : (activeDay === 1 && entry.loadingSnacks !== undefined && entry.loadingSnacks !== 0 ? entry.loadingSnacks : '')
+                }
+                onChange={(e) => {
+                  const snacks = parseFloat(e.target.value) || 0;
+                  handleMultiDayTransportChange?.(task.id, activeDay, { loadingSnacks: snacks });
+                }}
+                suffix={<span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">₹</span>}
+                className="w-full rounded-lg text-xs font-bold text-text-main"
+              />
+            </div>
+          </div>
+        ) : task.isMultiDayLabour && !entry.isMachineMode && task.isLabour ? (
           /* Day-Wise Labour Fields (Day 1 to maxDays controlled via DayStepper in Estimation column) */
           <div className="grid grid-cols-2 gap-2 max-w-sm">
               {(
                 [
                   {
                     key: 'labourCount',
-                    label: t.step3.tableHeaders.labourCount,
+                    label: task.id === 'p4_sack_stitcher'
+                      ? (t.step3.tableHeaders.stitchedBagCount || (isTamil ? 'தையல் சாக்கு எண்ணிக்கை' : 'Stitched Bag Count'))
+                      : t.step3.tableHeaders.labourCount,
                     val: currentDayEntry.labourCount,
                     required: true,
                   },
                   {
                     key: 'labourWage',
-                    label: t.step3.tableHeaders.labourWage,
+                    label: task.id === 'p4_sack_stitcher'
+                      ? (t.step3.tableHeaders.stitchingCostPerBag || (isTamil ? 'ஒரு சாக்கு தையல் கூலி (₹)' : 'Cost of per bag (₹)'))
+                      : t.step3.tableHeaders.labourWage,
                     val: currentDayEntry.labourWage,
                     required: true,
                   },
@@ -676,142 +1072,9 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               </div>
             )}
           </div>
-        ) : task.isGunnyBags ? (
-          /* Gunny Bags (Count, Price) */
-          <div className="grid grid-cols-2 gap-2 max-w-xs">
-            <div>
-              <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                {t.step3.tableHeaders.bagCount}
-              </label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={entry.bagCount !== undefined && entry.bagCount !== 0 ? entry.bagCount : ''}
-                onChange={(e) =>
-                  handleGunnyBagsChange(
-                    task.id,
-                    parseFloat(e.target.value) || 0,
-                    entry.bagPrice ?? 0
-                  )
-                }
-                className="w-full rounded-lg text-xs font-bold text-text-main"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                {t.step3.tableHeaders.bagPrice}
-              </label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={entry.bagPrice !== undefined && entry.bagPrice !== 0 ? entry.bagPrice : ''}
-                onChange={(e) =>
-                  handleGunnyBagsChange(
-                    task.id,
-                    entry.bagCount ?? 0,
-                    parseFloat(e.target.value) || 0
-                  )
-                }
-                className="w-full rounded-lg text-xs font-bold text-text-main"
-              />
-            </div>
-          </div>
-        ) : task.isTransportLoading ? (
-          /* Transport & Mandi Logistics */
-          <div className="grid grid-cols-2 gap-2 max-w-sm">
-            <div>
-              <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                {t.step3.tableHeaders.transportRent}
-                {requiredMark}
-              </label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={entry.transportRent !== undefined && entry.transportRent !== 0 ? entry.transportRent : ''}
-                onChange={(e) =>
-                  handleTransportLoadingChange(
-                    task.id,
-                    parseFloat(e.target.value) || 0,
-                    entry.loadingWorkers ?? 0,
-                    entry.loadingWage ?? 0,
-                    entry.loadingSnacks ?? 0
-                  )
-                }
-                className="w-full rounded-lg text-xs font-bold text-text-main"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                {t.step3.tableHeaders.loadingWorkers}
-                {requiredMark}
-              </label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={entry.loadingWorkers !== undefined && entry.loadingWorkers !== 0 ? entry.loadingWorkers : ''}
-                onChange={(e) =>
-                  handleTransportLoadingChange(
-                    task.id,
-                    entry.transportRent ?? 0,
-                    parseFloat(e.target.value) || 0,
-                    entry.loadingWage ?? 0,
-                    entry.loadingSnacks ?? 0
-                  )
-                }
-                className="w-full rounded-lg text-xs font-bold text-text-main"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                {t.step3.tableHeaders.loadingWage}
-                {requiredMark}
-              </label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={entry.loadingWage !== undefined && entry.loadingWage !== 0 ? entry.loadingWage : ''}
-                onChange={(e) =>
-                  handleTransportLoadingChange(
-                    task.id,
-                    entry.transportRent ?? 0,
-                    entry.loadingWorkers ?? 0,
-                    parseFloat(e.target.value) || 0,
-                    entry.loadingSnacks ?? 0
-                  )
-                }
-                className="w-full rounded-lg text-xs font-bold text-text-main"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                {t.step3.tableHeaders.snackCost}
-              </label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={entry.loadingSnacks !== undefined && entry.loadingSnacks !== 0 ? entry.loadingSnacks : ''}
-                onChange={(e) =>
-                  handleTransportLoadingChange(
-                    task.id,
-                    entry.transportRent ?? 0,
-                    entry.loadingWorkers ?? 0,
-                    entry.loadingWage ?? 0,
-                    parseFloat(e.target.value) || 0
-                  )
-                }
-                className="w-full rounded-lg text-xs font-bold text-text-main"
-              />
-            </div>
-          </div>
         ) : task.isGrainYield ? (
-          /* Grain Yield (Always 3 editable fields in KG + 1 disabled calculated Bags field) */
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-lg">
+          /* Grain Yield: Split into 2 fields per row (2x2 grid) for clean alignment */
+          <div className="grid grid-cols-2 gap-2 max-w-xs">
             <div>
               <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
                 {t.step3.tableHeaders.yieldKg || 'Total Yield (KG)'}
@@ -1029,6 +1292,111 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               </div>
             )}
           </div>
+        ) : task.id === 'p1_fuel' ? (
+          /* Diesel / Petrol Cost with Optional Motor & Pump Repair Cost */
+          entry.hasRepairCost ? (
+            <div className="grid grid-cols-2 gap-2 max-w-sm bg-transparent">
+              <div>
+                <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
+                  {isTamil ? 'எரிபொருள் செலவு' : 'Fuel Cost'}
+                  {requiredMark}
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  disabled={isSkipped}
+                  value={entry.ratePerCent !== undefined && entry.ratePerCent !== 0 ? entry.ratePerCent : ''}
+                  onChange={(e) => handleRateChange(task.id, parseFloat(e.target.value) || 0)}
+                  suffix={<span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">₹</span>}
+                  className="w-full rounded-lg text-xs font-bold text-text-main bg-transparent"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
+                  {isTamil ? 'பழுது செலவு' : 'Repair Cost'}
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  disabled={isSkipped}
+                  value={entry.repairCost !== undefined && entry.repairCost !== 0 ? entry.repairCost : ''}
+                  onChange={(e) =>
+                    handleRepairCostChange?.(task.id, {
+                      hasRepairCost: true,
+                      repairCost: parseFloat(e.target.value) || 0,
+                      mechanicName: entry.mechanicName || '',
+                      mechanicNumber: entry.mechanicNumber || '',
+                    })
+                  }
+                  suffix={<span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">₹</span>}
+                  className="w-full rounded-lg text-xs font-bold text-text-main bg-transparent"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
+                  {isTamil ? 'மெக்கானிக் எண்' : 'Mechanic Phone'}
+                </label>
+                <Input
+                  type="tel"
+                  maxLength={10}
+                  placeholder={isTamil ? 'எ.கா. 9876543210' : 'e.g. 9876543210'}
+                  disabled={isSkipped}
+                  value={entry.mechanicNumber || ''}
+                  onChange={(e) => {
+                    const cleaned = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    handleRepairCostChange?.(task.id, {
+                      hasRepairCost: true,
+                      mechanicNumber: cleaned,
+                      mechanicName: entry.mechanicName || '',
+                      repairCost: entry.repairCost || 0,
+                    });
+                  }}
+                  className="w-full rounded-lg text-xs font-bold text-text-main bg-transparent"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
+                  {isTamil ? 'மெக்கானிக் பெயர்' : 'Mechanic Name'}
+                </label>
+                <Input
+                  type="text"
+                  placeholder={isTamil ? 'பெயர்' : 'Name'}
+                  disabled={isSkipped}
+                  value={entry.mechanicName || ''}
+                  onChange={(e) =>
+                    handleRepairCostChange?.(task.id, {
+                      hasRepairCost: true,
+                      mechanicName: e.target.value,
+                      mechanicNumber: entry.mechanicNumber || '',
+                      repairCost: entry.repairCost || 0,
+                    })
+                  }
+                  className="w-full rounded-lg text-xs font-bold text-text-main bg-transparent"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="relative max-w-[170px]">
+              <Input
+                type="number"
+                min="0"
+                placeholder="0"
+                disabled={isSkipped}
+                value={entry.ratePerCent !== undefined && entry.ratePerCent !== 0 ? entry.ratePerCent : ''}
+                onChange={(e) => handleRateChange(task.id, parseFloat(e.target.value) || 0)}
+                suffix={
+                  <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                    ₹
+                  </span>
+                }
+                className={`w-full rounded-lg text-xs font-bold text-text-main outline-none transition-all ${
+                  isSkipped ? 'bg-slate-900/50 cursor-not-allowed opacity-50' : 'focus:border-emerald-500'
+                }`}
+              />
+            </div>
+          )
         ) : (
           /* Standard Rate per Cent Input */
           <div className="relative max-w-[170px]">
@@ -1064,54 +1432,144 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
             <div className="text-base font-extrabold text-emerald-600 dark:text-emerald-300">
               ₹{fmt(entry.totalCost)}
             </div>
-            <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
-              <span>{t.step3.tableHeaders.fertMaterial || 'Fert'}: ₹{fmt((entry.fertQty ?? 0) * (entry.fertPrice ?? 0))}</span>
-              <span className="mx-1">•</span>
-              <span>{t.step3.tableHeaders.fertLabour || 'Labour'}: ₹{fmt((entry.labourCount ?? 0) * (entry.labourWage ?? 0))}</span>
-              {((entry.snackCost ?? 0) > 0 || (entry.travelCost ?? 0) > 0) && (
-                <span className="block text-[10px] text-slate-600 dark:text-slate-400 mt-0.5 font-medium">
-                  {(entry.snackCost ?? 0) > 0 && `+ ₹${fmt(entry.snackCost ?? 0)} snacks `}
-                  {(entry.travelCost ?? 0) > 0 && `+ ₹${fmt(entry.travelCost ?? 0)} travel`}
+            {task.isMultiDayLabour ? (
+              (() => {
+                const dayEntries = entry.dayEntries || [];
+                const dayLabourTotal = dayEntries.reduce((sum, d) => sum + computeDailyLabourCost(d), 0);
+                const filledDaysCount = dayEntries.filter(
+                  (d) => d.labourCount > 0 || d.labourWage > 0 || (d.snackCost ?? 0) > 0 || (d.travelCost ?? 0) > 0
+                ).length;
+                return (
+                  <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
+                    <span>
+                      {t.step3.tableHeaders.fertMaterial || 'Fert'}: ₹{fmt(entry.fertPrice ?? 0)}
+                    </span>
+                    <span className="mx-1">•</span>
+                    <span>
+                      {t.step3.tableHeaders.fertLabour || 'Labour'}: ₹{fmt(dayLabourTotal)} ({filledDaysCount} {filledDaysCount === 1 ? 'day' : 'days'})
+                    </span>
+                  </div>
+                );
+              })()
+            ) : (
+              <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
+                <span>
+                  {t.step3.tableHeaders.fertMaterial || 'Fert'}: ₹
+                  {fmt(
+                    (task.id === 'p2_fert_labour' || task.id === 'p3_fert_dose3' || task.id === 'p1_fert' || task.id === 'p2_tillering')
+                      ? (entry.fertPrice ?? 0)
+                      : ((entry.fertQty ?? 0) * (entry.fertPrice ?? 0))
+                  )}
                 </span>
-              )}
-            </div>
+                <span className="mx-1">•</span>
+                <span>{t.step3.tableHeaders.fertLabour || 'Labour'}: ₹{fmt((entry.labourCount ?? 0) * (entry.labourWage ?? 0))}</span>
+                {((entry.snackCost ?? 0) > 0 || (entry.travelCost ?? 0) > 0) && (
+                  <span className="block text-[10px] text-slate-600 dark:text-slate-400 mt-0.5 font-medium">
+                    {(entry.snackCost ?? 0) > 0 && `+ ₹${fmt(entry.snackCost ?? 0)} snacks `}
+                    {(entry.travelCost ?? 0) > 0 && `+ ₹${fmt(entry.travelCost ?? 0)} travel`}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
-        ) : task.isMultiDayLabour && !entry.isMachineMode ? (
+        ) : task.id === 'p4_harvest' ? (
           <div>
             <div className="text-base font-extrabold text-emerald-600 dark:text-emerald-300">
               ₹{fmt(entry.totalCost)}
             </div>
-          </div>
-        ) : task.isLabour && !entry.isMachineMode ? (
-          <div>
-            <div className="text-base font-extrabold text-emerald-600 dark:text-emerald-300">
-              ₹{fmt(entry.totalCost)}
-            </div>
-            <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
-              <span>{entry.labourCount ?? 0} × ₹{fmt(entry.labourWage ?? 0)}</span>
-              {(entry.snackCost ?? 0) > 0 && <span> + ₹{fmt(entry.snackCost ?? 0)}</span>}
-              {(entry.travelCost ?? 0) > 0 && <span> + ₹{fmt(entry.travelCost ?? 0)}</span>}
-            </div>
+            {(() => {
+              const dayEntries = entry.dayEntries || [];
+              const filledDaysCount = dayEntries.filter((d) => (d.ratePerCent ?? 0) > 0).length || (entry.totalCost > 0 ? 1 : 0);
+              return (
+                <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
+                  <span>
+                    {isTamil ? 'இயந்திரம்' : 'Machine'}: {filledDaysCount} {filledDaysCount === 1 ? (isTamil ? 'நாள்' : 'day') : (isTamil ? 'நாட்கள்' : 'days')}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
         ) : task.isGunnyBags ? (
           <div>
             <div className="text-base font-extrabold text-emerald-600 dark:text-emerald-300">
               ₹{fmt(entry.totalCost)}
             </div>
-            <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
-              <span>{entry.bagCount ?? 0} bags × ₹{fmt(entry.bagPrice ?? 0)}</span>
-            </div>
+            {(() => {
+              const dayEntries = entry.dayEntries || [];
+              const filledDaysCount = dayEntries.filter((d) => (d.bagCount ?? 0) > 0 || (d.bagPrice ?? 0) > 0).length || (entry.totalCost > 0 ? 1 : 0);
+              const totalBags = dayEntries.length > 0
+                ? dayEntries.reduce((sum, d) => sum + (d.bagCount || 0), 0)
+                : (entry.bagCount ?? 0);
+              return (
+                <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
+                  <span>
+                    {filledDaysCount} {filledDaysCount === 1 ? (isTamil ? 'நாள்' : 'day') : (isTamil ? 'நாட்கள்' : 'days')}
+                    {totalBags > 0 && ` (${totalBags} ${isTamil ? 'சாக்குகள்' : 'bags'})`}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
         ) : task.isTransportLoading ? (
           <div>
             <div className="text-base font-extrabold text-emerald-600 dark:text-emerald-300">
               ₹{fmt(entry.totalCost)}
             </div>
-            <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
-              <span>Rent ₹{fmt(entry.transportRent ?? 0)}</span>
-              <span> + Load ₹{fmt((entry.loadingWorkers ?? 0) * (entry.loadingWage ?? 0))}</span>
-              {(entry.loadingSnacks ?? 0) > 0 && <span> + ₹{fmt(entry.loadingSnacks ?? 0)}</span>}
+            {(() => {
+              const dayEntries = entry.dayEntries || [];
+              const filledDaysCount = dayEntries.filter(
+                (d) => (d.bagCount ?? d.transportRent ?? 0) > 0 && (d.perBagLiftingCost ?? d.loadingWorkers ?? 0) > 0
+              ).length || (entry.totalCost > 0 ? 1 : 0);
+              const totalBags = dayEntries.reduce((sum, d) => sum + (d.bagCount ?? d.transportRent ?? 0), 0) || (entry.bagCount ?? entry.transportRent ?? 0);
+              return (
+                <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
+                  <span>
+                    {isTamil ? 'போக்குவரத்து' : 'Transport'}: {filledDaysCount} {filledDaysCount === 1 ? (isTamil ? 'நாள்' : 'day') : (isTamil ? 'நாட்கள்' : 'days')}
+                    {totalBags > 0 && ` (${totalBags} ${isTamil ? 'சாக்குகள்' : 'bags'})`}
+                  </span>
+                </div>
+              );
+            })()}
+          </div>
+        ) : task.id === 'p4_sack_stitcher' ? (
+          <div>
+            <div className="text-base font-extrabold text-emerald-600 dark:text-emerald-300">
+              ₹{fmt(entry.totalCost)}
             </div>
+            {(() => {
+              const dayEntries = entry.dayEntries || [];
+              const filledDaysCount = dayEntries.filter(
+                (d) => d.labourCount > 0 && d.labourWage > 0
+              ).length || (entry.totalCost > 0 ? 1 : 0);
+              const totalBags = dayEntries.reduce((sum, d) => sum + (d.labourCount || 0), 0) || (entry.labourCount ?? 0);
+              return (
+                <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
+                  <span>
+                    {isTamil ? 'தையல்' : 'Stitching'}: {filledDaysCount} {filledDaysCount === 1 ? (isTamil ? 'நாள்' : 'day') : (isTamil ? 'நாட்கள்' : 'days')}
+                    {totalBags > 0 && ` (${totalBags} ${isTamil ? 'சாக்குகள்' : 'bags'})`}
+                  </span>
+                </div>
+              );
+            })()}
+          </div>
+        ) : task.isMultiDayLabour && !entry.isMachineMode ? (
+          <div>
+            <div className="text-base font-extrabold text-emerald-600 dark:text-emerald-300">
+              ₹{fmt(entry.totalCost)}
+            </div>
+            {(() => {
+              const dayEntries = entry.dayEntries || [];
+              const filledDaysCount = dayEntries.filter(
+                (d) => d.labourCount > 0 || d.labourWage > 0 || (d.snackCost ?? 0) > 0 || (d.travelCost ?? 0) > 0
+              ).length || (entry.totalCost > 0 ? 1 : 0);
+              return (
+                <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
+                  <span>
+                    {t.step3.tableHeaders.fertLabour || 'Labour'}: {filledDaysCount} {filledDaysCount === 1 ? (isTamil ? 'நாள்' : 'day') : (isTamil ? 'நாட்கள்' : 'days')}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
         ) : task.isGrainYield ? (
           <div>
@@ -1156,6 +1614,33 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                   <span>{isTamil ? 'விதை' : 'Seed'}: ₹{fmt(entry.ratePerCent)}</span>
                   {entry.hasTravelCost !== false && (entry.travelCost ?? 0) > 0 && (
                     <span className="text-amber-600 dark:text-amber-300"> + ₹{fmt(entry.travelCost ?? 0)} travel</span>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        ) : task.id === 'p1_fuel' ? (
+          <div>
+            <div
+              className={`text-base font-extrabold ${
+                isSkipped
+                  ? 'text-slate-400 dark:text-slate-500 line-through'
+                  : 'text-emerald-600 dark:text-emerald-300'
+              }`}
+            >
+              ₹{isSkipped ? 0 : fmt(entry.totalCost)}
+            </div>
+            <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
+              {isSkipped ? (
+                <span className="text-slate-500 font-semibold">{t.step3.skipped || 'Skipped (₹0)'}</span>
+              ) : (
+                <>
+                  <span>{isTamil ? 'எரிபொருள்' : 'Diesel/Petrol'}: ₹{fmt(entry.ratePerCent)}</span>
+                  {entry.hasRepairCost && (entry.repairCost ?? 0) > 0 && (
+                    <span className="block text-[10px] text-amber-600 dark:text-amber-300 font-medium">
+                      + ₹{fmt(entry.repairCost ?? 0)} {isTamil ? 'பழுது' : 'repair'}
+                      {entry.mechanicName ? ` (${entry.mechanicName})` : ''}
+                    </span>
                   )}
                 </>
               )}

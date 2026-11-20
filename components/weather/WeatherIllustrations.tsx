@@ -6,13 +6,25 @@ export type WeatherVisualKind = 'sunny' | 'partly_cloudy' | 'cloudy' | 'rain' | 
 
 export function resolveWeatherVisualKind(
   rainfallInput: string | number,
-  cloudInput: string | number
+  cloudInput: string | number,
+  conditionText?: string
 ): WeatherVisualKind {
   const rain = Number(rainfallInput) || 0;
   const cloud = Number(cloudInput) || 0;
+  const cond = (conditionText || '').toLowerCase();
 
-  if (rain >= 10) return 'storm';
-  if (rain > 0) return 'rain';
+  // Severe storms
+  if (/thunder|storm|cyclone|squall|lightning/i.test(cond) || rain >= 12) return 'storm';
+
+  // Drizzle rain or actual rain
+  if (/heavy rain|moderate rain|downpour/i.test(cond) || rain >= 3.0) return 'rain';
+  if ((/drizzle|light rain|shower/i.test(cond) && rain >= 0.5) || rain >= 1.5) return 'rain';
+
+  // Sky cover conditions
+  if (/overcast/i.test(cond) || cloud >= 7) return 'cloudy';
+  if (/partly|haze|mist/i.test(cond) || cloud >= 3) return 'partly_cloudy';
+  if (/clear|sunny/i.test(cond)) return 'sunny';
+
   if (cloud >= 7) return 'cloudy';
   if (cloud >= 3) return 'partly_cloudy';
   return 'sunny';
@@ -20,17 +32,18 @@ export function resolveWeatherVisualKind(
 
 export function getWeatherBackgroundVideo(
   rainfallInput: string | number,
-  cloudInput: string | number
+  cloudInput: string | number,
+  conditionText?: string
 ): string {
-  const kind = resolveWeatherVisualKind(rainfallInput, cloudInput);
+  const kind = resolveWeatherVisualKind(rainfallInput, cloudInput, conditionText);
   switch (kind) {
     case 'storm':
-      return '/videos/storm.mp4';
+      return '/videos/Heavy_rain.mp4';
     case 'rain':
-      return '/videos/rain.mp4';
+      return '/videos/Drizzle rain.mp4';
     case 'cloudy':
     case 'partly_cloudy':
-      return '/videos/storm_cloud.mp4';
+      return '/videos/cloudy.mp4';
     case 'sunny':
     default:
       return '/videos/sunny.mp4';
@@ -40,6 +53,7 @@ export function getWeatherBackgroundVideo(
 interface WeatherArtProps {
   rainfall: string | number;
   cloudCover: string | number;
+  conditionText?: string;
   className?: string;
 }
 
@@ -50,10 +64,11 @@ interface WeatherArtProps {
 export const WeatherDayIcon: React.FC<WeatherArtProps> = ({
   rainfall,
   cloudCover,
+  conditionText,
   className = 'w-14 h-12',
 }) => {
   const uid = useId().replace(/:/g, '');
-  const kind = resolveWeatherVisualKind(rainfall, cloudCover);
+  const kind = resolveWeatherVisualKind(rainfall, cloudCover, conditionText);
   const showSun = kind === 'sunny' || kind === 'partly_cloudy';
   const showCloud = kind !== 'sunny';
   const showRain = kind === 'rain' || kind === 'storm';

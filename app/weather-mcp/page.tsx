@@ -22,22 +22,32 @@ import {
   RefreshCw,
 } from '@/components/icons/FlaticonIcons';
 import type { WeatherMcpCallResponse } from '@/app/api/weather-mcp/route';
+import { normalizeWeatherConditionText } from '@/lib/weather';
+import { useLanguage } from '@/components/providers/LanguageProvider';
 
-const SAMPLE_LOCATIONS = [
-  'Chennai, Tamil Nadu',
-  'Thanjavur, Tamil Nadu',
-  'Madurai, Tamil Nadu',
-  'Coimbatore, Tamil Nadu',
-  'Salem, Tamil Nadu',
-  'Tiruchirappalli, Tamil Nadu',
-  'Tokyo, Japan',
-  'Paris, France',
+interface SampleLocation {
+  value: string;
+  labelEn: string;
+  labelTa: string;
+}
+
+const SAMPLE_LOCATIONS: SampleLocation[] = [
+  { value: 'Chennai, Tamil Nadu', labelEn: 'Chennai, Tamil Nadu', labelTa: 'சென்னை, தமிழ்நாடு' },
+  { value: 'Thanjavur, Tamil Nadu', labelEn: 'Thanjavur, Tamil Nadu', labelTa: 'தஞ்சாவூர், தமிழ்நாடு' },
+  { value: 'Madurai, Tamil Nadu', labelEn: 'Madurai, Tamil Nadu', labelTa: 'மதுரை, தமிழ்நாடு' },
+  { value: 'Coimbatore, Tamil Nadu', labelEn: 'Coimbatore, Tamil Nadu', labelTa: 'கோயம்புத்தூர், தமிழ்நாடு' },
+  { value: 'Salem, Tamil Nadu', labelEn: 'Salem, Tamil Nadu', labelTa: 'சேலம், தமிழ்நாடு' },
+  { value: 'Tiruchirappalli, Tamil Nadu', labelEn: 'Tiruchirappalli, Tamil Nadu', labelTa: 'திருச்சிராப்பள்ளி, தமிழ்நாடு' },
+  { value: 'Tokyo, Japan', labelEn: 'Tokyo, Japan', labelTa: 'டோக்கியோ, ஜப்பான்' },
+  { value: 'Paris, France', labelEn: 'Paris, France', labelTa: 'பாரிஸ், பிரான்ஸ்' },
 ];
 
 interface McpToolDefinition {
   value: string;
   label: string;
+  labelTa: string;
   desc: string;
+  descTa: string;
   tool: string;
   params: Record<string, any>;
 }
@@ -46,53 +56,301 @@ const MCP_TOOLS: McpToolDefinition[] = [
   {
     value: 'hourly_24',
     label: '24 Hour Hourly Status',
+    labelTa: '24 மணி நேர நிலை',
     desc: 'Hour-by-hour temperature, precipitation and wind progression',
+    descTa: 'மணிநேர வெப்பநிலை, மழைப்பொழிவு மற்றும் காற்றின் போக்கு',
     tool: 'get_forecast',
     params: { granularity: 'hourly', days: 1, units: 'metric' },
   },
   {
     value: 'forecast_7',
     label: '7 Days Forecast',
+    labelTa: '7 நாட்கள் முன்னறிவிப்பு',
     desc: '7-day daily forecast with rain chances, min/max temp & diagnostics',
+    descTa: 'மழை வாய்ப்பு, குறைந்த/அதிக வெப்பநிலை மற்றும் 7 நாள் முன்னறிவிப்பு',
     tool: 'get_forecast',
     params: { days: 7, units: 'metric' },
   },
   {
     value: 'forecast_16',
     label: '16 Days Forecast',
+    labelTa: '16 நாட்கள் முன்னறிவிப்பு',
     desc: '16-day daily forecast with rain chances, min/max temp & diagnostics',
+    descTa: 'மழை வாய்ப்பு, குறைந்த/அதிக வெப்பநிலை மற்றும் 16 நாள் முன்னறிவிப்பு',
     tool: 'get_forecast',
     params: { days: 16, units: 'metric' },
   },
 ];
 
-function formatLocationDisplay(rawLocation: string, fallback?: string): string {
-  if (!rawLocation) return fallback || '';
-  // Strip coordinates e.g. (13.0801, 80.2808)
-  const cleaned = rawLocation.replace(/\s*\([^\)]*\)/g, '').trim();
-  const parts = cleaned.split(',').map((p) => p.trim()).filter(Boolean);
-  if (parts.length <= 2) return parts.join(', ');
+const LOCATION_TAMIL_MAP: Record<string, string> = {
+  'chennai': 'சென்னை',
+  'thanjavur': 'தஞ்சாவூர்',
+  'madurai': 'மதுரை',
+  'coimbatore': 'கோயம்புத்தூர்',
+  'salem': 'சேலம்',
+  'tiruchirappalli': 'திருச்சிராப்பள்ளி',
+  'trichy': 'திருச்சிராப்பள்ளி',
+  'tirunelveli': 'திருநெல்வேலி',
+  'erode': 'ஈரோடு',
+  'vellore': 'வேலூர்',
+  'thoothukudi': 'தூத்துக்குடி',
+  'tuticorin': 'தூத்துக்குடி',
+  'dindigul': 'திண்டுக்கல்',
+  'kanchipuram': 'காஞ்சிபுரம்',
+  'cuddalore': 'கடலூர்',
+  'karur': 'கரூர்',
+  'nagapattinam': 'நாகப்பட்டினம்',
+  'pudukkottai': 'புதுக்கோட்டை',
+  'ramanathapuram': 'ராமநாதபுரம்',
+  'sivaganga': 'சிவகங்கை',
+  'tenkasi': 'தென்காசி',
+  'theni': 'தேனி',
+  'nilgiris': 'நீலகிரி',
+  'dharmapuri': 'தர்மபுரி',
+  'krishnagiri': 'கிருஷ்ணகிரி',
+  'namakkal': 'நாமக்கல்',
+  'perambalur': 'பெரம்பலூர்',
+  'ariyalur': 'அரியலூர்',
+  'tiruvallur': 'திருவள்ளூர்',
+  'thiruvallur': 'திருவள்ளூர்',
+  'tiruvannamalai': 'திருவண்ணாமலை',
+  'thiruvannamalai': 'திருவண்ணாமலை',
+  'tiruvarur': 'திருவாரூர்',
+  'thiruvarur': 'திருவாரூர்',
+  'ranipet': 'ராணிப்பேட்டை',
+  'tirupathur': 'திருப்பத்தூர்',
+  'chengalpattu': 'செங்கல்பட்டு',
+  'kallakurichi': 'கள்ளக்குறிச்சி',
+  'mayiladuthurai': 'மயிலாடுதுறை',
+  'tiruppur': 'திருப்பூர்',
+  'tamil nadu': 'தமிழ்நாடு',
+  'kerala': 'கேரளா',
+  'karnataka': 'கர்நாடகா',
+  'andhra pradesh': 'ஆந்திர பிரதேசம்',
+  'andhra': 'ஆந்திரா',
+  'india': 'இந்தியா',
+  'tokyo': 'டோக்கியோ',
+  'japan': 'ஜப்பான்',
+  'paris': 'பாரிஸ்',
+  'france': 'பிரான்ஸ்',
+  'london': 'லண்டன்',
+  'united kingdom': 'ஐக்கிய இராச்சியம்',
+  'uk': 'இங்கிலாந்து',
+  'new york': 'நியூயார்க்',
+  'united states': 'அமெரிக்கா',
+  'usa': 'அமெரிக்கா',
+};
 
-  const city = parts[0];
-  // Find the district part
-  const districtPart = parts.find((p, i) => i > 0 && /district/i.test(p));
-  const statePart = parts.find((p, i) => i > 0 && /(Tamil Nadu|Kerala|Karnataka|Andhra|State)/i.test(p));
+function translateLocationToTamil(locStr: string): string {
+  if (!locStr) return locStr;
+  let translated = locStr;
+  const sortedKeys = Object.keys(LOCATION_TAMIL_MAP).sort((a, b) => b.length - a.length);
+  for (const enWord of sortedKeys) {
+    const taWord = LOCATION_TAMIL_MAP[enWord];
+    const reg = new RegExp(`\\b${enWord}\\b`, 'gi');
+    translated = translated.replace(reg, taWord);
+  }
+  translated = translated.replace(/\bdistrict\b/gi, 'மாவட்டம்');
+  return translated;
+}
 
-  if (districtPart) {
-    const cleanDistrict = districtPart.replace(/\s*district\s*/i, '').trim();
-    if (cleanDistrict.toLowerCase() !== city.toLowerCase()) {
-      return `${city}, ${cleanDistrict}`;
+function normalizeLocationForMcp(input: string): string {
+  if (!input) return input;
+  let normalized = input.trim();
+  for (const [enKey, taVal] of Object.entries(LOCATION_TAMIL_MAP)) {
+    if (normalized.includes(taVal)) {
+      normalized = normalized.replace(new RegExp(taVal, 'g'), enKey);
     }
-    if (statePart) return `${city}, ${statePart}`;
-    return city;
+  }
+  return normalized;
+}
+
+const WEATHER_CONDITION_TAMIL_MAP: Array<{ pattern: RegExp; tamil: string }> = [
+  { pattern: /thunder|lightning|storm|squall/i, tamil: 'இடி மின்னலுடன் மழை' },
+  { pattern: /heavy rain|downpour|torrential/i, tamil: 'கனமழை' },
+  { pattern: /moderate rain|showers|rain showers/i, tamil: 'மிதமான மழை' },
+  { pattern: /light rain|light drizzle|drizzle/i, tamil: 'தூறல் மழை' },
+  { pattern: /\brain\b/i, tamil: 'மழை' },
+  { pattern: /overcast/i, tamil: 'முழு மேகமூட்டம்' },
+  { pattern: /partly cloudy|scattered clouds/i, tamil: 'பகுதி மேகமூட்டம்' },
+  { pattern: /cloudy|clouds/i, tamil: 'மேகமூட்டம்' },
+  { pattern: /clear sky|mostly clear|clear/i, tamil: 'தெளிவான வானம்' },
+  { pattern: /sunny/i, tamil: 'வெயில் / தெளிவான வானம்' },
+  { pattern: /fog|mist|haze|smoke|dust/i, tamil: 'மூடுபனி' },
+  { pattern: /windy|breezy/i, tamil: 'பலத்த காற்று' },
+  { pattern: /fair/i, tamil: 'மிதமான வானம்' },
+];
+
+function translateWeatherCondition(condition: string | undefined, isTamil: boolean): string {
+  if (!condition) return '';
+  if (!isTamil) return condition;
+  for (const item of WEATHER_CONDITION_TAMIL_MAP) {
+    if (item.pattern.test(condition)) {
+      return item.tamil;
+    }
+  }
+  return condition;
+}
+
+const WIND_DIR_MAP: Record<string, string> = {
+  'n': 'வடக்கு',
+  's': 'தெற்கு',
+  'e': 'கிழக்கு',
+  'w': 'மேற்கு',
+  'ne': 'வடகிழக்கு',
+  'nw': 'வடமேற்கு',
+  'se': 'தென்கிழக்கு',
+  'sw': 'தென்மேற்கு',
+  'nne': 'வட-வடகிழக்கு',
+  'ene': 'கிழ-வடகிழக்கு',
+  'nnw': 'வட-வடமேற்கு',
+  'wnw': 'மே-வடமேற்கு',
+  'sse': 'தென்-தென்கிழக்கு',
+  'ese': 'கிழ-தென்கிழக்கு',
+  'ssw': 'தென்-தென்மேற்கு',
+  'wsw': 'மே-தென்மேற்கு',
+  'north': 'வடக்கு',
+  'south': 'தெற்கு',
+  'east': 'கிழக்கு',
+  'west': 'மேற்கு',
+};
+
+function translateWind(windStr: string | undefined, isTamil: boolean): string {
+  if (!windStr) return '';
+  if (!isTamil) return windStr;
+  let translated = windStr.replace(/km\/h/gi, 'கி.மீ/ம');
+  const tokens = translated.split(' ');
+  const mappedTokens = tokens.map((tok) => {
+    const clean = tok.toLowerCase();
+    return WIND_DIR_MAP[clean] || tok;
+  });
+  return mappedTokens.join(' ');
+}
+
+const SHORT_DAY_TAMIL_MAP: Record<string, string> = {
+  'MON': 'திங்கள்',
+  'TUE': 'செவ்வாய்',
+  'WED': 'புதன்',
+  'THU': 'வியாழன்',
+  'FRI': 'வெள்ளி',
+  'SAT': 'சனி',
+  'SUN': 'ஞாயிறு',
+  'MONDAY': 'திங்கள்',
+  'TUESDAY': 'செவ்வாய்',
+  'WEDNESDAY': 'புதன்',
+  'THURSDAY': 'வியாழன்',
+  'FRIDAY': 'வெள்ளி',
+  'SATURDAY': 'சனி',
+  'SUNDAY': 'ஞாயிறு',
+};
+
+function translateShortDay(shortDay: string, isTamil: boolean): string {
+  if (!shortDay) return '';
+  if (!isTamil) return shortDay;
+  const upper = shortDay.toUpperCase().trim();
+  return SHORT_DAY_TAMIL_MAP[upper] || shortDay;
+}
+
+const MONTH_TAMIL_MAP: Record<string, string> = {
+  'january': 'ஜனவரி',
+  'february': 'பிப்ரவரி',
+  'march': 'மார்ச்',
+  'april': 'ஏப்ரல்',
+  'may': 'மே',
+  'june': 'ஜூன்',
+  'july': 'ஜூலை',
+  'august': 'ஆகஸ்ட்',
+  'september': 'செப்டம்பர்',
+  'october': 'அக்டோபர்',
+  'november': 'நவம்பர்',
+  'december': 'டிசம்பர்',
+  'jan': 'ஜனவரி',
+  'feb': 'பிப்ரவரி',
+  'mar': 'மார்ச்',
+  'apr': 'ஏப்ரல்',
+  'jun': 'ஜூன்',
+  'jul': 'ஜூலை',
+  'aug': 'ஆகஸ்ட்',
+  'sep': 'செப்டம்பர்',
+  'oct': 'அக்டோபர்',
+  'nov': 'நவம்பர்',
+  'dec': 'டிசம்பர்',
+};
+
+function translateShortDate(subDate: string, isTamil: boolean): string {
+  if (!subDate) return '';
+  if (!isTamil) return subDate;
+  let res = subDate;
+  const sortedMonths = Object.keys(MONTH_TAMIL_MAP).sort((a, b) => b.length - a.length);
+  for (const enMonth of sortedMonths) {
+    const reg = new RegExp(`\\b${enMonth}\\b`, 'gi');
+    res = res.replace(reg, MONTH_TAMIL_MAP[enMonth]);
+  }
+  return res;
+}
+
+function translateUvRating(rating: string, isTamil: boolean): string {
+  if (!rating) return '';
+  if (!isTamil) return rating;
+  switch (rating.toLowerCase()) {
+    case 'low': return 'குறைவு';
+    case 'mod': return 'மிதமானது';
+    case 'high': return 'அதிகம்';
+    case 'very high': return 'மிக அதிகம்';
+    default: return rating;
+  }
+}
+
+function translateDetailCardTitle(title: string, isTamil: boolean): string {
+  if (!title) return '';
+  if (!isTamil) return title;
+  if (/thermal|comfort/i.test(title)) return 'வெப்பநிலை & ஆறுதல் நிலை';
+  if (/atmospheric|pressure/i.test(title)) return 'வளிமண்டலம் & காற்றழுத்த நிலை';
+  if (/wind|air dynamics/i.test(title)) return 'காற்று & காற்றின் வேகம்';
+  if (/precipitation|moisture/i.test(title)) return 'மழைப்பொழிவு & ஈரப்பதம்';
+  if (/national alert|ndma/i.test(title)) return 'தேசிய வானிலை எச்சரிக்கை நிலை (NDMA)';
+  if (/disaster management/i.test(title)) return 'பேரிடர் மேலாண்மை அறிவிப்புகள்';
+  return title;
+}
+
+function formatLocationDisplay(rawLocation: string, fallback?: string, isTamil?: boolean): string {
+  let display = '';
+  if (!rawLocation) {
+    display = fallback || '';
+  } else {
+    // Strip coordinates e.g. (13.0801, 80.2808)
+    const cleaned = rawLocation.replace(/\s*\([^\)]*\)/g, '').trim();
+    const parts = cleaned.split(',').map((p) => p.trim()).filter(Boolean);
+    if (parts.length <= 2) {
+      display = parts.join(', ');
+    } else {
+      const city = parts[0];
+      // Find the district part
+      const districtPart = parts.find((p, i) => i > 0 && /district/i.test(p));
+      const statePart = parts.find((p, i) => i > 0 && /(Tamil Nadu|Kerala|Karnataka|Andhra|State)/i.test(p));
+
+      if (districtPart) {
+        const cleanDistrict = districtPart.replace(/\s*district\s*/i, '').trim();
+        if (cleanDistrict.toLowerCase() !== city.toLowerCase()) {
+          display = `${city}, ${cleanDistrict}`;
+        } else if (statePart) {
+          display = `${city}, ${statePart}`;
+        } else {
+          display = city;
+        }
+      } else if (parts[1] && parts[1].toLowerCase().slice(0, 4) === city.toLowerCase().slice(0, 4)) {
+        // Deduplicate near-identical adjacent tokens (e.g. Thisayanvilai, Tisayanvilai)
+        display = parts[2] ? `${city}, ${parts[2]}` : city;
+      } else {
+        display = `${parts[0]}, ${parts[1]}`;
+      }
+    }
   }
 
-  // Deduplicate near-identical adjacent tokens (e.g. Thisayanvilai, Tisayanvilai)
-  if (parts[1] && parts[1].toLowerCase().slice(0, 4) === city.toLowerCase().slice(0, 4)) {
-    return parts[2] ? `${city}, ${parts[2]}` : city;
+  if (isTamil) {
+    return translateLocationToTamil(display);
   }
-
-  return `${parts[0]}, ${parts[1]}`;
+  return display;
 }
 
 function getVideoForWeatherConditions(
@@ -105,28 +363,30 @@ function getVideoForWeatherConditions(
   const rainAmountVal = precipAmount ? parseFloat(precipAmount) : 0;
   const rainChanceVal = precipChance ? parseFloat(precipChance) : 0;
 
-  // 1. Severe weather / Thunderstorm / Squall / Tornado / Heavy Rain
+  // 1. Severe weather / Thunderstorm / Squall / Cyclone
   if (
     /thunder|storm|squall|cyclone|tornado|severe|lightning/i.test(cond) ||
     /heavy rain/i.test(cond) ||
     rainAmountVal >= 10 ||
     (rainChanceVal >= 75 && rainAmountVal >= 4)
   ) {
-    return '/videos/storm.mp4';
+    return '/videos/Heavy_rain.mp4';
   }
 
-  // 2. Rain / Drizzle / Showers / Precipitation
+  // 2. Real Rain / Drizzle Rain / Showers:
+  // Require precipitation >= 1.5mm OR explicit active drizzle/rain condition with rain >= 0.5mm
+  // (Trace precipitation like 0.1mm - 0.3mm is NOT rain and plays cloud video)
   if (
-    /rain|drizzle|shower|precip|wet/i.test(cond) ||
-    rainAmountVal > 0 ||
-    rainChanceVal >= 45
+    /heavy rain|moderate rain|downpour/i.test(cond) ||
+    rainAmountVal >= 2.0 ||
+    ((/rain|drizzle|shower/i.test(cond)) && (rainAmountVal >= 0.5 || rainChanceVal >= 55))
   ) {
-    return '/videos/rain.mp4';
+    return '/videos/Drizzle rain.mp4';
   }
 
-  // 3. Cloudy / Overcast / Gloomy / Fog / Mist / Haze
-  if (/cloud|overcast|fog|mist|haze|smoke|dust/i.test(cond)) {
-    return '/videos/storm_cloud.mp4';
+  // 3. Cloudy / Overcast / Gloomy / Fog / Mist / Haze / Trace moisture
+  if (/cloud|overcast|fog|mist|haze|smoke|dust/i.test(cond) || rainChanceVal >= 35) {
+    return '/videos/cloudy.mp4';
   }
 
   // 4. Night check if clear or time matches night (e.g. 19:00 - 05:00)
@@ -157,17 +417,23 @@ function getVisualMetricsForDay(day: {
   let rainfall = rainAmountVal;
   if (/thunder|storm|heavy rain/i.test(cond)) {
     rainfall = Math.max(12, rainfall);
-  } else if (/rain|drizzle|shower/i.test(cond)) {
+  } else if (/moderate rain/i.test(cond) || rainfall >= 2.5) {
     rainfall = Math.max(3, rainfall);
-  } else if (rainChanceVal >= 50 && rainfall === 0) {
-    rainfall = 2;
+  } else if (/drizzle|light rain|shower/i.test(cond)) {
+    if (rainfall >= 0.5 || rainChanceVal >= 50) {
+      rainfall = Math.max(1.5, rainfall);
+    } else {
+      rainfall = 0; // trace moisture does not draw rain droplets
+    }
   }
 
   let cloudCover = 2;
-  if (/overcast|cloudy|fog|mist/i.test(cond)) {
+  if (/overcast/i.test(cond)) {
     cloudCover = 8;
+  } else if (/cloudy|fog|mist/i.test(cond)) {
+    cloudCover = 7;
   } else if (/partly/i.test(cond)) {
-    cloudCover = 5;
+    cloudCover = 4;
   } else if (/clear|sun|fair/i.test(cond)) {
     cloudCover = 1;
   }
@@ -329,7 +595,14 @@ function parseMcpResponse(text: string | undefined, defaultLoc: string): ParsedW
   if (feelsMatch) result.feelsLike = feelsMatch[1].trim();
 
   const condMatch = text.match(/\*\*Conditions:\*\*\s*([^\n\r]+)/i);
-  if (condMatch) result.conditions = condMatch[1].trim();
+  if (condMatch) {
+    const rawCond = condMatch[1].trim();
+    const rainMatch = text.match(/\*\*(?:Precipitation|Rain|Current):\*\*\s*([^\n\r]+)/i);
+    const rainAmt = rainMatch ? parseFloat(rainMatch[1]) : 0;
+    const cloudMatch = text.match(/\*\*Cloud Cover:\*\*\s*([^\n\r]+)/i);
+    const cloudVal = cloudMatch ? parseInt(cloudMatch[1], 10) : 50;
+    result.conditions = normalizeWeatherConditionText(rawCond, rainAmt, 0, cloudVal);
+  }
 
   const rangeMatch = text.match(/\*\*Today's Range:\*\*\s*([^\n\r]+)/i);
   if (rangeMatch) result.todayRange = rangeMatch[1].trim();
@@ -437,13 +710,18 @@ function parseMcpResponse(text: string | undefined, defaultLoc: string): ParsedW
     }
 
     if (tempH || dayCond || rainCh || diagnostics.length > 0) {
+      const rawCond = dayCond ? dayCond[1].trim() : 'Partly Cloudy';
+      const pMm = rainAmt ? parseFloat(rainAmt[1]) : 0;
+      const pChance = rainCh ? parseFloat(rainCh[1]) : 0;
+      const normalizedCond = normalizeWeatherConditionText(rawCond, pMm, pChance, 50);
+
       result.forecast.push({
         dayTitle,
         shortDay: shortDay || dayTitle.slice(0, 5),
         subDate: subDate || dayTitle,
         highTemp: tempH ? tempH[1].replace(/High\s*/i, '').trim() : '',
         lowTemp: tempL ? tempL[1].trim() : '',
-        conditions: dayCond ? dayCond[1].trim() : 'Partly Cloudy',
+        conditions: normalizedCond,
         precipChance: rainCh ? rainCh[1].trim() : undefined,
         precipAmount: rainAmt ? rainAmt[1].trim() : undefined,
         wind: dayWind ? dayWind[1].trim() : undefined,
@@ -542,6 +820,9 @@ function parseMcpResponse(text: string | undefined, defaultLoc: string): ParsedW
 }
 
 export default function WeatherMcpTestPage() {
+  const { locale } = useLanguage();
+  const isTamil = locale === 'ta';
+
   const [selectedTool, setSelectedTool] = useState<string>('forecast_7');
   const [locationInput, setLocationInput] = useState<string>('Chennai, Tamil Nadu');
   const [loading, setLoading] = useState<boolean>(false);
@@ -558,6 +839,7 @@ export default function WeatherMcpTestPage() {
     const actualToolName = toolDef.tool;
     const toolParams = toolDef.params || {};
 
+    const queryLocation = normalizeLocationForMcp(locToRun);
     const startTime = Date.now();
     try {
       const res = await fetch('/api/weather-mcp', {
@@ -565,7 +847,7 @@ export default function WeatherMcpTestPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tool: actualToolName,
-          location: locToRun,
+          location: queryLocation,
           units: 'metric',
           params: toolParams,
         }),
@@ -578,7 +860,7 @@ export default function WeatherMcpTestPage() {
         success: false,
         tool: actualToolName,
         location: locToRun,
-        error: err?.message || 'Failed to connect to Weather MCP server.',
+        error: err?.message || (isTamil ? 'வானிலை MCP சேவையகத்துடன் இணைக்க முடியவில்லை.' : 'Failed to connect to Weather MCP server.'),
         durationMs: Date.now() - startTime,
       });
     } finally {
@@ -634,11 +916,14 @@ export default function WeatherMcpTestPage() {
   }, [safeDayIndex, activeDay, parsed.currentTemp]);
 
   const displayConditions = useMemo(() => {
+    let raw = '';
     if (safeDayIndex > 0 && activeDay?.conditions) {
-      return activeDay.conditions;
+      raw = activeDay.conditions;
+    } else {
+      raw = parsed.conditions || activeDay?.conditions || (response?.tool ? `Tool: ${response.tool}` : (isTamil ? 'நேரலை வானிலை' : 'Live Telemetry'));
     }
-    return parsed.conditions || activeDay?.conditions || (response?.tool ? `Tool: ${response.tool}` : 'Live Telemetry');
-  }, [safeDayIndex, activeDay, parsed.conditions, response?.tool]);
+    return translateWeatherCondition(raw, isTamil);
+  }, [safeDayIndex, activeDay, parsed.conditions, response?.tool, isTamil]);
 
   const displayRange = useMemo(() => {
     if (safeDayIndex > 0 && activeDay) {
@@ -651,24 +936,27 @@ export default function WeatherMcpTestPage() {
   }, [safeDayIndex, activeDay, parsed.todayRange]);
 
   const displayWind = useMemo(() => {
+    let raw = '';
     if (safeDayIndex > 0 && activeDay?.wind) {
-      return activeDay.wind;
+      raw = activeDay.wind;
+    } else {
+      raw = parsed.wind || activeDay?.wind || '';
     }
-    return parsed.wind || activeDay?.wind || '';
-  }, [safeDayIndex, activeDay, parsed.wind]);
+    return translateWind(raw, isTamil);
+  }, [safeDayIndex, activeDay, parsed.wind, isTamil]);
 
   const displayRainCloud = useMemo(() => {
     if (safeDayIndex > 0 && activeDay) {
       const parts: string[] = [];
-      if (activeDay.precipChance) parts.push(`Rain: ${activeDay.precipChance}`);
-      if (activeDay.precipAmount) parts.push(`Amount: ${activeDay.precipAmount}`);
+      if (activeDay.precipChance) parts.push(`${isTamil ? 'மழை' : 'Rain'}: ${activeDay.precipChance}`);
+      if (activeDay.precipAmount) parts.push(`${isTamil ? 'அளவு' : 'Amount'}: ${activeDay.precipAmount}`);
       if (parts.length > 0) return parts.join(' • ');
     }
     const parts: string[] = [];
-    if (parsed.rain) parts.push(`Precipitation: ${parsed.rain}`);
-    if (parsed.cloudCover) parts.push(`Cloud: ${parsed.cloudCover}`);
+    if (parsed.rain) parts.push(`${isTamil ? 'மழைப்பொழிவு' : 'Precipitation'}: ${parsed.rain}`);
+    if (parsed.cloudCover) parts.push(`${isTamil ? 'மேகமூட்டம்' : 'Cloud'}: ${parsed.cloudCover}`);
     return parts.join(' • ');
-  }, [safeDayIndex, activeDay, parsed.rain, parsed.cloudCover]);
+  }, [safeDayIndex, activeDay, parsed.rain, parsed.cloudCover, isTamil]);
 
   const displayFeelsLike = useMemo(() => {
     if (safeDayIndex > 0 && activeDay?.feelsLike) {
@@ -678,7 +966,7 @@ export default function WeatherMcpTestPage() {
   }, [safeDayIndex, activeDay, parsed.feelsLike]);
 
   return (
-    <div className="relative min-h-screen w-full">
+    <div className="relative min-h-screen w-full weather-page-scope">
       {/* Background Ambient Weather Video Loop (Same as existing Weather page) */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <video
@@ -700,13 +988,13 @@ export default function WeatherMcpTestPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: 'easeOut' }}
-          className="glass-panel p-3.5 sm:px-5 sm:py-4 rounded-2xl border border-border-light shadow-xl space-y-3"
+          className="glass-panel weather-top-controls p-3.5 sm:px-5 sm:py-4 rounded-2xl border border-border-light shadow-xl space-y-3"
         >
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
             {/* Tool Selector */}
             <div className="md:col-span-5">
               <label className="block text-[11px] font-extrabold uppercase tracking-wider text-text-muted mb-1.5">
-                MCP Tool Call
+                {isTamil ? 'முன்னறிவிப்பு முறை' : 'Forecast Mode'}
               </label>
               <Select
                 value={selectedTool}
@@ -719,7 +1007,7 @@ export default function WeatherMcpTestPage() {
                   value: t.value,
                   label: (
                     <div className="flex items-center justify-between gap-2 py-0.5">
-                      <span className="font-bold">{t.label}</span>
+                      <span className="font-bold">{isTamil ? t.labelTa : t.label}</span>
                     </div>
                   ),
                 }))}
@@ -729,7 +1017,7 @@ export default function WeatherMcpTestPage() {
             {/* Target Location Input */}
             <div className="md:col-span-5">
               <label className="block text-[11px] font-extrabold uppercase tracking-wider text-text-muted mb-1.5">
-                Location
+                {isTamil ? 'இடம்' : 'Location'}
               </label>
               <div className="relative">
                 <Search
@@ -741,7 +1029,7 @@ export default function WeatherMcpTestPage() {
                   value={locationInput}
                   onChange={(e) => setLocationInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && executeMcpTool()}
-                  placeholder="e.g. Chennai, Tamil Nadu or Thanjavur..."
+                  placeholder={isTamil ? 'உதா. சென்னை, தமிழ்நாடு அல்லது தஞ்சாவூர்...' : 'e.g. Chennai, Tamil Nadu or Thanjavur...'}
                   className="w-full h-10 pl-9 pr-3 rounded-xl bg-surface/80 border border-border-light text-xs font-semibold text-text-main placeholder:text-text-muted focus:outline-none focus:border-sky-500"
                 />
               </div>
@@ -758,12 +1046,12 @@ export default function WeatherMcpTestPage() {
                 {loading ? (
                   <>
                     <RefreshCw size={14} className="animate-spin text-slate-950" />
-                    <span>Searching...</span>
+                    <span>{isTamil ? 'தேடுகிறது...' : 'Searching...'}</span>
                   </>
                 ) : (
                   <>
                     <Search size={14} />
-                    <span>Search</span>
+                    <span>{isTamil ? 'தேடுக' : 'Search'}</span>
                   </>
                 )}
               </button>
@@ -772,24 +1060,29 @@ export default function WeatherMcpTestPage() {
 
           {/* Quick Location Chips */}
           <div className="flex items-center gap-1.5 flex-wrap pt-1.5 border-t border-border-subtle">
-            <span className="text-[11px] font-bold text-text-muted mr-1">Quick Locations:</span>
-            {SAMPLE_LOCATIONS.map((loc) => (
-              <button
-                key={loc}
-                type="button"
-                onClick={() => {
-                  setLocationInput(loc);
-                  executeMcpTool(selectedTool, loc);
-                }}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
-                  locationInput === loc
-                    ? 'bg-sky-500 text-slate-950 border-sky-400 font-extrabold shadow-sm'
-                    : 'glass-surface border-border-subtle text-text-secondary hover:text-text-main'
-                }`}
-              >
-                {loc}
-              </button>
-            ))}
+            <span className="text-[11px] font-bold text-text-muted mr-1">
+              {isTamil ? 'விரைவு இடங்கள்:' : 'Quick Locations:'}
+            </span>
+            {SAMPLE_LOCATIONS.map((loc) => {
+              const isSelected = locationInput === loc.value || locationInput === loc.labelTa;
+              return (
+                <button
+                  key={loc.value}
+                  type="button"
+                  onClick={() => {
+                    setLocationInput(loc.value);
+                    executeMcpTool(selectedTool, loc.value);
+                  }}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
+                    isSelected
+                      ? 'bg-sky-500 text-slate-950 border-sky-400 font-extrabold shadow-sm'
+                      : 'glass-surface border-border-subtle text-text-secondary hover:text-text-main'
+                  }`}
+                >
+                  {isTamil ? loc.labelTa : loc.labelEn}
+                </button>
+              );
+            })}
           </div>
         </motion.div>
 
@@ -798,7 +1091,7 @@ export default function WeatherMcpTestPage() {
           <div className="glass-panel rounded-2xl border border-border-light p-8 space-y-5 animate-pulse">
             <div className="flex items-center gap-2 text-xs font-semibold text-text-muted">
               <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
-              <span>Querying @dangahagan/weather-mcp via stdio JSON-RPC protocol...</span>
+              <span>{isTamil ? 'நேரலை வானிலை முன்னறிவிப்பு பெறப்படுகிறது...' : 'Fetching live high-resolution weather forecast...'}</span>
             </div>
             <div className="h-64 rounded-3xl skeleton-box" />
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
@@ -813,14 +1106,16 @@ export default function WeatherMcpTestPage() {
         {response?.error && !loading && (
           <div className="glass-panel rounded-2xl border border-rose-500/30 bg-rose-500/[0.08] p-8 text-center space-y-3">
             <span className="text-4xl inline-block">⚠️</span>
-            <h3 className="text-base font-bold text-rose-500">MCP Call Failed</h3>
+            <h3 className="text-base font-bold text-rose-500">
+              {isTamil ? 'வானிலை முன்னறிவிப்பு கிடைக்கவில்லை' : 'Weather Forecast Unavailable'}
+            </h3>
             <p className="text-xs text-text-muted max-w-md mx-auto font-mono">{response.error}</p>
             <button
               type="button"
               onClick={() => executeMcpTool()}
               className="px-4 py-2 rounded-xl bg-sky-500 text-white keep-white font-bold text-xs shadow-md hover:bg-sky-400 transition-all cursor-pointer"
             >
-              Retry MCP Call
+              {isTamil ? 'மீண்டும் முயற்சிக்கவும்' : 'Retry Forecast'}
             </button>
           </div>
         )}
@@ -839,20 +1134,20 @@ export default function WeatherMcpTestPage() {
               <div className="space-y-4">
                 <div>
                   <div className="flex items-baseline gap-2.5 flex-wrap">
-                    <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white m-0">
-                      {formatLocationDisplay(parsed.location, locationInput)}
+                    <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white keep-white m-0">
+                      {formatLocationDisplay(parsed.location, locationInput, isTamil)}
                     </h2>
                     {safeDayIndex > 0 && activeDay && (
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-500/25 border border-sky-400/50 text-sky-200 uppercase tracking-wider backdrop-blur-md shadow-sm">
-                        {activeDay.shortDay} • {activeDay.subDate}
+                        {translateShortDay(activeDay.shortDay, isTamil)} • {translateShortDate(activeDay.subDate, isTamil)}
                       </span>
                     )}
                   </div>
-                  <p className="text-xl sm:text-2xl font-normal text-white/95 mt-2.5 mb-0">
-                    {displayConditions}
+                  <p className="text-xl sm:text-2xl font-normal text-white/95 mt-2.5 mb-0 flex items-baseline gap-2 flex-wrap">
+                    <span>{displayConditions}</span>
                     {displayRange && (
-                      <span className="text-sm font-normal text-white/75 ml-2.5">
-                        Range: {displayRange}
+                      <span className="text-sm font-normal text-white/75">
+                        • {isTamil ? 'வரம்பு' : 'Range'}: {displayRange}
                       </span>
                     )}
                   </p>
@@ -862,14 +1157,14 @@ export default function WeatherMcpTestPage() {
                   {parsed.humidity && (
                     <div className="flex items-center gap-3.5">
                       <Droplets size={18} className="text-white/90 shrink-0" strokeWidth={1.6} />
-                      <span className="font-normal">Humidity: {parsed.humidity}</span>
+                      <span className="font-normal">{isTamil ? 'ஈரப்பதம்' : 'Humidity'}: {parsed.humidity}</span>
                     </div>
                   )}
 
                   {displayWind && (
                     <div className="flex items-center gap-3.5">
                       <Wind size={18} className="text-white/90 shrink-0" strokeWidth={1.6} />
-                      <span className="font-normal">Wind: {displayWind}</span>
+                      <span className="font-normal">{isTamil ? 'காற்று' : 'Wind'}: {displayWind}</span>
                     </div>
                   )}
 
@@ -885,9 +1180,9 @@ export default function WeatherMcpTestPage() {
               {/* Right Column: Big Temperature & Status Display */}
               <div className="flex flex-col sm:items-end justify-start shrink-0">
                 {displayTemp != null ? (
-                  <div className="text-6xl sm:text-7xl lg:text-[5.5rem] font-extralight tracking-tight text-white leading-none font-sans">
+                  <div className="text-6xl sm:text-7xl lg:text-[5.5rem] font-extralight tracking-tight text-white keep-white leading-none font-sans">
                     +{displayTemp}
-                    <span className="text-4xl sm:text-5xl align-top ml-1 font-extralight">
+                    <span className="text-4xl sm:text-5xl align-top ml-1 font-extralight text-white keep-white">
                       {parsed.currentTempUnit || '°C'}
                     </span>
                   </div>
@@ -898,9 +1193,11 @@ export default function WeatherMcpTestPage() {
                 )}
 
                 <div className="mt-2.5 flex items-center gap-2.5 text-sm font-light text-white/90 flex-wrap">
-                  {displayFeelsLike && <span>Feels Like {displayFeelsLike}</span>}
+                  {displayFeelsLike && (
+                    <span>{isTamil ? 'உணரப்படும் வெப்பநிலை' : 'Feels Like'} {displayFeelsLike}</span>
+                  )}
                   {safeDayIndex > 0 && activeDay?.lowTemp && (
-                    <span>Min {activeDay.lowTemp}</span>
+                    <span>{isTamil ? 'குறைந்தது' : 'Min'} {activeDay.lowTemp}</span>
                   )}
                 </div>
               </div>
@@ -909,7 +1206,10 @@ export default function WeatherMcpTestPage() {
             {/* MOTION CAROUSEL: FREE SCROLL (Interactive 3D FlipCards in free horizontal momentum scroll) */}
             {parsed.forecast.length > 0 && (
               <div className="relative z-10 w-full">
-                <MotionFreeScrollCarousel itemCount={parsed.forecast.length}>
+                <MotionFreeScrollCarousel
+                  itemCount={parsed.forecast.length}
+                  helperText={isTamil ? 'சுழல் பலகை • கிடைமட்டமாக இழுக்கவும்' : 'Free scroll carousel • Drag or swipe horizontally'}
+                >
                   {parsed.forecast.map((day, idx) => {
                     const isSelected = idx === safeDayIndex;
                     const visual = getVisualMetricsForDay(day);
@@ -953,10 +1253,10 @@ export default function WeatherMcpTestPage() {
                           className="w-full"
                           front={
                             <div
-                              className={`w-full h-full p-5 flex flex-col justify-between items-center text-center rounded-[24px] glass-panel backdrop-blur-xl relative overflow-hidden group select-none transition-all text-text-main ${
+                              className={`w-full h-full p-5 flex flex-col justify-between items-center text-center rounded-[24px] glass-panel backdrop-blur-xl relative overflow-hidden group select-none transition-all text-white keep-white ${
                                 isSelected
-                                  ? 'border-2 border-sky-400 bg-sky-500/[0.08] dark:bg-sky-950/30 shadow-[0_12px_36px_rgba(14,165,233,0.38)] ring-2 ring-sky-400/50'
-                                  : 'border border-white/20 dark:border-white/10 bg-white/[0.04] dark:bg-black/25 shadow-xl hover:border-sky-400/50'
+                                  ? 'weather-card-active border-2 border-sky-400 bg-sky-500/[0.08] dark:bg-sky-950/30 shadow-[0_12px_36px_rgba(14,165,233,0.38)] ring-2 ring-sky-400/50'
+                                  : 'weather-card-inactive border border-white/20 dark:border-white/10 bg-white/[0.04] dark:bg-black/25 shadow-xl hover:border-sky-400/50'
                               }`}
                             >
                               {/* Top Bar: TODAY / SAT + Date */}
@@ -967,16 +1267,16 @@ export default function WeatherMcpTestPage() {
                                       isSelected ? 'text-sky-300' : 'text-emerald-400'
                                     }`}
                                   >
-                                    {idx === 0 ? 'TODAY' : day.shortDay}
+                                    {idx === 0 ? (isTamil ? 'இன்று' : 'TODAY') : translateShortDay(day.shortDay, isTamil)}
                                   </span>
                                   {isSelected && (
                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-sky-400 text-slate-950 shadow-sm">
-                                      ACTIVE
+                                      {isTamil ? 'செயலில்' : 'ACTIVE'}
                                     </span>
                                   )}
                                 </div>
-                                <span className="text-xs text-white/80 font-medium truncate max-w-[130px]">
-                                  {shortDate}
+                                <span className="text-xs text-white/80 keep-white font-medium truncate max-w-[130px]">
+                                  {translateShortDate(shortDate, isTamil)}
                                 </span>
                               </div>
 
@@ -985,24 +1285,27 @@ export default function WeatherMcpTestPage() {
                                 <WeatherDayIcon
                                   rainfall={visual.rainfall}
                                   cloudCover={visual.cloudCover}
+                                  conditionText={day.conditions}
                                   className="w-16 h-14 mb-2 drop-shadow-[0_4px_16px_rgba(0,0,0,0.5)] transition-transform group-hover:scale-110"
                                 />
-                                <div className="text-sm text-white/95 font-semibold truncate max-w-[220px]">
-                                  {day.conditions}
+                                <div className="text-sm text-white/95 keep-white font-semibold truncate max-w-[220px]">
+                                  {translateWeatherCondition(day.conditions, isTamil)}
                                 </div>
-                                <div className="text-3xl sm:text-4xl font-extrabold text-white mt-1.5 font-sans tracking-tight">
+                                <div className="text-3xl sm:text-4xl font-extrabold text-white keep-white mt-1.5 font-sans tracking-tight">
                                   {cleanH !== '--' ? `+${cleanH}°C` : (day.highTemp ? `+${day.highTemp}` : '--')}
                                 </div>
-                                <div className="text-xs text-white/70 font-medium mt-1">
-                                  {cleanL !== '--' ? `Min ${cleanL}°C` : ''}
-                                  {rainData.percent ? ` • ${rainData.percent} rain` : ''}
+                                <div className="text-xs text-white/70 keep-white font-medium mt-1">
+                                  {cleanL !== '--' ? `${isTamil ? 'குறைந்தது' : 'Min'} ${cleanL}°C` : ''}
+                                  {rainData.percent ? ` • ${rainData.percent} ${isTamil ? 'மழை' : 'rain'}` : ''}
                                 </div>
                               </div>
 
                               {/* Bottom Daylight Pill */}
-                              <div className="w-full px-3.5 py-2 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-between text-xs text-white/80 backdrop-blur-md">
-                                <span className="text-white/70 font-medium text-[11px]">Daylight</span>
-                                <span className="font-mono text-xs text-white/95 font-semibold tracking-tight">
+                              <div className="w-full px-3.5 py-2 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-between text-xs text-white/80 keep-white backdrop-blur-md">
+                                <span className="text-white/70 keep-white font-medium text-[11px]">
+                                  {isTamil ? 'பகற்பொழுது' : 'Daylight'}
+                                </span>
+                                <span className="font-mono text-xs text-white/95 keep-white font-semibold tracking-tight">
                                   {sunSpanFormatted}
                                 </span>
                               </div>
@@ -1010,26 +1313,26 @@ export default function WeatherMcpTestPage() {
                           }
                           back={
                             <div
-                              className={`w-full h-full p-4 sm:p-5 flex flex-col justify-between text-left rounded-[24px] glass-panel text-white backdrop-blur-xl relative overflow-hidden select-none transition-all ${
+                              className={`w-full h-full p-4 sm:p-5 flex flex-col justify-between text-left rounded-[24px] glass-panel text-white keep-white backdrop-blur-xl relative overflow-hidden select-none transition-all ${
                                 isSelected
-                                  ? 'border-2 border-sky-400 bg-sky-500/[0.1] dark:bg-sky-950/40 shadow-[0_12px_36px_rgba(14,165,233,0.38)] ring-2 ring-sky-400/50'
-                                  : 'border border-white/20 dark:border-white/10 bg-white/[0.05] dark:bg-black/35 shadow-xl hover:border-sky-400/50'
+                                  ? 'weather-card-active border-2 border-sky-400 bg-sky-500/[0.1] dark:bg-sky-950/40 shadow-[0_12px_36px_rgba(14,165,233,0.38)] ring-2 ring-sky-400/50'
+                                  : 'weather-card-inactive border border-white/20 dark:border-white/10 bg-white/[0.05] dark:bg-black/35 shadow-xl hover:border-sky-400/50'
                               }`}
                             >
                               {/* Top Bar: SAT / SUN + Date */}
                               <div className="w-full pb-2 border-b border-white/10 flex items-center justify-between">
                                 <div className="flex items-center gap-1.5">
                                   <span className="text-xs font-black uppercase tracking-wider font-mono text-emerald-400">
-                                    {idx === 0 ? 'TODAY' : day.shortDay}
+                                    {idx === 0 ? (isTamil ? 'இன்று' : 'TODAY') : translateShortDay(day.shortDay, isTamil)}
                                   </span>
                                   {isSelected && (
                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-sky-400 text-slate-950 shadow-sm">
-                                      ACTIVE
+                                      {isTamil ? 'செயலில்' : 'ACTIVE'}
                                     </span>
                                   )}
                                 </div>
-                                <span className="text-xs text-white/80 font-medium truncate max-w-[130px]">
-                                  {shortDate}
+                                <span className="text-xs text-white/80 keep-white font-medium truncate max-w-[130px]">
+                                  {translateShortDate(shortDate, isTamil)}
                                 </span>
                               </div>
 
@@ -1039,20 +1342,23 @@ export default function WeatherMcpTestPage() {
                                   <WeatherDayIcon
                                     rainfall={visual.rainfall}
                                     cloudCover={visual.cloudCover}
+                                    conditionText={day.conditions}
                                     className="w-9 h-8 shrink-0 drop-shadow"
                                   />
                                   <div className="min-w-0 text-left">
-                                    <div className="text-xs sm:text-sm font-bold text-white truncate max-w-[130px] leading-tight">
-                                      {day.conditions}
+                                    <div className="text-xs sm:text-sm font-bold text-white keep-white truncate max-w-[130px] leading-tight">
+                                      {translateWeatherCondition(day.conditions, isTamil)}
                                     </div>
                                     {rangeStr && (
-                                      <div className="text-[11px] text-white/70 font-medium font-mono mt-0.5">
-                                        {rangeStr}
+                                      <div className="text-[11px] text-white/70 keep-white font-medium font-mono mt-0.5">
+                                        {isTamil
+                                          ? rangeStr.replace(/^H\s*/, 'அதிகம் ').replace(/•\s*L\s*/, '• குறைவு ')
+                                          : rangeStr}
                                       </div>
                                     )}
                                   </div>
                                 </div>
-                                <div className="text-2xl sm:text-3xl font-extrabold text-white font-sans tracking-tight shrink-0">
+                                <div className="text-2xl sm:text-3xl font-extrabold text-white keep-white font-sans tracking-tight shrink-0">
                                   {cleanH !== '--' ? `${cleanH}°` : (day.highTemp ? `+${day.highTemp}` : '--')}
                                 </div>
                               </div>
@@ -1061,62 +1367,66 @@ export default function WeatherMcpTestPage() {
                               <div className="grid grid-cols-2 gap-2 w-full my-auto">
                                 {/* Tile 1: FEELS */}
                                 <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col justify-between min-h-[58px] text-left">
-                                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/60 tracking-wider uppercase">
+                                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/60 keep-white tracking-wider uppercase">
                                     <span className="text-xs leading-none">🌡️</span>
-                                    <span>FEELS</span>
+                                    <span className="text-white/70 keep-white">{isTamil ? 'உணரப்படும்' : 'FEELS'}</span>
                                   </div>
-                                  <div className="text-xs sm:text-sm font-bold text-white font-mono mt-1 truncate">
+                                  <div className="text-xs sm:text-sm font-bold text-white keep-white font-mono mt-1 truncate">
                                     {feelsLikeFormatted}
                                   </div>
                                 </div>
 
                                 {/* Tile 2: WIND */}
                                 <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col justify-between min-h-[58px] text-left">
-                                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/60 tracking-wider uppercase">
-                                    <Wind size={12} className="text-white/80" />
-                                    <span>WIND</span>
+                                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/60 keep-white tracking-wider uppercase">
+                                    <Wind size={12} className="text-white/80 keep-white" />
+                                    <span className="text-white/70 keep-white">{isTamil ? 'காற்று' : 'WIND'}</span>
                                   </div>
-                                  <div className="text-xs sm:text-sm font-bold text-white font-mono mt-1 truncate">
-                                    {windFormatted}
+                                  <div className="text-xs sm:text-sm font-bold text-white keep-white font-mono mt-1 truncate">
+                                    {translateWind(windFormatted, isTamil)}
                                   </div>
                                 </div>
 
                                 {/* Tile 3: RAIN */}
                                 <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col justify-between min-h-[58px] text-left">
-                                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/60 tracking-wider uppercase">
+                                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-sky-400 tracking-wider uppercase">
                                     <Droplets size={12} className="text-sky-400" />
-                                    <span>RAIN</span>
+                                    <span className="text-white/70 keep-white">{isTamil ? 'மழை' : 'RAIN'}</span>
                                   </div>
                                   <div className="text-xs sm:text-sm font-bold mt-1 font-mono flex items-baseline gap-1 truncate">
                                     <span className="text-sky-400">{rainData.percent}</span>
                                     {rainData.amount && (
-                                      <span className="text-[10px] text-white/60 font-mono">({rainData.amount})</span>
+                                      <span className="text-[10px] text-white/60 keep-white font-mono">({rainData.amount})</span>
                                     )}
                                   </div>
                                 </div>
 
                                 {/* Tile 4: UV IDX */}
                                 <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col justify-between min-h-[58px] text-left">
-                                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/60 tracking-wider uppercase">
+                                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 tracking-wider uppercase">
                                     <Sparkles size={12} className="text-amber-400" />
-                                    <span>UV IDX</span>
+                                    <span className="text-white/70 keep-white">{isTamil ? 'புறஊதா' : 'UV IDX'}</span>
                                   </div>
                                   <div className="text-xs sm:text-sm font-bold mt-1 font-mono flex items-baseline gap-1.5 truncate">
                                     <span className="text-amber-400">{uvData.val}</span>
                                     {uvData.rating && (
-                                      <span className="text-[10px] text-white/70 font-sans font-medium">{uvData.rating}</span>
+                                      <span className="text-[10px] text-white/70 keep-white font-sans font-medium">
+                                        {translateUvRating(uvData.rating, isTamil)}
+                                      </span>
                                     )}
                                   </div>
                                 </div>
                               </div>
 
                               {/* Bottom Sun Pill */}
-                              <div className="w-full px-3.5 py-2 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-between text-xs text-white/80 backdrop-blur-md">
+                              <div className="w-full px-3.5 py-2 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-between text-xs text-white/80 keep-white backdrop-blur-md">
                                 <div className="flex items-center gap-1.5 text-amber-300 font-medium">
                                   <span className="text-sm">🌅</span>
-                                  <span className="text-[11px] font-semibold text-white/80">Sun</span>
+                                  <span className="text-[11px] font-semibold text-white/80 keep-white">
+                                    {isTamil ? 'சூரியன்' : 'Sun'}
+                                  </span>
                                 </div>
-                                <span className="font-mono text-xs text-white/95 font-semibold tracking-tight">
+                                <span className="font-mono text-xs text-white/95 keep-white font-semibold tracking-tight">
                                   {sunSpanFormatted}
                                 </span>
                               </div>
@@ -1133,83 +1443,87 @@ export default function WeatherMcpTestPage() {
             {/* STRUCTURED DETAIL CARDS (When forecast is absent, rendered in Motion Free Scroll Carousel) */}
             {parsed.forecast.length === 0 && parsed.detailCards.length > 0 && (
               <div className="relative z-10 w-full">
-                <MotionFreeScrollCarousel itemCount={parsed.detailCards.length}>
+                <MotionFreeScrollCarousel
+                  itemCount={parsed.detailCards.length}
+                  helperText={isTamil ? 'சுழல் பலகை • கிடைமட்டமாக இழுக்கவும்' : 'Free scroll carousel • Drag or swipe horizontally'}
+                >
                   {parsed.detailCards.map((card, idx) => {
+                    const cardTitle = translateDetailCardTitle(card.title, isTamil);
                     return (
                       <div key={idx} className="w-[300px] sm:w-[320px] shrink-0">
-                      <FlipCard
-                        axis="y"
-                        flipOnClick
-                        draggable={false}
-                        dragDistance={0}
-                        tilt
-                        tiltMax={10}
-                        glare
-                        glareOpacity={0.2}
-                        hoverScale={1.02}
-                        perspective={1100}
-                        stiffness={170}
-                        damping={20}
-                        width="100%"
-                        height={380}
-                        radius={24}
-                        background="transparent"
-                        color="#f5f5f5"
-                        shadow={false}
-                        className="w-full"
-                        front={
-                          <div className="w-full h-full p-5 flex flex-col justify-between rounded-[24px] border border-white/20 dark:border-white/10 glass-panel bg-white/[0.04] dark:bg-black/25 backdrop-blur-xl relative overflow-hidden group select-none shadow-xl hover:border-sky-400/50 transition-all text-text-main">
-                            <div className="flex items-center justify-between gap-2 pb-2 border-b border-border-subtle">
-                              <div className="flex items-center gap-2">
-                                <span className="p-1.5 rounded-lg bg-sky-500/15 text-sky-500">
-                                  <Sparkles size={14} />
-                                </span>
-                                <h4 className="text-sm font-black text-text-main uppercase tracking-wide m-0">
-                                  {card.title}
-                                </h4>
-                              </div>
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/15 text-sky-600 dark:text-sky-300 border border-sky-500/30">
-                                MCP Live
-                              </span>
-                            </div>
-
-                            <div className="my-auto space-y-2 py-2">
-                              {card.lines.slice(0, 4).map((l, i) => (
-                                <div key={i} className="text-xs text-text-secondary flex items-baseline gap-2">
-                                  <span className="text-sky-400 font-bold">•</span>
-                                  <span className="line-clamp-2">{l}</span>
+                        <FlipCard
+                          axis="y"
+                          flipOnClick
+                          draggable={false}
+                          dragDistance={0}
+                          tilt
+                          tiltMax={10}
+                          glare
+                          glareOpacity={0.2}
+                          hoverScale={1.02}
+                          perspective={1100}
+                          stiffness={170}
+                          damping={20}
+                          width="100%"
+                          height={380}
+                          radius={24}
+                          background="transparent"
+                          color="#f5f5f5"
+                          shadow={false}
+                          className="w-full"
+                          front={
+                            <div className="w-full h-full p-5 flex flex-col justify-between rounded-[24px] border border-white/20 dark:border-white/10 glass-panel bg-white/[0.04] dark:bg-black/25 backdrop-blur-xl relative overflow-hidden group select-none shadow-xl hover:border-sky-400/50 transition-all text-text-main">
+                              <div className="flex items-center justify-between gap-2 pb-2 border-b border-border-subtle">
+                                <div className="flex items-center gap-2">
+                                  <span className="p-1.5 rounded-lg bg-sky-500/15 text-sky-500">
+                                    <Sparkles size={14} />
+                                  </span>
+                                  <h4 className="text-sm font-black text-text-main uppercase tracking-wide m-0">
+                                    {cardTitle}
+                                  </h4>
                                 </div>
-                              ))}
-                            </div>
-                          </div>
-                        }
-                        back={
-                          <div className="w-full h-full p-4 sm:p-5 flex flex-col justify-between rounded-[24px] border border-sky-400/35 dark:border-sky-400/20 glass-panel bg-white/[0.05] dark:bg-black/35 text-white backdrop-blur-xl relative overflow-hidden shadow-xl select-none hover:border-sky-400/50 transition-all">
-                            <div className="flex items-center justify-between gap-2 pb-2 border-b border-sky-400/25">
-                              <h4 className="text-xs font-black uppercase tracking-wide text-sky-300 m-0">
-                                {card.title}
-                              </h4>
-                              <span className="text-[10px] font-mono text-emerald-400 font-bold">
-                                Full Diagnostics
-                              </span>
-                            </div>
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/15 text-sky-600 dark:text-sky-300 border border-sky-500/30">
+                                  {isTamil ? 'MCP நேரலை' : 'MCP Live'}
+                                </span>
+                              </div>
 
-                            <ul className="flex-1 py-2 space-y-2 text-xs text-text-secondary m-0 pl-4 list-disc">
-                              {card.lines.slice(0, 6).map((l, i) => (
-                                <li key={i} className="leading-relaxed">
-                                  {l}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        }
-                      />
-                    </div>
-                  );
-                })}
-              </MotionFreeScrollCarousel>
-            </div>
-          )}
+                              <div className="my-auto space-y-2 py-2">
+                                {card.lines.slice(0, 4).map((l, i) => (
+                                  <div key={i} className="text-xs text-text-secondary flex items-baseline gap-2">
+                                    <span className="text-sky-400 font-bold">•</span>
+                                    <span className="line-clamp-2">{l}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          }
+                          back={
+                            <div className="w-full h-full p-4 sm:p-5 flex flex-col justify-between rounded-[24px] border border-sky-400/35 dark:border-sky-400/20 glass-panel bg-white/[0.05] dark:bg-black/35 text-white backdrop-blur-xl relative overflow-hidden shadow-xl select-none hover:border-sky-400/50 transition-all">
+                              <div className="flex items-center justify-between gap-2 pb-2 border-b border-sky-400/25">
+                                <h4 className="text-xs font-black uppercase tracking-wide text-sky-300 m-0">
+                                  {cardTitle}
+                                </h4>
+                                <span className="text-[10px] font-mono text-emerald-400 font-bold">
+                                  {isTamil ? 'முழு விவரங்கள்' : 'Full Diagnostics'}
+                                </span>
+                              </div>
+
+                              <ul className="flex-1 py-2 space-y-2 text-xs text-text-secondary m-0 pl-4 list-disc">
+                                {card.lines.slice(0, 6).map((l, i) => (
+                                  <li key={i} className="leading-relaxed">
+                                    {l}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+                </MotionFreeScrollCarousel>
+              </div>
+            )}
           </motion.div>
         )}
       </div>
