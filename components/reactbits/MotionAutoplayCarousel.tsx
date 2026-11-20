@@ -62,7 +62,7 @@ export default function MotionAutoplayCarousel({
       onGetStartedClick();
       return;
     }
-    const el = document.getElementById('dashboard-metrics');
+    const el = document.getElementById('feature-sections') || document.getElementById('dashboard-metrics') || document.querySelector('section:nth-of-type(2)');
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' });
     }
@@ -103,35 +103,37 @@ export default function MotionAutoplayCarousel({
       </motion.div>
 
       {/* Centered Specular Button at Bottom */}
-      <motion.div
-        style={{
-          opacity: buttonOpacity,
-          y: buttonY,
-          scale: buttonScale,
-        }}
-        className="absolute bottom-6 sm:bottom-10 lg:bottom-12 left-1/2 -translate-x-1/2 z-20 pointer-events-auto"
-      >
-        <SpecularButton
-          size="lg"
-          radius={18}
-          tint="#ffffff"
-          tintOpacity={0.04}
-          textColor="#f5f5f5"
-          lineColor="#ffffff"
-          baseColor="#525252"
-          intensity={1}
-          idleIntensity={0.35}
-          shineSize={10}
-          shineFade={34}
-          thickness={1.2}
-          glow={1}
-          followMouse
-          proximity={250}
-          onClick={handleScrollToContent}
+      <div className="absolute bottom-6 sm:bottom-10 lg:bottom-12 inset-x-0 flex justify-center z-20 pointer-events-none">
+        <motion.div
+          style={{
+            opacity: buttonOpacity,
+            y: buttonY,
+            scale: buttonScale,
+          }}
+          className="pointer-events-auto"
         >
-          Get Started
-        </SpecularButton>
-      </motion.div>
+          <SpecularButton
+            size="lg"
+            radius={18}
+            tint="#ffffff"
+            tintOpacity={0.04}
+            textColor="#f5f5f5"
+            lineColor="#ffffff"
+            baseColor="#525252"
+            intensity={1}
+            idleIntensity={0.35}
+            shineSize={10}
+            shineFade={34}
+            thickness={1.2}
+            glow={1}
+            followMouse
+            proximity={250}
+            onClick={handleScrollToContent}
+          >
+            Get Started
+          </SpecularButton>
+        </motion.div>
+      </div>
     </div>
   );
 }

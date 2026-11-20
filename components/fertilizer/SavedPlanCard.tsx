@@ -26,7 +26,8 @@ export const SavedPlanCard: React.FC<SavedPlanCardProps> = ({
   onEdit,
   onDelete,
 }) => {
-  const { messages } = useLanguage();
+  const { messages, locale } = useLanguage();
+  const isTamil = locale === 'ta';
   const t = messages.fertilizer;
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
 
@@ -328,10 +329,12 @@ export const SavedPlanCard: React.FC<SavedPlanCardProps> = ({
               </div>
               <div className="text-right">
                 <span className="text-[10px] text-slate-600 dark:text-text-muted font-bold block">
-                  {t.step3.cardLabels?.roi || 'Est. ROI'}
+                  {t.step3.cardLabels?.profitPercent || (isTamil ? 'லாப சதவீதம்' : 'Profit %')}
                 </span>
                 <span className="text-xs font-black text-emerald-950 bg-emerald-200/90 border border-emerald-400 dark:text-emerald-300 dark:bg-emerald-500/20 dark:border-emerald-500/30 px-2 py-0.5 rounded shadow-2xs">
-                  {plan.totals.grandTotal > 0
+                  {plan.totals.revenueTotal > 0
+                    ? Math.round((plan.totals.netProfit / plan.totals.revenueTotal) * 100)
+                    : plan.totals.grandTotal > 0
                     ? Math.round((plan.totals.netProfit / plan.totals.grandTotal) * 100)
                     : 0}%
                 </span>

@@ -85,6 +85,15 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
     if (onClearError) onClearError(field as any);
   };
 
+  // Clear lingering error if field already contains valid value (e.g. loaded from record or backward navigation)
+  useEffect(() => {
+    if (errors.name && userDetails.name?.trim()) onClearError?.('name');
+    if (errors.phone && /^\d{10}$/.test(userDetails.phone?.replace(/\D/g, '') || '')) onClearError?.('phone');
+    if (errors.landSize && (userDetails.landSize || 0) > 0) onClearError?.('landSize');
+    if (errors.address && userDetails.address?.trim()) onClearError?.('address');
+    if (errors.location && (userDetails.location?.trim() || userDetails.state?.trim())) onClearError?.('location');
+  }, [userDetails.name, userDetails.phone, userDetails.landSize, userDetails.address, userDetails.location, userDetails.state, errors, onClearError]);
+
   // Focus Handlers for "Not in list?" options
   const handleFocusCityVillageInput = () => {
     setIsManualInput(true);
@@ -958,10 +967,7 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
           {errors.address && <p className="mt-1 text-xs text-rose-400">{errors.address}</p>}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-          <span className="text-xs text-text-muted">
-            {t.step1.scalingHint}
-          </span>
+        <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
           <button
             type="submit"
             id="btn-continue-step1"

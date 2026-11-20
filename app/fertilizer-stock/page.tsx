@@ -1,13 +1,22 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Select, Table } from 'antd';
+import { Select, Table, Pagination } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { motion } from 'motion/react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { ShinyText } from '@/components/reactbits/ShinyText';
 import { AnimatedCounter } from '@/components/reactbits/AnimatedCounter';
-import { Store, Boxes, Phone, Search, RefreshCw, AlertCircle } from '@/components/icons/FlaticonIcons';
+import {
+  Store,
+  Boxes,
+  Phone,
+  Search,
+  RefreshCw,
+  AlertCircle,
+  LayoutGrid,
+  TableList,
+} from '@/components/icons/FlaticonIcons';
 import type {
   FertDistrictItem,
   FertSubdistrictItem,
@@ -36,9 +45,11 @@ export default function FertilizerStockPage() {
 
   const [dealers, setDealers] = useState<FertDealerRecord[]>([]);
   const [availableFertilizers, setAvailableFertilizers] = useState<string[]>([]);
-  const [selectedFertilizer, setSelectedFertilizer] = useState<string>('all');
   const [shopSearchText, setShopSearchText] = useState<string>('');
   const [reportDate, setReportDate] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [cardPage, setCardPage] = useState<number>(1);
+  const CARDS_PAGE_SIZE = 16;
 
   const [loadingDistricts, setLoadingDistricts] = useState<boolean>(true);
   const [loadingSubdistricts, setLoadingSubdistricts] = useState<boolean>(false);
@@ -245,8 +256,8 @@ export default function FertilizerStockPage() {
     setSubdistricts([]);
     setDealers([]);
     setAvailableFertilizers([]);
-    setSelectedFertilizer('all');
     setShopSearchText('');
+    setCardPage(1);
     fetchSubdistricts(districtId);
   };
 
@@ -254,36 +265,33 @@ export default function FertilizerStockPage() {
     setSelectedSubdistrictId(subdistrictId);
     setSubdistrictSearchText('');
     setSubdistrictSearching(false);
-    setSelectedFertilizer('all');
     setShopSearchText('');
+    setCardPage(1);
     fetchDealers(subdistrictId);
   };
 
   const filteredDealers = useMemo(() => {
     const query = shopSearchText.trim().toLowerCase();
-    return dealers.filter((dealer) => {
-      const fertMatch =
-        selectedFertilizer === 'all' ||
-        dealer.stocks.some((s) => s.fertilizer === selectedFertilizer);
-      const searchMatch =
-        !query ||
+    if (!query) return dealers;
+    return dealers.filter(
+      (dealer) =>
         dealer.shopName.toLowerCase().includes(query) ||
-        dealer.phone.toLowerCase().includes(query);
-      return fertMatch && searchMatch;
-    });
-  }, [dealers, selectedFertilizer, shopSearchText]);
+        dealer.phone.toLowerCase().includes(query)
+    );
+  }, [dealers, shopSearchText]);
+
+  const paginatedDealers = useMemo(() => {
+    const start = (cardPage - 1) * CARDS_PAGE_SIZE;
+    return filteredDealers.slice(start, start + CARDS_PAGE_SIZE);
+  }, [filteredDealers, cardPage]);
 
   const totalStockMt = useMemo(() => {
     return (
       Math.round(
-        filteredDealers.reduce((sum, d) => {
-          if (selectedFertilizer === 'all') return sum + d.totalStockMt;
-          const item = d.stocks.find((s) => s.fertilizer === selectedFertilizer);
-          return sum + (item ? item.quantityMt : 0);
-        }, 0) * 100
+        filteredDealers.reduce((sum, d) => sum + d.totalStockMt, 0) * 100
       ) / 100
     );
-  }, [filteredDealers, selectedFertilizer]);
+  }, [filteredDealers]);
 
   const activeStockShopsCount = useMemo(() => {
     return filteredDealers.filter((d) => d.stocks.length > 0).length;
@@ -336,13 +344,9 @@ export default function FertilizerStockPage() {
               <span className="text-xs text-text-muted italic">{fs.noStockRecorded}</span>
             );
           }
-          const visibleStocks =
-            selectedFertilizer === 'all'
-              ? stocks
-              : stocks.filter((s) => s.fertilizer === selectedFertilizer);
           return (
             <div className="flex flex-wrap gap-1.5 py-0.5">
-              {visibleStocks.map((item) => (
+              {stocks.map((item) => (
                 <span
                   key={item.fertilizer}
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg glass-surface border border-border-subtle text-[11px] font-semibold text-text-main"
@@ -363,24 +367,27 @@ export default function FertilizerStockPage() {
         key: 'totalStockMt',
         align: 'right',
         width: '12%',
-        render: (_: number, record) => {
-          const val =
-            selectedFertilizer === 'all'
-              ? record.totalStockMt
-              : record.stocks.find((s) => s.fertilizer === selectedFertilizer)?.quantityMt || 0;
-          return (
-            <span className="font-mono text-xs sm:text-sm font-black text-cyan-600 dark:text-cyan-400 whitespace-nowrap">
-              {val.toFixed(2)}
-            </span>
-          );
-        },
+        render: (_: number, record) => (
+          <span className="font-mono text-xs sm:text-sm font-black text-cyan-600 dark:text-cyan-400 whitespace-nowrap">
+            {record.totalStockMt.toFixed(2)}
+          </span>
+        ),
       },
     ],
-    [fs, selectedFertilizer]
+    [fs]
   );
 
   return (
-    <div className="relative min-h-screen w-full">
+    <div className="relative min-h-screen w-full text-text-main font-sans selection:bg-emerald-500 selection:text-slate-950">
+      {/* Background Photography Layer with Soft Vignette & Frosted Overlay */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out scale-105"
+        style={{
+          backgroundImage: `url(/images/farm.jpg)`,
+        }}
+      />
+      <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
+
       <div className="relative z-10 fade-in flex flex-col gap-5 p-4 sm:p-6 lg:p-8 max-w-[1720px] w-full mx-auto pb-20">
         {/* Header Banner */}
         <motion.div
@@ -574,65 +581,97 @@ export default function FertilizerStockPage() {
               )}
             </div>
           </div>
-
-          {/* Optional Fertilizer Filter Pills when dealers load */}
-          {selectedSubdistrictId && availableFertilizers.length > 0 && (
-            <div className="mt-4 pt-3.5 border-t border-border-subtle flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted mr-1">
-                Filter:
-              </span>
-              <Select
-                showSearch
-                value={selectedFertilizer}
-                onChange={(val) => setSelectedFertilizer(val)}
-                className="w-full sm:w-64 h-9 text-xs font-semibold custom-antd-select"
-                options={[
-                  { value: 'all', label: fs.filterFertPlaceholder },
-                  ...availableFertilizers.map((f) => ({ value: f, label: f })),
-                ]}
-              />
-            </div>
-          )}
         </motion.div>
 
-        {/* Summary KPI Cards when Sub-District is selected */}
+        {/* Summary KPI Cards & View Mode Switcher when Sub-District is selected */}
         {selectedSubdistrictId && !loadingDealers && dealers.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="glass-panel rounded-2xl border border-border-light p-4 shadow-lg">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-text-muted block">
-                {fs.totalDealersLabel}
-              </span>
-              <span className="text-2xl font-black text-text-main font-mono mt-1 block">
-                <AnimatedCounter value={filteredDealers.length} />
-              </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4 flex-1">
+              <div className="glass-panel rounded-2xl border border-border-light p-4 shadow-lg">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-text-muted block">
+                  {fs.totalDealersLabel}
+                </span>
+                <span className="text-2xl font-black text-text-main font-mono mt-1 block">
+                  <AnimatedCounter value={filteredDealers.length} />
+                </span>
+              </div>
+
+              <div className="glass-panel rounded-2xl border border-border-light p-4 shadow-lg">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-text-muted block">
+                  {fs.inStockLabel}
+                </span>
+                <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono mt-1 block">
+                  <AnimatedCounter value={activeStockShopsCount} />
+                </span>
+              </div>
+
+              <div className="glass-panel rounded-2xl border border-border-light p-4 shadow-lg">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-text-muted block">
+                  {fs.totalStockLabel}
+                </span>
+                <span className="text-2xl font-black text-cyan-600 dark:text-cyan-400 font-mono mt-1 block">
+                  <AnimatedCounter value={totalStockMt} decimals={2} /> MT
+                </span>
+              </div>
             </div>
 
-            <div className="glass-panel rounded-2xl border border-border-light p-4 shadow-lg">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-text-muted block">
-                {fs.inStockLabel}
-              </span>
-              <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono mt-1 block">
-                <AnimatedCounter value={activeStockShopsCount} />
-              </span>
-            </div>
-
-            <div className="glass-panel rounded-2xl border border-border-light p-4 shadow-lg">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-text-muted block">
-                {fs.totalStockLabel}
-              </span>
-              <span className="text-2xl font-black text-cyan-600 dark:text-cyan-400 font-mono mt-1 block">
-                <AnimatedCounter value={totalStockMt} decimals={2} /> MT
-              </span>
+            {/* View Mode Toggle: Cards / Table */}
+            <div className="flex items-center gap-1.5 p-1 rounded-xl glass-panel border border-border-light shadow-sm shrink-0 self-end sm:self-center">
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'cards'
+                    ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
+                    : 'text-text-muted hover:text-text-main'
+                }`}
+              >
+                <LayoutGrid size={13} />
+                <span>{fs.cardsView || (locale === 'ta' ? 'கார்டுகள்' : 'Cards')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'table'
+                    ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
+                    : 'text-text-muted hover:text-text-main'
+                }`}
+              >
+                <TableList size={13} />
+                <span>{fs.tableView || (locale === 'ta' ? 'அட்டவணை' : 'Table')}</span>
+              </button>
             </div>
           </div>
         )}
 
-        {/* Dealer Wise Stock Table Container */}
+        {/* Phone Availability Advisory Banner */}
+        {selectedSubdistrictId && !loadingDealers && dealers.length > 0 && (
+          <div className="rounded-2xl glass-panel border border-amber-500/35 p-4 sm:p-4.5 flex items-start sm:items-center gap-3.5 shadow-md bg-amber-500/[0.06]">
+            <span className="p-2.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25 shrink-0 mt-0.5 sm:mt-0">
+              <AlertCircle size={18} />
+            </span>
+            <div className="text-xs sm:text-sm text-text-secondary leading-relaxed">
+              <span className="font-bold text-amber-600 dark:text-amber-400 mr-1.5">
+                {fs.phoneWarningTitle || (locale === 'ta' ? 'முக்கிய அறிவிப்பு:' : 'Notice:')}
+              </span>
+              {fs.phoneWarningDesc || (locale === 'ta'
+                ? 'கீழே குறிப்பிடப்பட்டுள்ள சில தொலைபேசி எண்கள் பயன்பாட்டில் இல்லாமல் அல்லது தொடர்பு கொள்ள முடியாமல் இருக்கலாம். அழைப்பு செல்லவில்லை எனில், உங்கள் அருகிலுள்ள மாற்று அங்கீகரிக்கப்பட்ட உர விற்பனையாளர்களை தொடர்பு கொள்ளவும் அல்லது நேரடி தொடக்க வேளாண்மை கூட்டுறவு சங்கங்களை (PACS) அணுகவும்.'
+                : 'Some of the contact phone numbers listed below may be temporarily unavailable or out of service. If a dealer cannot be reached, please contact an alternative authorized fertilizer store from your nearby location or visit your local Primary Agricultural Cooperative Society (PACS).')}
+            </div>
+          </div>
+        )}
+
+        {/* Dealer Wise Stock Container: Cards or Table */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.14, ease: 'easeOut' }}
-          className="overflow-hidden rounded-2xl glass-panel border border-border-light shadow-xl"
+          className={
+            loadingDealers || error || !selectedDistrictId || !selectedSubdistrictId || filteredDealers.length === 0 || viewMode === 'table'
+              ? 'overflow-hidden rounded-2xl glass-panel border border-border-light shadow-xl'
+              : ''
+          }
         >
           {loadingDealers ? (
             <div className="p-6 space-y-4 animate-pulse">
@@ -671,7 +710,109 @@ export default function FertilizerStockPage() {
               <span className="text-4xl">📭</span>
               <p className="text-xs text-text-muted max-w-md">{fs.noDealersFound}</p>
             </div>
+          ) : viewMode === 'cards' ? (
+            /* Cards View */
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {paginatedDealers.map((dealer, idx) => (
+                  <div
+                    key={dealer.id}
+                    className="rounded-2xl glass-panel p-5 border border-border-light hover:border-emerald-500/40 hover:shadow-xl transition-all flex flex-col justify-between gap-4 group"
+                  >
+                    <div>
+                      {/* Shop Name & ID */}
+                      <div className="flex items-start justify-between gap-2.5 mb-2.5">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="p-2.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 shrink-0 group-hover:scale-105 transition-transform">
+                            <Store size={18} />
+                          </span>
+                          <div className="min-w-0">
+                            <h3 className="font-extrabold text-sm text-text-main leading-snug line-clamp-2" title={dealer.shopName}>
+                              {dealer.shopName}
+                            </h3>
+                            <span className="text-[10px] font-mono font-bold text-text-muted">
+                              #{(cardPage - 1) * CARDS_PAGE_SIZE + idx + 1}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Total Stock MT Badge */}
+                      <div className="flex items-center justify-between py-1.5 px-3 rounded-xl bg-surface/60 border border-border-subtle my-2">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-text-muted">
+                          {locale === 'ta' ? 'மொத்த இருப்பு' : 'Total Stock'}
+                        </span>
+                        <span className="font-mono text-xs font-black text-cyan-600 dark:text-cyan-400">
+                          {dealer.totalStockMt.toFixed(2)} MT
+                        </span>
+                      </div>
+
+                      {/* Phone Number */}
+                      <div className="pt-1">
+                        {dealer.phone && dealer.phone !== '-' ? (
+                          <a
+                            href={`tel:${dealer.phone}`}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/25 font-mono text-xs font-bold transition-colors w-full justify-center"
+                          >
+                            <Phone size={13} className="text-rose-500" />
+                            <span>{dealer.phone}</span>
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface/40 text-text-muted border border-border-subtle text-xs font-mono w-full italic">
+                            <Phone size={12} className="opacity-50" />
+                            <span>{locale === 'ta' ? 'எண் இல்லை' : 'No phone listed'}</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Stock items */}
+                    <div className="pt-3 border-t border-border-subtle/80 space-y-2">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-text-muted block">
+                        {locale === 'ta' ? 'கிடைக்கும் உரங்கள்' : 'Available Fertilizers'}
+                      </span>
+                      {dealer.stocks && dealer.stocks.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto scrollbar-thin pr-0.5">
+                          {dealer.stocks.map((item) => (
+                            <div
+                              key={item.fertilizer}
+                              className="flex flex-col p-2 rounded-xl glass-surface border border-border-subtle"
+                            >
+                              <span className="text-[10px] font-bold text-text-secondary truncate" title={item.fertilizer}>
+                                {item.fertilizer}
+                              </span>
+                              <span className="font-mono font-black text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                {item.quantityMt.toFixed(2)} MT
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-text-muted italic block py-1">
+                          {fs.noStockRecorded}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Cards Pagination */}
+              {filteredDealers.length > CARDS_PAGE_SIZE && (
+                <div className="flex justify-center pt-4">
+                  <Pagination
+                    current={cardPage}
+                    pageSize={CARDS_PAGE_SIZE}
+                    total={filteredDealers.length}
+                    showSizeChanger={false}
+                    onChange={(page) => setCardPage(page)}
+                    className="custom-antd-pagination"
+                  />
+                </div>
+              )}
+            </div>
           ) : (
+            /* Table View */
             <div className="w-full overflow-x-auto scrollbar-thin">
               <Table<FertDealerRecord>
                 columns={columns}
@@ -685,19 +826,6 @@ export default function FertilizerStockPage() {
               />
             </div>
           )}
-
-          {/* Footer Note */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-5 py-3.5 border-t border-border-light bg-surface/40 text-xs text-text-muted">
-            <div className="flex items-center gap-2">
-              <span>🧪</span>
-              <span>{fs.sourceNote}</span>
-            </div>
-            {selectedSubdistrictId && (
-              <span className="font-semibold text-text-secondary">
-                {fs.totalDealersLabel}: <strong className="text-text-main">{filteredDealers.length}</strong>
-              </span>
-            )}
-          </div>
         </motion.div>
           </>
         ) : (

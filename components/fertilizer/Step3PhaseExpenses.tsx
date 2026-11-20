@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { message } from 'antd';
 import { AlertTriangle, CheckCircle2, X } from '@/components/icons/FlaticonIcons';
@@ -18,6 +18,7 @@ import type {
   UserDetails,
 } from '@/lib/fertilizer/types';
 import { TaskRowRenderer } from './TaskRowRenderer';
+import { Step3MobilePhaseCards } from './Step3MobilePhaseCards';
 
 interface Step3PhaseExpensesProps {
   cultivation: CultivationType;
@@ -33,7 +34,27 @@ interface Step3PhaseExpensesProps {
   getTaskMeta: (task: ExpenseTask) => { name: string; dayRange: string; description: string; costEstimateHint: string };
   activePhase: PhaseGroup;
   activePhaseMeta: { month: string; name: string; daySpan: string };
-  handleRateChange: (taskId: string, rate: number, travelCost?: number, hasTravelCost?: boolean) => void;
+  handleRateChange: (
+    taskId: string,
+    rate: number,
+    travelCost?: number,
+    hasTravelCost?: boolean,
+    repairInfo?: {
+      hasRepairCost?: boolean;
+      mechanicName?: string;
+      mechanicNumber?: string;
+      repairCost?: number;
+    }
+  ) => void;
+  handleRepairCostChange?: (
+    taskId: string,
+    params: {
+      hasRepairCost: boolean;
+      mechanicName?: string;
+      mechanicNumber?: string;
+      repairCost?: number;
+    }
+  ) => void;
   handleLabourChange: (taskId: string, count: number, wage: number, snacks?: number, travel?: number) => void;
   handleMultiDayChangeActiveDay?: (taskId: string, nextDay: number, maxDays?: number) => void;
   handleMultiDayLabourChange?: (
@@ -45,6 +66,20 @@ interface Step3PhaseExpensesProps {
     travel?: number,
     maxDays?: number
   ) => void;
+  handleMultiDayHarvestChange?: (taskId: string, day: number, rate: number) => void;
+  handleMultiDayGunnyBagsChange?: (taskId: string, day: number, count: number, price: number) => void;
+  handleMultiDayTransportChange?: (
+    taskId: string,
+    day: number,
+    params: {
+      bagCount?: number;
+      perBagLiftingCost?: number;
+      transportRent?: number;
+      loadingWorkers?: number;
+      loadingWage?: number;
+      loadingSnacks?: number;
+    }
+  ) => void;
   handleFertilizerWithLabourChange: (
     taskId: string,
     fertQty: number,
@@ -52,7 +87,8 @@ interface Step3PhaseExpensesProps {
     labourCount: number,
     labourWage: number,
     snackCost?: number,
-    travelCost?: number
+    travelCost?: number,
+    pesticideMl?: number
   ) => void;
   handleMandiChange: (taskId: string, count: number, rate: number) => void;
   handleToggleOptional: (taskId: string) => void;
@@ -92,9 +128,13 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
   activePhase,
   activePhaseMeta,
   handleRateChange,
+  handleRepairCostChange,
   handleLabourChange,
   handleMultiDayChangeActiveDay,
   handleMultiDayLabourChange,
+  handleMultiDayHarvestChange,
+  handleMultiDayGunnyBagsChange,
+  handleMultiDayTransportChange,
   handleFertilizerWithLabourChange,
   handleMandiChange,
   handleToggleOptional,
@@ -174,10 +214,43 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
     setShowCompleteConfirm(true);
   };
 
+  // Reset scroll position when switching phases so new phase table is not displayed as scrolled
+  const isFirstMount = useRef(true);
+  const phaseTableWrapperRef = useRef<HTMLDivElement>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+
+    // 1. Reset horizontal scroll in operations table container
+    if (tableScrollRef.current) {
+      tableScrollRef.current.scrollLeft = 0;
+    }
+
+    // 2. Reset vertical page scroll so the newly selected phase table begins at the top
+    if (phaseTableWrapperRef.current) {
+      const stickyNav = document.querySelector('.fertilizer-step-scope .md\\:sticky') as HTMLElement | null;
+      const navHeight = stickyNav ? stickyNav.getBoundingClientRect().height : 140;
+      const topbarOffset = 70;
+      const totalOffset = navHeight + topbarOffset + 16;
+
+      const rect = phaseTableWrapperRef.current.getBoundingClientRect();
+      const targetY = rect.top + window.pageYOffset - totalOffset;
+
+      window.scrollTo({
+        top: Math.max(0, targetY),
+        behavior: 'smooth',
+      });
+    }
+  }, [activePhaseIndex]);
+
   return (
     <div className="animate-fade-in pb-36 sm:pb-48">
-      {/* Sticky Header & 5-Phases Navigator — pinned while scrolling */}
-      <div className="sticky top-[70px] z-20 mb-6 glass-panel border border-white/10 px-3.5 py-3.5 rounded-2xl shadow-2xl transition-all">
+      {/* Sticky Header & 5-Phases Navigator — pinned on desktop/tablet */}
+      <div className="hidden md:block relative md:sticky md:top-[70px] z-20 mb-6 glass-panel border border-white/10 px-3.5 py-3.5 rounded-2xl shadow-2xl transition-all">
         {/* Header & View Switcher */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
           <div>
@@ -300,8 +373,11 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
 
       {/* VIEW MODE 1: INDIVIDUAL FOCUS PHASE TABLE */}
       {viewMode === 'individual' && (
-        <>
-          <div className="rounded-2xl glass-table-panel border border-border-light overflow-hidden shadow-2xl mb-8">
+        <div className="hidden md:block">
+          <div
+            ref={phaseTableWrapperRef}
+            className="rounded-2xl glass-table-panel border border-border-light overflow-hidden shadow-2xl mb-8"
+          >
             {/* Phase Banner */}
             <div
               className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 sm:px-6 py-4 border-b border-border-subtle gap-2"
@@ -331,10 +407,9 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
               </div>
             </div>
 
-            {/* Warning Advisory Message for Phase 4 */}
+            {/* Advisory Message for Phase 4 */}
             {activePhase.id === 'paddy_p4' && (
-              <div className="mx-6 mt-4 p-4 rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 flex items-start gap-3 shadow-sm">
-                <div className="text-amber-500 dark:text-amber-400 mt-0.5 text-lg">⚠️</div>
+              <div className="mx-6 mt-4 p-4 rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 shadow-sm">
                 <div>
                   <h4 className="text-sm font-extrabold text-amber-900 dark:text-amber-300">
                     {t.step3.preHarvestAlert?.title || 'Pre-Harvest Operational Advisory — Terminal Field Drainage & Sun Drying'}
@@ -347,7 +422,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
             )}
 
             {/* Operations Table */}
-            <div className="overflow-x-auto">
+            <div ref={tableScrollRef} className="overflow-x-auto">
               <table className="w-full min-w-[720px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-300/80 dark:border-white/10 bg-slate-100/95 dark:bg-[#121c2d]/90 text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-[#94a3b8]">
@@ -360,7 +435,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                     <th className="py-3 px-4 w-4/12">
                       {activePhase.isProfitPhase ? t.step3.tableHeaders.profitRealization : t.step3.tableHeaders.rate}
                     </th>
-                    <th className="py-3 px-6 w-2/12">
+                    <th className="py-3 px-6 w-2/12 text-right">
                       {activePhase.isProfitPhase ? t.step3.tableHeaders.grossRevenue : t.step3.tableHeaders.totalCost}
                     </th>
                   </tr>
@@ -386,9 +461,13 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                         entry={entry}
                         meta={tMeta}
                         handleRateChange={handleRateChange}
+                        handleRepairCostChange={handleRepairCostChange}
                         handleLabourChange={handleLabourChange}
                         handleMultiDayChangeActiveDay={handleMultiDayChangeActiveDay}
                         handleMultiDayLabourChange={handleMultiDayLabourChange}
+                        handleMultiDayHarvestChange={handleMultiDayHarvestChange}
+                        handleMultiDayGunnyBagsChange={handleMultiDayGunnyBagsChange}
+                        handleMultiDayTransportChange={handleMultiDayTransportChange}
                         handleFertilizerWithLabourChange={handleFertilizerWithLabourChange}
                         handleMandiChange={handleMandiChange}
                         handleToggleOptional={handleToggleOptional}
@@ -464,7 +543,13 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                       if (savePhaseProgress) {
                         setSavingNextPhase(true);
                         try {
-                          await savePhaseProgress();
+                          const savedPlanId = await savePhaseProgress();
+                          if (savedPlanId) {
+                            const newUrl = `/fertilizer/step3/${savedPlanId}`;
+                            if (typeof window !== 'undefined' && window.location.pathname !== newUrl) {
+                              router.replace(newUrl);
+                            }
+                          }
                         } finally {
                           setSavingNextPhase(false);
                         }
@@ -489,12 +574,12 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
               </div>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* VIEW MODE 2: ALL PHASES EXPENSES TABLE */}
       {viewMode === 'all' && (
-        <div className="space-y-6 mb-8">
+        <div className="hidden md:block space-y-6 mb-8">
           {currentPhases.map((phase, phaseIdx) => {
             const pMeta = getPhaseMeta(phase);
             const isPhaseLocked = phaseIdx > highestUnlockedPhaseIndex;
@@ -533,7 +618,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                         <th className="py-3 px-4 w-4/12">
                           {phase.isProfitPhase ? t.step3.tableHeaders.profitRealization : t.step3.tableHeaders.rate}
                         </th>
-                        <th className="py-3 px-6 w-2/12">
+                        <th className="py-3 px-6 w-2/12 text-right">
                           {phase.isProfitPhase ? t.step3.tableHeaders.grossRevenue : t.step3.tableHeaders.totalCost}
                         </th>
                       </tr>
@@ -559,9 +644,13 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                             entry={entry}
                             meta={tMeta}
                             handleRateChange={handleRateChange}
+                            handleRepairCostChange={handleRepairCostChange}
                             handleLabourChange={handleLabourChange}
                             handleMultiDayChangeActiveDay={handleMultiDayChangeActiveDay}
                             handleMultiDayLabourChange={handleMultiDayLabourChange}
+                        handleMultiDayHarvestChange={handleMultiDayHarvestChange}
+                        handleMultiDayGunnyBagsChange={handleMultiDayGunnyBagsChange}
+                        handleMultiDayTransportChange={handleMultiDayTransportChange}
                             handleFertilizerWithLabourChange={handleFertilizerWithLabourChange}
                             handleMandiChange={handleMandiChange}
                             handleToggleOptional={handleToggleOptional}
@@ -612,6 +701,49 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
           </div>
         </div>
       )}
+
+      {/* MOBILE PHASE CARDS VIEW (< md screens) */}
+      <div className="block md:hidden">
+        <Step3MobilePhaseCards
+          cultivation={cultivation}
+          currentPhases={currentPhases}
+          activePhaseIndex={activePhaseIndex}
+          setActivePhaseIndex={setActivePhaseIndex}
+          userDetails={userDetails}
+          expenseMap={expenseMap}
+          phaseTotals={phaseTotals}
+          getPhaseMeta={getPhaseMeta}
+          getTaskMeta={getTaskMeta}
+          activePhase={activePhase}
+          activePhaseMeta={activePhaseMeta}
+          highestUnlockedPhaseIndex={highestUnlockedPhaseIndex}
+          phaseCompletionMap={phaseCompletionMap}
+          allPhasesComplete={allPhasesComplete}
+          activePlanId={activePlanId}
+          savePhaseProgress={savePhaseProgress}
+          handleOpenCompleteConfirm={handleOpenCompleteConfirm}
+          handleRateChange={handleRateChange}
+          handleRepairCostChange={handleRepairCostChange}
+          handleLabourChange={handleLabourChange}
+          handleMultiDayChangeActiveDay={handleMultiDayChangeActiveDay}
+          handleMultiDayLabourChange={handleMultiDayLabourChange}
+          handleMultiDayHarvestChange={handleMultiDayHarvestChange}
+          handleMultiDayGunnyBagsChange={handleMultiDayGunnyBagsChange}
+          handleMultiDayTransportChange={handleMultiDayTransportChange}
+          handleFertilizerWithLabourChange={handleFertilizerWithLabourChange}
+          handleMandiChange={handleMandiChange}
+          handleToggleOptional={handleToggleOptional}
+          handleToggleMachineMode={handleToggleMachineMode}
+          handleToggleBagType={handleToggleBagType}
+          handleGunnyBagsChange={handleGunnyBagsChange}
+          handleTransportLoadingChange={handleTransportLoadingChange}
+          handleToggleYieldMode={handleToggleYieldMode}
+          handleGrainYieldChange={handleGrainYieldChange}
+          handleStrawYieldChange={handleStrawYieldChange}
+          handleToggleNotify={handleToggleNotify}
+          phase3HerbicideMaxDays={phase3HerbicideMaxDays}
+        />
+      </div>
 
       {/* Complete Cultivation Plan Confirmation Modal */}
       {showCompleteConfirm && (

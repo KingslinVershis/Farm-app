@@ -118,6 +118,9 @@ function invokeWeatherMcpTool(
   });
 }
 
+const weatherMcpCache = new Map<string, { data: WeatherMcpCallResponse; timestamp: number }>();
+const MCP_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 export async function POST(req: NextRequest) {
   const authUser = await getServerAuthenticatedUser(req);
   if (!authUser?.id) {
@@ -142,17 +145,32 @@ export async function POST(req: NextRequest) {
       ...(body.extraArgs || {}),
     };
 
+    const cacheKey = `${tool}:${location.toLowerCase().trim()}:${JSON.stringify(args)}`;
+    const cached = weatherMcpCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < MCP_CACHE_TTL_MS) {
+      return NextResponse.json<WeatherMcpCallResponse>(
+        { ...cached.data, durationMs: 1 },
+        { headers: { 'X-Cache': 'HIT' } }
+      );
+    }
+
     const { result, durationMs } = await invokeWeatherMcpTool(tool, args);
     const content = result?.content || [];
     const text = content.map((c: any) => c.text || '').join('\n\n');
 
-    return NextResponse.json<WeatherMcpCallResponse>({
+    const payload: WeatherMcpCallResponse = {
       success: true,
       tool,
       location,
       text,
       raw: result,
       durationMs,
+    };
+
+    weatherMcpCache.set(cacheKey, { data: payload, timestamp: Date.now() });
+
+    return NextResponse.json<WeatherMcpCallResponse>(payload, {
+      headers: { 'X-Cache': 'MISS' },
     });
   } catch (err: any) {
     console.error('[API /api/weather-mcp] error:', err);

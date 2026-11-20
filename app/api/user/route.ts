@@ -177,7 +177,10 @@ export async function POST(request: NextRequest) {
       INSERT INTO cultivation_plans (
         id, user_id, created_at, updated_at, is_completed, cultivation, user_details, expense_map, totals
       ) VALUES (
-        COALESCE($1, ('plan_'::text || (floor((EXTRACT(epoch FROM clock_timestamp()) * (1000)::numeric)))::text)),
+        COALESCE($1, (
+          SELECT (COALESCE(MAX(CASE WHEN id ~ '^[0-9]+$' THEN id::bigint ELSE 0 END), 0) + 1)::text
+          FROM cultivation_plans
+        )),
         $2, NOW(), NOW(), $3, $4, $5, $6, $7
       )
       ON CONFLICT (id) DO UPDATE SET

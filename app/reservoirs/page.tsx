@@ -11,19 +11,9 @@ import { DatePicker, Select, Modal, Table, Progress } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { motion, AnimatePresence } from 'motion/react';
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend,
-  Cell,
-} from 'recharts';
 import { SpotlightCard } from '@/components/reactbits/SpotlightCard';
 import ReflectiveCard from '@/components/reactbits/ReflectiveCard';
+import ParticleChart from '@/components/reactbits/ParticleChart';
 import { AnimatedCounter } from '@/components/reactbits/AnimatedCounter';
 import { ShinyText } from '@/components/reactbits/ShinyText';
 import { LayoutGrid, TableList, Eye } from '@/components/icons/FlaticonIcons';
@@ -282,24 +272,21 @@ export default function ReservoirsPage() {
     },
   ], [m]);
 
-  // Chart Data preparation for Active Reservoir
+  // Chart Data preparation for Active Reservoir (ParticleChart format)
   const storageChartData = useMemo(() => {
     if (!activeReservoir) return [];
     return [
       {
-        metric: m.chartCapacity,
+        label: m.chartCapacity,
         value: activeReservoir.fullCapacityMcft,
-        fill: '#3b82f6',
       },
       {
-        metric: m.chartCurrentStorage,
+        label: m.chartCurrentStorage,
         value: activeReservoir.currentStorageMcft,
-        fill: '#06b6d4',
       },
       {
-        metric: m.chartLastYearStorage,
+        label: m.chartLastYearStorage,
         value: activeReservoir.lastYearStorageMcft,
-        fill: '#f59e0b',
       },
     ];
   }, [activeReservoir, m]);
@@ -308,19 +295,16 @@ export default function ReservoirsPage() {
     if (!activeReservoir) return [];
     return [
       {
-        metric: m.chartFullDepth,
+        label: m.chartFullDepth,
         value: activeReservoir.fullDepthFeet,
-        fill: '#3b82f6',
       },
       {
-        metric: m.chartCurrentLevel,
+        label: m.chartCurrentLevel,
         value: activeReservoir.currentLevelFeet,
-        fill: '#10b981',
       },
       {
-        metric: m.chartLastYearLevel,
+        label: m.chartLastYearLevel,
         value: activeReservoir.lastYearLevelFeet,
-        fill: '#94a3b8',
       },
     ];
   }, [activeReservoir, m]);
@@ -329,14 +313,12 @@ export default function ReservoirsPage() {
     if (!activeReservoir) return [];
     return [
       {
-        metric: m.chartInflow,
+        label: m.chartInflow,
         value: activeReservoir.currentInflowCusecs,
-        fill: '#10b981',
       },
       {
-        metric: m.chartOutflow,
+        label: m.chartOutflow,
         value: activeReservoir.currentOutflowCusecs,
-        fill: '#f43f5e',
       },
     ];
   }, [activeReservoir, m]);
@@ -662,21 +644,58 @@ export default function ReservoirsPage() {
                         </p>
                       </div>
 
-                      {/* Storage Progress */}
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between text-xs font-bold">
-                          <span className="text-text-muted">{m.statCurrentStorage}</span>
-                          <span className="font-mono text-cyan-600 dark:text-cyan-400">
-                            {res.currentStorageMcft.toLocaleString()} M.Cft
+                      {/* Storage Radial Progress Meter */}
+                      <div className="flex items-center gap-3.5 p-2.5 rounded-2xl glass-surface border border-border-subtle/70">
+                        <div className="relative shrink-0 w-16 h-16 flex items-center justify-center">
+                          <svg className="w-full h-full -rotate-90" viewBox="0 0 72 72">
+                            <defs>
+                              <linearGradient id={`circleGrad-${res.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor="#06b6d4" />
+                                <stop offset="100%" stopColor="#10b981" />
+                              </linearGradient>
+                            </defs>
+                            <circle
+                              cx="36"
+                              cy="36"
+                              r="28"
+                              fill="transparent"
+                              stroke={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)'}
+                              strokeWidth="6"
+                            />
+                            <circle
+                              cx="36"
+                              cy="36"
+                              r="28"
+                              fill="transparent"
+                              stroke={`url(#circleGrad-${res.id})`}
+                              strokeWidth="6"
+                              strokeDasharray={175.93}
+                              strokeDashoffset={175.93 - (fillPct / 100) * 175.93}
+                              strokeLinecap="round"
+                              className="transition-all duration-700 ease-out"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <span className="font-mono text-xs font-black text-text-main leading-tight">
+                              {fillPct}%
+                            </span>
+                            <span className="text-[8px] font-extrabold uppercase tracking-tight text-cyan-600 dark:text-cyan-400">
+                              Full
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex-1 min-w-0 flex flex-col justify-center">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block">
+                            {m.statCurrentStorage}
+                          </span>
+                          <span className="font-mono text-sm sm:text-base font-black text-cyan-600 dark:text-cyan-400 truncate">
+                            {res.currentStorageMcft.toLocaleString()} <span className="text-[10px] font-semibold text-text-muted">M.Cft</span>
+                          </span>
+                          <span className="text-[10px] text-text-muted truncate mt-0.5">
+                            {m.statFullCapacity} {res.fullCapacityMcft.toLocaleString()} M.Cft
                           </span>
                         </div>
-                        <Progress
-                          percent={fillPct}
-                          status="active"
-                          showInfo={false}
-                          strokeColor={{ from: '#108ee9', to: '#87d068' }}
-                          size="small"
-                        />
                       </div>
 
                       {/* Telemetry Metrics Grid */}
@@ -941,7 +960,7 @@ export default function ReservoirsPage() {
                 </button>
               </div>
 
-              {/* Animated Recharts Container - cursor={false} eliminates the white/gray hover overlay box! */}
+              {/* Animated Particle Chart Container */}
               <motion.div
                 key={chartTab}
                 initial={{ opacity: 0, y: 12 }}
@@ -954,68 +973,35 @@ export default function ReservoirsPage() {
                     <h4 className="text-xs font-extrabold uppercase tracking-wider text-text-muted mb-3">
                       {m.chartStorageComparison}
                     </h4>
-                    <div className="h-64 w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={storageChartData} margin={{ top: 15, right: 20, left: 0, bottom: 20 }}>
-                          <defs>
-                            <linearGradient id="storageBarGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.9} />
-                              <stop offset="100%" stopColor="#0891b2" stopOpacity={0.4} />
-                            </linearGradient>
-                            <linearGradient id="capBarGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.8} />
-                              <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.3} />
-                            </linearGradient>
-                            <linearGradient id="lastYearBarGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.9} />
-                              <stop offset="100%" stopColor="#d97706" stopOpacity={0.3} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'} />
-                          <XAxis
-                            dataKey="metric"
-                            tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11, fontWeight: 600 }}
-                            axisLine={{ stroke: isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1' }}
-                          />
-                          <YAxis
-                            tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 10 }}
-                            axisLine={{ stroke: isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1' }}
-                          />
-                          <Tooltip
-                            cursor={false}
-                            contentStyle={{
-                              backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                              borderColor: isDark ? 'rgba(255,255,255,0.15)' : '#cbd5e1',
-                              borderRadius: '10px',
-                              color: isDark ? '#f1f5f9' : '#0f172a',
-                              fontSize: '12px',
-                              fontWeight: 700,
-                              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-                            }}
-                            formatter={(value: any) => [`${Number(value).toLocaleString()} M.Cft`, 'Volume']}
-                          />
-                          <Bar
-                            dataKey="value"
-                            radius={[8, 8, 0, 0]}
-                            isAnimationActive={true}
-                            animationDuration={1000}
-                            animationEasing="ease-out"
-                          >
-                            {storageChartData.map((entry, index) => (
-                              <Cell
-                                key={`cell-${index}`}
-                                fill={
-                                  index === 0
-                                    ? 'url(#capBarGrad)'
-                                    : index === 1
-                                      ? 'url(#storageBarGrad)'
-                                      : 'url(#lastYearBarGrad)'
-                                }
-                              />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                    <div className="w-full">
+                      <ParticleChart
+                        data={storageChartData}
+                        accentColor="#06b6d4"
+                        theme={isDark ? 'dark' : 'light'}
+                        height={240}
+                        barWidth={80}
+                        suffix=" M.Cft"
+                        decimals={0}
+                        summary={false}
+                        values={true}
+                        labels={true}
+                        track={true}
+                        baseline={true}
+                        surface={false}
+                        interactive={true}
+                        renderTooltip={(idx) => {
+                          const item = storageChartData[idx];
+                          if (!item) return null;
+                          return (
+                            <div className="rounded-xl glass-panel p-2.5 shadow-2xl border border-slate-200/60 dark:border-white/20 text-xs backdrop-blur-md min-w-[160px] bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-white pointer-events-none">
+                              <div className="font-semibold text-text-muted text-[11px]">{item.label}</div>
+                              <div className="text-sm font-black font-mono text-cyan-600 dark:text-cyan-400 mt-0.5">
+                                {item.value.toLocaleString()} M.Cft
+                              </div>
+                            </div>
+                          );
+                        }}
+                      />
                     </div>
                   </div>
                 )}
@@ -1025,68 +1011,35 @@ export default function ReservoirsPage() {
                     <h4 className="text-xs font-extrabold uppercase tracking-wider text-text-muted mb-3">
                       {m.chartElevationComparison}
                     </h4>
-                    <div className="h-64 w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={levelsChartData} margin={{ top: 15, right: 20, left: 0, bottom: 20 }}>
-                          <defs>
-                            <linearGradient id="depthGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.85} />
-                              <stop offset="100%" stopColor="#1e40af" stopOpacity={0.3} />
-                            </linearGradient>
-                            <linearGradient id="levelGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#10b981" stopOpacity={0.9} />
-                              <stop offset="100%" stopColor="#047857" stopOpacity={0.3} />
-                            </linearGradient>
-                            <linearGradient id="lastYearLevelGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#a855f7" stopOpacity={0.85} />
-                              <stop offset="100%" stopColor="#7e22ce" stopOpacity={0.3} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'} />
-                          <XAxis
-                            dataKey="metric"
-                            tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11, fontWeight: 600 }}
-                            axisLine={{ stroke: isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1' }}
-                          />
-                          <YAxis
-                            tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 10 }}
-                            axisLine={{ stroke: isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1' }}
-                          />
-                          <Tooltip
-                            cursor={false}
-                            contentStyle={{
-                              backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                              borderColor: isDark ? 'rgba(255,255,255,0.15)' : '#cbd5e1',
-                              borderRadius: '10px',
-                              color: isDark ? '#f1f5f9' : '#0f172a',
-                              fontSize: '12px',
-                              fontWeight: 700,
-                              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-                            }}
-                            formatter={(value: any) => [`${value} Feet`, 'Water Level']}
-                          />
-                          <Bar
-                            dataKey="value"
-                            radius={[8, 8, 0, 0]}
-                            isAnimationActive={true}
-                            animationDuration={1000}
-                            animationEasing="ease-out"
-                          >
-                            {levelsChartData.map((entry, index) => (
-                              <Cell
-                                key={`cell-${index}`}
-                                fill={
-                                  index === 0
-                                    ? 'url(#depthGrad)'
-                                    : index === 1
-                                      ? 'url(#levelGrad)'
-                                      : 'url(#lastYearLevelGrad)'
-                                }
-                              />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                    <div className="w-full">
+                      <ParticleChart
+                        data={levelsChartData}
+                        accentColor="#10b981"
+                        theme={isDark ? 'dark' : 'light'}
+                        height={240}
+                        barWidth={80}
+                        suffix=" ft"
+                        decimals={1}
+                        summary={false}
+                        values={true}
+                        labels={true}
+                        track={true}
+                        baseline={true}
+                        surface={false}
+                        interactive={true}
+                        renderTooltip={(idx) => {
+                          const item = levelsChartData[idx];
+                          if (!item) return null;
+                          return (
+                            <div className="rounded-xl glass-panel p-2.5 shadow-2xl border border-slate-200/60 dark:border-white/20 text-xs backdrop-blur-md min-w-[160px] bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-white pointer-events-none">
+                              <div className="font-semibold text-text-muted text-[11px]">{item.label}</div>
+                              <div className="text-sm font-black font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                {item.value.toLocaleString()} Feet
+                              </div>
+                            </div>
+                          );
+                        }}
+                      />
                     </div>
                   </div>
                 )}
@@ -1096,111 +1049,84 @@ export default function ReservoirsPage() {
                     <h4 className="text-xs font-extrabold uppercase tracking-wider text-text-muted mb-3">
                       {m.chartFlowDynamics}
                     </h4>
-                    <div className="h-64 w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={flowsChartData} margin={{ top: 15, right: 20, left: 0, bottom: 20 }}>
-                          <defs>
-                            <linearGradient id="inflowBarGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#10b981" stopOpacity={0.9} />
-                              <stop offset="100%" stopColor="#059669" stopOpacity={0.3} />
-                            </linearGradient>
-                            <linearGradient id="outflowBarGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.9} />
-                              <stop offset="100%" stopColor="#be123c" stopOpacity={0.3} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'} />
-                          <XAxis
-                            dataKey="metric"
-                            tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11, fontWeight: 600 }}
-                            axisLine={{ stroke: isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1' }}
-                          />
-                          <YAxis
-                            tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 10 }}
-                            axisLine={{ stroke: isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1' }}
-                          />
-                          <Tooltip
-                            cursor={false}
-                            contentStyle={{
-                              backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                              borderColor: isDark ? 'rgba(255,255,255,0.15)' : '#cbd5e1',
-                              borderRadius: '10px',
-                              color: isDark ? '#f1f5f9' : '#0f172a',
-                              fontSize: '12px',
-                              fontWeight: 700,
-                              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-                            }}
-                            formatter={(value: any) => [`${Number(value).toLocaleString()} CuSecs`, 'Discharge Rate']}
-                          />
-                          <Bar
-                            dataKey="value"
-                            radius={[8, 8, 0, 0]}
-                            isAnimationActive={true}
-                            animationDuration={1000}
-                            animationEasing="ease-out"
-                          >
-                            {flowsChartData.map((entry, index) => (
-                              <Cell
-                                key={`cell-${index}`}
-                                fill={index === 0 ? 'url(#inflowBarGrad)' : 'url(#outflowBarGrad)'}
-                              />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                    <div className="w-full">
+                      <ParticleChart
+                        data={flowsChartData}
+                        accentColor="#f59e0b"
+                        theme={isDark ? 'dark' : 'light'}
+                        height={240}
+                        barWidth={96}
+                        suffix=" CuSecs"
+                        decimals={0}
+                        summary={false}
+                        values={true}
+                        labels={true}
+                        track={true}
+                        baseline={true}
+                        surface={false}
+                        interactive={true}
+                        renderTooltip={(idx) => {
+                          const item = flowsChartData[idx];
+                          if (!item) return null;
+                          return (
+                            <div className="rounded-xl glass-panel p-2.5 shadow-2xl border border-slate-200/60 dark:border-white/20 text-xs backdrop-blur-md min-w-[160px] bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-white pointer-events-none">
+                              <div className="font-semibold text-text-muted text-[11px]">{item.label}</div>
+                              <div className="text-sm font-black font-mono text-amber-600 dark:text-amber-400 mt-0.5">
+                                {item.value.toLocaleString()} CuSecs
+                              </div>
+                            </div>
+                          );
+                        }}
+                      />
                     </div>
                   </div>
                 )}
 
                 {chartTab === 'overview' && (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="p-3 rounded-xl bg-surface/70 border border-border-light">
-                        <span className="text-[11px] font-bold text-cyan-400 block mb-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="p-3.5 rounded-xl bg-slate-100/60 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/10">
+                        <span className="text-[11px] font-bold text-cyan-600 dark:text-cyan-400 block mb-2">
                           💧 {m.tabStorage} (M.Cft)
                         </span>
-                        <div className="h-40 w-full">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={storageChartData} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
-                              <CartesianGrid strokeDasharray="2 2" stroke={isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0'} />
-                              <XAxis dataKey="metric" tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 9 }} />
-                              <YAxis tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 9 }} />
-                              <Tooltip
-                                cursor={false}
-                                contentStyle={{
-                                  backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                                  borderRadius: '8px',
-                                  fontSize: '11px',
-                                }}
-                              />
-                              <Bar dataKey="value" fill="#06b6d4" radius={[4, 4, 0, 0]} isAnimationActive={true} animationDuration={1000} />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </div>
+                        <ParticleChart
+                          data={storageChartData}
+                          accentColor="#06b6d4"
+                          theme={isDark ? 'dark' : 'light'}
+                          height={190}
+                          barWidth={54}
+                          suffix=" M"
+                          decimals={0}
+                          summary={false}
+                          values={true}
+                          labels={true}
+                          track={true}
+                          baseline={true}
+                          surface={false}
+                          interactive={true}
+                        />
                       </div>
 
-                      <div className="p-3 rounded-xl bg-surface/70 border border-border-light">
-                        <span className="text-[11px] font-bold text-emerald-400 block mb-1">
+                      <div className="p-3.5 rounded-xl bg-slate-100/60 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/10">
+                        <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 block mb-2">
                           🌊 {m.tabFlowRate} (CuSecs)
                         </span>
-                        <div className="h-40 w-full">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={flowsChartData} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
-                              <CartesianGrid strokeDasharray="2 2" stroke={isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0'} />
-                              <XAxis dataKey="metric" tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 9 }} />
-                              <YAxis tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 9 }} />
-                              <Tooltip
-                                cursor={false}
-                                contentStyle={{
-                                  backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                                  borderRadius: '8px',
-                                  fontSize: '11px',
-                                }}
-                              />
-                              <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} isAnimationActive={true} animationDuration={1000} />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </div>
+                        <ParticleChart
+                          data={flowsChartData}
+                          accentColor="#10b981"
+                          theme={isDark ? 'dark' : 'light'}
+                          height={190}
+                          barWidth={64}
+                          suffix=""
+                          decimals={0}
+                          summary={false}
+                          values={true}
+                          labels={true}
+                          track={true}
+                          baseline={true}
+                          surface={false}
+                          interactive={true}
+                        />
                       </div>
                     </div>
                   </div>

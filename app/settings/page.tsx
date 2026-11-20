@@ -149,7 +149,7 @@ export default function SettingsPage() {
     setPassOtpStatus('idle');
   };
 
-  const resetFnRef = useRef<() => void>(() => {});
+  const resetFnRef = useRef<() => void>(() => { });
   resetFnRef.current = resetUnsavedTabValues;
 
   // 1. Sync URL path like /settings?user-profile, /settings?security-password, /settings?language-theme
@@ -282,7 +282,7 @@ export default function SettingsPage() {
       try {
         localStorage.setItem('farmhub_user', JSON.stringify(updatedUser));
         window.dispatchEvent(new CustomEvent('farmhub_user_updated', { detail: updatedUser }));
-      } catch {}
+      } catch { }
 
       message.success(
         isTamil
@@ -326,7 +326,7 @@ export default function SettingsPage() {
       try {
         localStorage.setItem('farmhub_user', JSON.stringify(updatedUser));
         window.dispatchEvent(new CustomEvent('farmhub_user_updated', { detail: updatedUser }));
-      } catch {}
+      } catch { }
 
       message.success(isTamil ? 'சுயவிவரப் படம் நீக்கப்பட்டது' : 'Avatar removed successfully');
     } catch (err: any) {
@@ -450,7 +450,7 @@ export default function SettingsPage() {
       try {
         localStorage.setItem('farmhub_user', JSON.stringify(updatedUser));
         window.dispatchEvent(new CustomEvent('farmhub_user_updated', { detail: updatedUser }));
-      } catch {}
+      } catch { }
 
       setProfileFeedback({
         type: 'success',
@@ -516,7 +516,7 @@ export default function SettingsPage() {
       try {
         localStorage.setItem('farmhub_user', JSON.stringify(updatedUser));
         window.dispatchEvent(new CustomEvent('farmhub_user_updated', { detail: updatedUser }));
-      } catch {}
+      } catch { }
 
       setProfileFeedback({
         type: 'success',
@@ -682,7 +682,7 @@ export default function SettingsPage() {
         setPassOtpStatus('error');
         setPassOtpError(
           data?.error ||
-            (isTamil ? 'தவறான சரிபார்ப்பு குறியீடு.' : 'Invalid verification code.')
+          (isTamil ? 'தவறான சரிபார்ப்பு குறியீடு.' : 'Invalid verification code.')
         );
         return;
       }
@@ -789,7 +789,16 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="relative min-h-screen w-full">
+    <div className="relative min-h-screen w-full overflow-x-hidden">
+      {/* Background Photography Layer with Soft Vignette & Frosted Overlay */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out scale-105"
+        style={{
+          backgroundImage: `url('/images/settings.png')`,
+        }}
+      />
+      <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
+
       {/* Main Content Area */}
       <div className="relative z-10 max-w-[1720px] w-full mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-7 pb-24 flex flex-col gap-6 fade-in">
         {/* Page Header Banner (Transparent Glassmorphic Panel) */}
@@ -853,11 +862,10 @@ export default function SettingsPage() {
                 key={tab.id}
                 type="button"
                 onClick={() => handleTabChange(tab.id)}
-                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer whitespace-nowrap shadow-md ${
-                  isActive
-                    ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white keep-white shadow-emerald-500/30 scale-[1.02] border border-emerald-400/50'
-                    : 'glass-panel text-text-secondary hover:text-text-main hover:bg-surface/60 border border-border-light backdrop-blur-xl'
-                }`}
+                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer whitespace-nowrap shadow-md ${isActive
+                  ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white keep-white shadow-emerald-500/30 scale-[1.02] border border-emerald-400/50'
+                  : 'glass-panel text-text-secondary hover:text-text-main hover:bg-surface/60 border border-border-light backdrop-blur-xl'
+                  }`}
               >
                 <Icon size={17} className={isActive ? 'text-white keep-white' : 'text-emerald-400'} />
                 <span>{tab.label}</span>
@@ -887,9 +895,8 @@ export default function SettingsPage() {
                 <div className="relative mt-2 mb-3.5 group">
                   <div
                     onClick={() => !uploadingAvatar && avatarFileInputRef.current?.click()}
-                    className={`w-20 h-20 rounded-full bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 p-1 shadow-2xl shadow-emerald-500/25 cursor-pointer relative overflow-hidden group-hover:ring-4 group-hover:ring-emerald-400/40 transition-all ${
-                      uploadingAvatar ? 'opacity-70 pointer-events-none' : ''
-                    }`}
+                    className={`w-20 h-20 rounded-full bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 p-1 shadow-2xl shadow-emerald-500/25 cursor-pointer relative overflow-hidden group-hover:ring-4 group-hover:ring-emerald-400/40 transition-all ${uploadingAvatar ? 'opacity-70 pointer-events-none' : ''
+                      }`}
                     title={isTamil ? 'சுயவிவரப் படத்தை மாற்ற கிளிக் செய்யவும்' : 'Click to upload or change profile picture'}
                   >
                     <div className="w-full h-full rounded-full bg-slate-950/90 overflow-hidden flex items-center justify-center text-white text-2xl font-black relative">
@@ -975,11 +982,10 @@ export default function SettingsPage() {
                         onChange={(e) => setUsernameInput(e.target.value)}
                         placeholder={isTamil ? 'எ.கா. Dr. M. Swaminathan' : 'e.g. Dr. M. Swaminathan'}
                         readOnly={!isEditingUsername}
-                        className={`w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-inner pr-9 ${
-                          isEditingUsername
-                            ? 'glass-input border-2 border-emerald-500 text-text-main focus:outline-none ring-2 ring-emerald-500/25'
-                            : 'glass-surface border border-border-light text-text-main cursor-default select-all'
-                        }`}
+                        className={`w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-inner pr-9 ${isEditingUsername
+                          ? 'glass-input border-2 border-emerald-500 text-text-main focus:outline-none ring-2 ring-emerald-500/25'
+                          : 'glass-surface border border-border-light text-text-main cursor-default select-all'
+                          }`}
                         disabled={savingProfile || loadingUser}
                         autoFocus={isEditingUsername}
                       />
@@ -1089,11 +1095,10 @@ export default function SettingsPage() {
                   <button
                     type="submit"
                     disabled={!isUserDetailsDirty || savingProfile || loadingUser}
-                    className={`w-full py-2.5 px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition-all ${
-                      isUserDetailsDirty && !savingProfile && !loadingUser
-                        ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white keep-white shadow-emerald-500/25 cursor-pointer active:scale-98'
-                        : 'bg-slate-300/40 dark:bg-white/10 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-50 shadow-none'
-                    }`}
+                    className={`w-full py-2.5 px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition-all ${isUserDetailsDirty && !savingProfile && !loadingUser
+                      ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white keep-white shadow-emerald-500/25 cursor-pointer active:scale-98'
+                      : 'bg-slate-300/40 dark:bg-white/10 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-50 shadow-none'
+                      }`}
                     title={
                       !isUserDetailsDirty
                         ? (isTamil ? 'மாற்றங்கள் எதுவும் இல்லை' : 'No changes made')
@@ -1107,8 +1112,8 @@ export default function SettingsPage() {
                           ? 'சேமிக்கப்படுகிறது...'
                           : 'Saving...'
                         : isTamil
-                        ? 'பயனர் விவரங்களைச் சேமி'
-                        : 'Save User Details'}
+                          ? 'பயனர் விவரங்களைச் சேமி'
+                          : 'Save User Details'}
                     </span>
                   </button>
                 </div>
@@ -1131,11 +1136,10 @@ export default function SettingsPage() {
 
               {profileFeedback && (
                 <div
-                  className={`p-4 rounded-xl border text-xs font-bold flex items-center gap-2.5 animate-fade-in ${
-                    profileFeedback.type === 'success'
-                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-600 dark:text-emerald-300'
-                      : 'bg-rose-500/20 border-rose-500/40 text-rose-600 dark:text-rose-300'
-                  }`}
+                  className={`p-4 rounded-xl border text-xs font-bold flex items-center gap-2.5 animate-fade-in ${profileFeedback.type === 'success'
+                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-600 dark:text-emerald-300'
+                    : 'bg-rose-500/20 border-rose-500/40 text-rose-600 dark:text-rose-300'
+                    }`}
                 >
                   {profileFeedback.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
                   <span>{profileFeedback.message}</span>
@@ -1143,147 +1147,146 @@ export default function SettingsPage() {
               )}
 
               <div className="flex-1 flex flex-col gap-6">
-              <form onSubmit={handleUpdateFarmLocation} className="flex flex-col gap-6">
-                {/* Farm Location (State, District, City/Village via common LocationSelectorFields) */}
-                <LocationSelectorFields
-                  location={location}
-                  isTamil={isTamil}
-                  disabled={savingProfile || loadingUser}
-                />
+                <form onSubmit={handleUpdateFarmLocation} className="flex flex-col gap-6">
+                  {/* Farm Location (State, District, City/Village via common LocationSelectorFields) */}
+                  <LocationSelectorFields
+                    location={location}
+                    isTamil={isTamil}
+                    disabled={savingProfile || loadingUser}
+                  />
 
-                {/* Farm Street Address */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider">
-                      {isTamil ? 'பண்ணை முகவரி (Farm Address)' : 'Farm Street Address'}
-                    </label>
-                    <span className="text-[11px] text-text-muted font-mono font-bold">
-                      {addressInput.length}/40
+                  {/* Farm Street Address */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider">
+                        {isTamil ? 'பண்ணை முகவரி (Farm Address)' : 'Farm Street Address'}
+                      </label>
+                      <span className="text-[11px] text-text-muted font-mono font-bold">
+                        {addressInput.length}/40
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <Input.TextArea
+                        rows={2}
+                        maxLength={40}
+                        value={addressInput}
+                        onChange={(e) => setAddressInput(e.target.value.slice(0, 40))}
+                        placeholder={
+                          isTamil
+                            ? 'எ.கா. 14, வடக்கு தெரு, கோவில்பட்டி'
+                            : 'e.g. 14, North Street, Kovilpatti'
+                        }
+                        className="w-full rounded-xl px-4 py-2.5 text-sm font-semibold glass-surface border border-border-light text-text-main focus:border-emerald-500"
+                        disabled={savingProfile || loadingUser}
+                      />
+                    </div>
+                    <span className="text-[11px] text-text-secondary font-medium mt-1.5 block">
+                      {isTamil
+                        ? 'அதிகபட்சம் 40 எழுத்துகள் (கள முகவரி).'
+                        : 'Maximum 40 characters for field location / mailing delivery.'}
                     </span>
                   </div>
-                  <div className="relative">
-                    <Input.TextArea
-                      rows={2}
-                      maxLength={40}
-                      value={addressInput}
-                      onChange={(e) => setAddressInput(e.target.value.slice(0, 40))}
-                      placeholder={
-                        isTamil
-                          ? 'எ.கா. 14, வடக்கு தெரு, கோவில்பட்டி'
-                          : 'e.g. 14, North Street, Kovilpatti'
-                      }
-                      className="w-full rounded-xl px-4 py-2.5 text-sm font-semibold glass-surface border border-border-light text-text-main focus:border-emerald-500"
-                      disabled={savingProfile || loadingUser}
-                    />
-                  </div>
-                  <span className="text-[11px] text-text-secondary font-medium mt-1.5 block">
-                    {isTamil
-                      ? 'அதிகபட்சம் 40 எழுத்துகள் (கள முகவரி).'
-                      : 'Maximum 40 characters for field location / mailing delivery.'}
-                  </span>
-                </div>
 
-                {/* Submit / Save Farm Location Button (Enabled ONLY when fields differ from loaded API values) */}
-                <div className="pt-2 flex justify-start">
-                  <button
-                    type="submit"
-                    disabled={!isLocationDirty || savingProfile || loadingUser}
-                    className={`px-7 py-3 rounded-xl font-black text-sm flex items-center gap-2.5 shadow-xl transition-all ${
-                      isLocationDirty && !savingProfile && !loadingUser
+                  {/* Submit / Save Farm Location Button (Enabled ONLY when fields differ from loaded API values) */}
+                  <div className="pt-2 flex justify-start">
+                    <button
+                      type="submit"
+                      disabled={!isLocationDirty || savingProfile || loadingUser}
+                      className={`px-7 py-3 rounded-xl font-black text-sm flex items-center gap-2.5 shadow-xl transition-all ${isLocationDirty && !savingProfile && !loadingUser
                         ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white keep-white shadow-emerald-500/25 cursor-pointer active:scale-98'
                         : 'bg-slate-300/40 dark:bg-white/10 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-50 shadow-none'
-                    }`}
-                    title={
-                      !isLocationDirty
-                        ? (isTamil ? 'மாற்றங்கள் எதுவும் இல்லை' : 'No changes made')
-                        : ''
-                    }
-                  >
-                    <Save size={17} />
-                    <span>
-                      {savingProfile
-                        ? isTamil
-                          ? 'சேமிக்கப்படுகிறது...'
-                          : 'Saving Location...'
-                        : isTamil
-                        ? 'இருப்பிடத்தைச் சேமி'
-                        : 'Save Farm Location'}
-                    </span>
-                  </button>
-                </div>
-              </form>
+                        }`}
+                      title={
+                        !isLocationDirty
+                          ? (isTamil ? 'மாற்றங்கள் எதுவும் இல்லை' : 'No changes made')
+                          : ''
+                      }
+                    >
+                      <Save size={17} />
+                      <span>
+                        {savingProfile
+                          ? isTamil
+                            ? 'சேமிக்கப்படுகிறது...'
+                            : 'Saving Location...'
+                          : isTamil
+                            ? 'இருப்பிடத்தைச் சேமி'
+                            : 'Save Farm Location'}
+                      </span>
+                    </button>
+                  </div>
+                </form>
 
-              {/* Danger Zone: Delete Account */}
-              <div className="mt-auto pt-6 border-t border-rose-500/25">
-                <div className="rounded-2xl border border-rose-500/30 bg-rose-500/[0.06] p-4 sm:p-5 space-y-3">
-                  <div className="flex items-start gap-2.5">
-                    <AlertTriangle size={18} className="text-rose-500 shrink-0 mt-0.5" />
-                    <div>
-                      <div className="text-sm font-black text-rose-600 dark:text-rose-400">
-                        {isTamil ? 'கணக்கை நிரந்தரமாக நீக்கு (Delete Account)' : 'Delete Account'}
+                {/* Danger Zone: Delete Account */}
+                <div className="mt-auto pt-6 border-t border-rose-500/25">
+                  <div className="rounded-2xl border border-rose-500/30 bg-rose-500/[0.06] p-4 sm:p-5 space-y-3">
+                    <div className="flex items-start gap-2.5">
+                      <AlertTriangle size={18} className="text-rose-500 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="text-sm font-black text-rose-600 dark:text-rose-400">
+                          {isTamil ? 'கணக்கை நிரந்தரமாக நீக்கு (Delete Account)' : 'Delete Account'}
+                        </div>
+                        <p className="text-xs text-text-secondary font-medium mt-1 mb-0 leading-relaxed">
+                          {isTamil
+                            ? `உங்கள் கணக்கு மற்றும் சேமிக்கப்பட்ட சாகுபடி திட்டங்களை நிரந்தரமாக நீக்க, கீழே "${expectedDeletePhrase}" என தட்டச்சு செய்யவும்.`
+                            : `Once deleted, your account and all saved cultivation plans cannot be recovered. Type "${expectedDeletePhrase}" below to enable account deletion.`}
+                        </p>
                       </div>
-                      <p className="text-xs text-text-secondary font-medium mt-1 mb-0 leading-relaxed">
-                        {isTamil
-                          ? `உங்கள் கணக்கு மற்றும் சேமிக்கப்பட்ட சாகுபடி திட்டங்களை நிரந்தரமாக நீக்க, கீழே "${expectedDeletePhrase}" என தட்டச்சு செய்யவும்.`
-                          : `Once deleted, your account and all saved cultivation plans cannot be recovered. Type "${expectedDeletePhrase}" below to enable account deletion.`}
-                      </p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+                      <input
+                        type="text"
+                        value={deleteConfirmInput}
+                        onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (deleteConfirmInput.trim() === expectedDeletePhrase && !loadingUser && !deletingAccount) {
+                              setDeleteModalOpen(true);
+                            }
+                          }
+                        }}
+                        placeholder={expectedDeletePhrase}
+                        disabled={loadingUser || deletingAccount}
+                        className="flex-1 px-4 py-2.5 rounded-xl glass-surface border border-rose-500/30 text-text-main text-xs sm:text-sm font-mono focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all"
+                      />
+                      <HoldButton
+                        doneLabel={isTamil ? 'நீக்கப்பட்டது' : 'Deleted'}
+                        icon={<Trash2 size={15} />}
+                        backgroundColor="#b91c1c"
+                        fillColor="#ef4444"
+                        textColor="#ffffff"
+                        fillTextColor="#ffffff"
+                        size="md"
+                        radius={14}
+                        fillDirection="right"
+                        holdTime={2000}
+                        releaseTime={200}
+                        pressScale={0.97}
+                        wave
+                        waveAmplitude={6}
+                        glow
+                        resetAfter={1200}
+                        disabled={
+                          loadingUser ||
+                          deletingAccount ||
+                          deleteConfirmInput.trim() !== expectedDeletePhrase
+                        }
+                        onHold={() => setDeleteModalOpen(true)}
+                        onTap={() =>
+                          message.info(
+                            isTamil
+                              ? 'கணக்கை நீக்க 2 வினாடிகள் அழுத்திப் பிடிக்கவும்.'
+                              : 'Press and hold for 2 seconds to delete your account.'
+                          )
+                        }
+                        className="keep-white whitespace-nowrap shrink-0"
+                      >
+                        {isTamil ? 'நீக்க அழுத்திப் பிடிக்கவும்' : 'Hold to delete'}
+                      </HoldButton>
                     </div>
                   </div>
-
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
-                    <input
-                      type="text"
-                      value={deleteConfirmInput}
-                      onChange={(e) => setDeleteConfirmInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          if (deleteConfirmInput.trim() === expectedDeletePhrase && !loadingUser && !deletingAccount) {
-                            setDeleteModalOpen(true);
-                          }
-                        }
-                      }}
-                      placeholder={expectedDeletePhrase}
-                      disabled={loadingUser || deletingAccount}
-                      className="flex-1 px-4 py-2.5 rounded-xl glass-surface border border-rose-500/30 text-text-main text-xs sm:text-sm font-mono focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all"
-                    />
-                    <HoldButton
-                      doneLabel={isTamil ? 'நீக்கப்பட்டது' : 'Deleted'}
-                      icon={<Trash2 size={15} />}
-                      backgroundColor="#b91c1c"
-                      fillColor="#ef4444"
-                      textColor="#ffffff"
-                      fillTextColor="#ffffff"
-                      size="md"
-                      radius={14}
-                      fillDirection="right"
-                      holdTime={2000}
-                      releaseTime={200}
-                      pressScale={0.97}
-                      wave
-                      waveAmplitude={6}
-                      glow
-                      resetAfter={1200}
-                      disabled={
-                        loadingUser ||
-                        deletingAccount ||
-                        deleteConfirmInput.trim() !== expectedDeletePhrase
-                      }
-                      onHold={() => setDeleteModalOpen(true)}
-                      onTap={() =>
-                        message.info(
-                          isTamil
-                            ? 'கணக்கை நீக்க 2 வினாடிகள் அழுத்திப் பிடிக்கவும்.'
-                            : 'Press and hold for 2 seconds to delete your account.'
-                        )
-                      }
-                      className="keep-white whitespace-nowrap shrink-0"
-                    >
-                      {isTamil ? 'நீக்க அழுத்திப் பிடிக்கவும்' : 'Hold to delete'}
-                    </HoldButton>
-                  </div>
                 </div>
-              </div>
               </div>
             </div>
           </div>
@@ -1306,11 +1309,10 @@ export default function SettingsPage() {
 
             {passwordFeedback && (
               <div
-                className={`p-4 rounded-xl border text-xs font-bold flex items-center gap-2.5 animate-fade-in ${
-                  passwordFeedback.type === 'success'
-                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-600 dark:text-emerald-300'
-                    : 'bg-rose-500/20 border-rose-500/40 text-rose-600 dark:text-rose-300'
-                }`}
+                className={`p-4 rounded-xl border text-xs font-bold flex items-center gap-2.5 animate-fade-in ${passwordFeedback.type === 'success'
+                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-600 dark:text-emerald-300'
+                  : 'bg-rose-500/20 border-rose-500/40 text-rose-600 dark:text-rose-300'
+                  }`}
               >
                 {passwordFeedback.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
                 <span>{passwordFeedback.message}</span>
@@ -1440,11 +1442,10 @@ export default function SettingsPage() {
                 {/* Dark Theme Option */}
                 <div
                   onClick={() => handleThemeChange('dark')}
-                  className={`relative p-6 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${
-                    theme === 'dark'
-                      ? 'border-emerald-500 bg-emerald-500/10 shadow-xl shadow-emerald-500/20 ring-2 ring-emerald-500/30'
-                      : 'border-border-light glass-card hover:border-emerald-500/50 hover:bg-surface/60'
-                  }`}
+                  className={`relative p-6 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${theme === 'dark'
+                    ? 'border-emerald-500 bg-emerald-500/10 shadow-xl shadow-emerald-500/20 ring-2 ring-emerald-500/30'
+                    : 'border-border-light glass-card hover:border-emerald-500/50 hover:bg-surface/60'
+                    }`}
                 >
                   {theme === 'dark' && (
                     <div className="absolute top-3.5 right-3.5 w-6 h-6 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-xs font-black shadow-md">
@@ -1458,9 +1459,8 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <h4
-                        className={`text-base font-black m-0 ${
-                          theme === 'dark' ? 'text-white' : 'text-text-main'
-                        }`}
+                        className={`text-base font-black m-0 ${theme === 'dark' ? 'text-white' : 'text-text-main'
+                          }`}
                       >
                         {isTamil ? 'இருண்ட தீம் (Dark Theme)' : 'Dark Cosmos Theme'}
                       </h4>
@@ -1474,11 +1474,10 @@ export default function SettingsPage() {
                 {/* Light Theme Option */}
                 <div
                   onClick={() => handleThemeChange('light')}
-                  className={`relative p-6 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${
-                    theme === 'light'
-                      ? 'border-emerald-500 bg-emerald-500/10 shadow-xl shadow-emerald-500/20 ring-2 ring-emerald-500/30'
-                      : 'border-border-light glass-card hover:border-emerald-500/50 hover:bg-surface/60'
-                  }`}
+                  className={`relative p-6 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${theme === 'light'
+                    ? 'border-emerald-500 bg-emerald-500/10 shadow-xl shadow-emerald-500/20 ring-2 ring-emerald-500/30'
+                    : 'border-border-light glass-card hover:border-emerald-500/50 hover:bg-surface/60'
+                    }`}
                 >
                   {theme === 'light' && (
                     <div className="absolute top-3.5 right-3.5 w-6 h-6 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-xs font-black shadow-md">
@@ -1492,9 +1491,8 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <h4
-                        className={`text-base font-black m-0 ${
-                          theme === 'light' ? 'text-slate-950' : 'text-text-main'
-                        }`}
+                        className={`text-base font-black m-0 ${theme === 'light' ? 'text-slate-950' : 'text-text-main'
+                          }`}
                       >
                         {isTamil ? 'ஒளிர் தீம் (Light Theme)' : 'Daylight Emerald Theme'}
                       </h4>
@@ -1525,11 +1523,10 @@ export default function SettingsPage() {
                 {/* English Option */}
                 <div
                   onClick={() => handleLanguageChange('en')}
-                  className={`relative p-6 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${
-                    locale === 'en'
-                      ? 'border-emerald-500 bg-emerald-500/15 shadow-xl shadow-emerald-500/20 ring-2 ring-emerald-500/30'
-                      : 'border-border-light glass-card hover:border-emerald-500/50 hover:bg-surface/60'
-                  }`}
+                  className={`relative p-6 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${locale === 'en'
+                    ? 'border-emerald-500 bg-emerald-500/15 shadow-xl shadow-emerald-500/20 ring-2 ring-emerald-500/30'
+                    : 'border-border-light glass-card hover:border-emerald-500/50 hover:bg-surface/60'
+                    }`}
                 >
                   {locale === 'en' && (
                     <div className="absolute top-3.5 right-3.5 w-6 h-6 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-xs font-black shadow-md">
@@ -1555,11 +1552,10 @@ export default function SettingsPage() {
                 {/* Tamil Option */}
                 <div
                   onClick={() => handleLanguageChange('ta')}
-                  className={`relative p-6 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${
-                    locale === 'ta'
-                      ? 'border-emerald-500 bg-emerald-500/15 shadow-xl shadow-emerald-500/20 ring-2 ring-emerald-500/30'
-                      : 'border-border-light glass-card hover:border-emerald-500/50 hover:bg-surface/60'
-                  }`}
+                  className={`relative p-6 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${locale === 'ta'
+                    ? 'border-emerald-500 bg-emerald-500/15 shadow-xl shadow-emerald-500/20 ring-2 ring-emerald-500/30'
+                    : 'border-border-light glass-card hover:border-emerald-500/50 hover:bg-surface/60'
+                    }`}
                 >
                   {locale === 'ta' && (
                     <div className="absolute top-3.5 right-3.5 w-6 h-6 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-xs font-black shadow-md">

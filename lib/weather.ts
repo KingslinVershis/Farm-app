@@ -184,27 +184,126 @@ export interface WeatherConditionInfo {
   labelTa: string;
 }
 
+export function normalizeWeatherConditionText(
+  rawCondition: string,
+  precipMm: number = 0,
+  chancePct: number = 0,
+  cloudCoverPct: number = 50
+): string {
+  const cond = (rawCondition || '').trim();
+  const lower = cond.toLowerCase();
+
+  // 1. Thunderstorm / Severe
+  if (/thunder|storm|cyclone|squall|tornado|lightning/i.test(lower)) {
+    return 'Thunderstorm';
+  }
+
+  // 2. Heavy continuous rain (precip >= 5mm or torrential)
+  if (/heavy rain|torrential/i.test(lower) || precipMm >= 5.0) {
+    return 'Heavy Rain';
+  }
+
+  // 3. Moderate rain (precip >= 2.5mm and chance >= 60%)
+  if (/moderate rain/i.test(lower) || (precipMm >= 2.5 && chancePct >= 60)) {
+    return 'Moderate Rain';
+  }
+
+  // 4. Drizzle Rain / Light Drizzle (Open-Meteo WMO 51, 53, 55 or MCP "Light drizzle")
+  if (/drizzle/i.test(lower)) {
+    // If there is actual drizzle/precipitation (>= 0.5mm or rain chance >= 50%)
+    if (precipMm >= 0.5 || chancePct >= 50) {
+      return 'Drizzle Rain';
+    }
+    // If it's merely a trace (< 0.5mm) with low chance, categorize by sky cover
+    if (cloudCoverPct >= 75) return 'Overcast';
+    if (cloudCoverPct >= 40) return 'Cloudy';
+    return 'Partly Sunny';
+  }
+
+  // 5. Patchy rain / light rain showers / slight rain (WMO 61, 80)
+  if (/patchy rain|slight rain|light rain|passing shower/i.test(lower)) {
+    if (precipMm >= 1.5 || (precipMm >= 0.5 && chancePct >= 55)) {
+      return 'Light Rain';
+    }
+    // Low precipitation: show dominant sky cover
+    if (cloudCoverPct >= 75) return 'Cloudy';
+    if (cloudCoverPct >= 35) return 'Partly Sunny';
+    return 'Mostly Sunny';
+  }
+
+  // 6. Fog / Mist / Haze
+  if (/fog/i.test(lower)) return 'Fog';
+  if (/mist/i.test(lower)) return 'Mist';
+  if (/haze|smoke/i.test(lower)) return cloudCoverPct < 40 ? 'Hazy Sunshine' : 'Hazy';
+
+  // 7. Sky Cover: Overcast / Cloudy / Partly Cloudy / Sunny / Clear Sky
+  if (/overcast/i.test(lower)) return 'Overcast';
+  if (/partly/i.test(lower)) return 'Partly Sunny';
+  if (/cloudy/i.test(lower)) return 'Cloudy';
+  if (/mainly clear|mostly sunny/i.test(lower)) return 'Mostly Sunny';
+  if (/clear|sunny/i.test(lower)) return 'Clear / Sunny';
+
+  return cond || 'Partly Sunny';
+}
+
 export function getWeatherCondition(
   rainfallInput: string | number,
-  cloudInput: string | number
+  cloudInput: string | number,
+  conditionTextInput?: string
 ): WeatherConditionInfo {
   const rain = Number(rainfallInput) || 0;
   const cloud = Number(cloudInput) || 0;
+  const condText = (conditionTextInput || '').toLowerCase();
 
-  if (rain >= 15) {
+  // If condition text is explicitly provided from MCP weather, prioritize it
+  if (condText) {
+    if (/thunder|storm|squall|cyclone/i.test(condText)) {
+      return { emoji: '⛈️', labelEn: 'Thunderstorm', labelTa: 'இடி மின்னலுடன் கூடிய மழை' };
+    }
+    if (/heavy rain/i.test(condText) || rain >= 10) {
+      return { emoji: '⛈️', labelEn: 'Heavy Rain', labelTa: 'பலத்த மழை' };
+    }
+    if (/moderate rain/i.test(condText) || rain >= 3.0) {
+      return { emoji: '🌧️', labelEn: 'Moderate Rain', labelTa: 'மிதமான மழை' };
+    }
+    if (/drizzle/i.test(condText)) {
+      return { emoji: '🌦️', labelEn: 'Drizzle Rain', labelTa: 'தூறல் மழை' };
+    }
+    if (/light rain|shower/i.test(condText) && (rain >= 1.0 || rain === 0)) {
+      return { emoji: '🌦️', labelEn: 'Light Rain', labelTa: 'லேசான மழை' };
+    }
+    if (/overcast/i.test(condText)) {
+      return { emoji: '☁️', labelEn: 'Overcast', labelTa: 'அடர் மேகமூட்டம்' };
+    }
+    if (/partly sunny|partly cloudy/i.test(condText)) {
+      return { emoji: '⛅', labelEn: 'Partly Sunny', labelTa: 'பகுதி வெயில் / மேகமூட்டம்' };
+    }
+    if (/cloudy/i.test(condText)) {
+      return { emoji: '☁️', labelEn: 'Cloudy', labelTa: 'மேகமூட்டம்' };
+    }
+    if (/sunny|clear/i.test(condText)) {
+      return { emoji: '☀️', labelEn: 'Clear / Sunny', labelTa: 'வெயில் / தெளிவான வானம்' };
+    }
+    if (/haze|mist|fog/i.test(condText)) {
+      return { emoji: '🌫️', labelEn: 'Haze / Mist', labelTa: 'மூடுபனி' };
+    }
+  }
+
+  // Numeric fallback with realistic thresholds
+  if (rain >= 12) {
     return { emoji: '⛈️', labelEn: 'Heavy Rain', labelTa: 'பலத்த மழை' };
   }
-  if (rain >= 2.5) {
+  if (rain >= 3.0) {
     return { emoji: '🌧️', labelEn: 'Moderate Rain', labelTa: 'மிதமான மழை' };
   }
-  if (rain > 0) {
-    return { emoji: '🌦️', labelEn: 'Drizzle / Light Rain', labelTa: 'தூறல் / லேசான மழை' };
+  if (rain >= 1.0) {
+    return { emoji: '🌦️', labelEn: 'Drizzle Rain', labelTa: 'தூறல் மழை' };
   }
   if (cloud >= 7) {
     return { emoji: '☁️', labelEn: 'Overcast', labelTa: 'மேகமூட்டம்' };
   }
-  if (cloud >= 4) {
-    return { emoji: '⛅', labelEn: 'Partly Cloudy', labelTa: 'பகுதி மேகமூட்டம்' };
+  if (cloud >= 3) {
+    return { emoji: '⛅', labelEn: 'Partly Sunny', labelTa: 'பகுதி வெயில்' };
   }
   return { emoji: '☀️', labelEn: 'Clear / Sunny', labelTa: 'வெயில் / தெளிவான வானம்' };
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useLanguage } from '@/components/providers/LanguageProvider';
 import type { StepId } from '@/lib/fertilizer/types';
 
 interface StepItem {
@@ -14,6 +15,8 @@ interface StepNavigationProps {
   maxUnlockedStep?: 1 | 2 | 3;
   onSelectStep: (step: StepId) => void;
   stepsList: StepItem[];
+  onOpenRecords?: () => void;
+  savedPlansCount?: number;
 }
 
 export const StepNavigation: React.FC<StepNavigationProps> = ({
@@ -21,7 +24,11 @@ export const StepNavigation: React.FC<StepNavigationProps> = ({
   maxUnlockedStep = 3,
   onSelectStep,
   stepsList,
+  onOpenRecords,
+  savedPlansCount,
 }) => {
+  const { locale } = useLanguage();
+  const isTamil = locale === 'ta';
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3.5 mb-6">
       {stepsList.map((item) => {
@@ -82,6 +89,32 @@ export const StepNavigation: React.FC<StepNavigationProps> = ({
           </button>
         );
       })}
+
+      {/* 4th Column: All Records Button (Next to Step 3 card) */}
+      {onOpenRecords && (
+        <button
+          id="btn-nav-all-records"
+          type="button"
+          onClick={onOpenRecords}
+          className="group flex flex-col text-left p-3 sm:p-4 rounded-xl glass-card transition-all duration-200 cursor-pointer hover:border-emerald-500/50 hover:bg-surface/90 hover:shadow-lg hover:shadow-emerald-500/10 active:scale-[0.99]"
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-text-secondary group-hover:text-emerald-500 dark:group-hover:text-emerald-400 transition-colors">
+              {isTamil ? 'பதிவுகள்' : 'Portfolio'}
+            </span>
+            <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 dark:bg-emerald-500/20 px-2 py-0.5 text-[9px] font-extrabold text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+              {savedPlansCount !== undefined ? `${savedPlansCount} ${isTamil ? 'திட்டங்கள்' : 'Plans'}` : 'Records'}
+            </span>
+          </div>
+          <div className="text-xs sm:text-sm font-bold text-text-main line-clamp-1 flex items-center gap-1.5 group-hover:text-emerald-600 dark:group-hover:text-emerald-300 transition-colors">
+            <span>📋</span>
+            <span>{isTamil ? 'அனைத்து பதிவுகள்' : 'All Records'}</span>
+          </div>
+          <div className="text-[11px] text-text-secondary line-clamp-1 mt-0.5">
+            {isTamil ? 'சேமிக்கப்பட்ட திட்டங்களைக் காண்க' : 'View saved cultivation plans'}
+          </div>
+        </button>
+      )}
     </div>
   );
 };

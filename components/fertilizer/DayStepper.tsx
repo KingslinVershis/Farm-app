@@ -22,7 +22,7 @@ interface DayStepperProps {
 export const DayStepper: React.FC<DayStepperProps> = ({
   value,
   min = 1,
-  max = 7,
+  max = 60,
   dayLabel = 'Day',
   maxLabel,
   disableNext = false,
@@ -166,22 +166,22 @@ function StepButton({
   useEffect(() => clearTimers, []);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (disabled) return;
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     clearTimers();
     onStep(change);
     if (scope.current) {
       animate(scope.current, { scale: [0.82, 1] }, lively);
     }
-    if (!disabled) {
-      holdTimeoutRef.current = setTimeout(() => {
-        repeatIntervalRef.current = setInterval(() => {
-          onStep(change);
-        }, 100);
-      }, 400);
-    }
+    holdTimeoutRef.current = setTimeout(() => {
+      repeatIntervalRef.current = setInterval(() => {
+        onStep(change);
+      }, 100);
+    }, 400);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled) return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       onStep(change);
@@ -193,6 +193,7 @@ function StepButton({
       ref={scope}
       type="button"
       title={title}
+      disabled={disabled}
       aria-label={ariaLabel}
       aria-disabled={disabled || undefined}
       onPointerDown={handlePointerDown}
@@ -200,11 +201,11 @@ function StepButton({
       onPointerLeave={clearTimers}
       onPointerCancel={clearTimers}
       onKeyDown={handleKeyDown}
-      whileTap={{ scale: 0.88, transition: snap }}
+      whileTap={disabled ? undefined : { scale: 0.88, transition: snap }}
       transition={lively}
       className={`w-8 h-8 rounded-full border-0 p-0 flex items-center justify-center touch-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500 focus-visible:outline-offset-2 ${
         disabled
-          ? 'bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+          ? 'bg-slate-100/60 dark:bg-white/[0.04] text-slate-300 dark:text-slate-600 opacity-40 cursor-not-allowed pointer-events-none'
           : 'bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 text-slate-900 dark:text-white cursor-pointer'
       }`}
     >

@@ -28,6 +28,18 @@ export interface DailyLabourEntry {
   labourWage: number;
   snackCost: number;
   travelCost: number;
+  ratePerCent?: number;
+  bagCount?: number;
+  bagPrice?: number;
+  transportRent?: number;
+  loadingWorkers?: number;
+  loadingWage?: number;
+  loadingSnacks?: number;
+  loadingLabourCount?: number;
+  loadingLabourWage?: number;
+  perBagLiftingCost?: number;
+  stitchedBagCount?: number;
+  stitchingCostPerBag?: number;
 }
 
 export interface ExpenseTask {
@@ -114,6 +126,9 @@ export interface ExpenseEntry {
   loadingWorkers?: number;
   loadingWage?: number;
   loadingSnacks?: number;
+  perBagLiftingCost?: number;
+  stitchedBagCount?: number;
+  stitchingCostPerBag?: number;
   yieldMode?: 'tons' | 'bags';
   yieldKg?: number;
   total_yieldKg?: number;
@@ -129,6 +144,11 @@ export interface ExpenseEntry {
   herbicideNotify?: boolean;
   pesticideNotify?: boolean;
   fertilizerNotify?: boolean;
+  hasRepairCost?: boolean;
+  mechanicName?: string;
+  mechanicNumber?: string;
+  repairCost?: number;
+  pesticideMl?: number;
 }
 
 export type CultivationType = 'paddy';

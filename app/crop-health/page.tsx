@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Select, Table, Pagination, Modal } from 'antd';
+import { Select, Table, Pagination } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { motion } from 'motion/react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
@@ -16,7 +16,7 @@ import {
   X,
   LayoutGrid,
   TableList,
-  Eye,
+  RefreshCw,
   AlertTriangle,
   FileText,
 } from '@/components/icons/FlaticonIcons';
@@ -24,6 +24,7 @@ import type {
   CropHealthApiResponse,
   CropHealthRecord,
 } from '@/app/api/crop-health/route';
+import cropHealthTranslations from '@/lib/data/cropHealthTranslations.json';
 
 const CARDS_PAGE_SIZE = 24;
 
@@ -37,17 +38,37 @@ export default function CropHealthPage() {
   const [selectedCrop, setSelectedCrop] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [cardPage, setCardPage] = useState<number>(1);
-  const [activeRecord, setActiveRecord] = useState<CropHealthRecord | null>(null);
+  const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({});
+
+  const toggleFlip = useCallback((id: string) => {
+    setFlippedCards((prev) => ({ ...prev, [id]: !prev[id] }));
+  }, []);
 
   const [dataMap, setDataMap] = useState<Partial<Record<'disease' | 'pest', CropHealthApiResponse>>>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  const getControlMessage = useCallback(
+    (rec: CropHealthRecord): string => {
+      if (isTamil) return rec.controlMessage;
+      if (rec.controlMessageEn) return rec.controlMessageEn;
+      const dict = cropHealthTranslations as Record<string, string>;
+      const normalizedMsg = (rec.controlMessage || '').replace(/\s+/g, ' ').trim();
+      const fromDict =
+        dict[normalizedMsg] ||
+        dict[rec.controlMessage] ||
+        dict[`${activeTab}-${rec.slNo}`] ||
+        dict[`${rec.crop}:${rec.nameEn}`];
+      return fromDict || rec.controlMessage;
+    },
+    [isTamil, activeTab]
+  );
+
   const fetchTab = useCallback(async (type: 'disease' | 'pest') => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/crop-health?type=${type}`);
+      const res = await fetch(`/api/crop-health?type=${type}&_t=${Date.now()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error(`Failed to load ${type} advisories (${res.status})`);
       const json: CropHealthApiResponse = await res.json();
       if (!json.success) throw new Error(json.error || 'Failed to parse crop health data.');
@@ -71,7 +92,12 @@ export default function CropHealthPage() {
 
   useEffect(() => {
     setCardPage(1);
+    setFlippedCards({});
   }, [activeTab, selectedCrop, searchQuery]);
+
+  useEffect(() => {
+    setFlippedCards({});
+  }, [cardPage]);
 
   const currentData = dataMap[activeTab];
   const records = useMemo(() => currentData?.records || [], [currentData]);
@@ -88,15 +114,17 @@ export default function CropHealthPage() {
     const q = searchQuery.trim().toLowerCase();
     return records.filter((rec) => {
       const cropMatch = selectedCrop === 'all' || rec.crop === selectedCrop;
+      const ctrlMsg = getControlMessage(rec).toLowerCase();
       const qMatch =
         !q ||
         rec.crop.toLowerCase().includes(q) ||
         rec.nameEn.toLowerCase().includes(q) ||
         rec.nameTa.toLowerCase().includes(q) ||
-        rec.controlMessage.toLowerCase().includes(q);
+        rec.controlMessage.toLowerCase().includes(q) ||
+        ctrlMsg.includes(q);
       return cropMatch && qMatch;
     });
-  }, [records, selectedCrop, searchQuery]);
+  }, [records, selectedCrop, searchQuery, getControlMessage]);
 
   const pagedRecords = useMemo(() => {
     const start = (cardPage - 1) * CARDS_PAGE_SIZE;
@@ -128,7 +156,7 @@ export default function CropHealthPage() {
         title: c.colCrop,
         dataIndex: 'crop',
         key: 'crop',
-        width: '15%',
+        width: '16%',
         render: (val: string) => (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
             <Sprout size={12} />
@@ -139,55 +167,41 @@ export default function CropHealthPage() {
       {
         title: activeTab === 'disease' ? c.colDiseaseName : c.colPestName,
         key: 'name',
-        width: '24%',
+        width: '27%',
         render: (_, rec) => (
-          <div>
-            <span className="font-extrabold text-xs sm:text-sm text-text-main block">
-              {isTamil && rec.nameTa ? rec.nameTa : rec.nameEn || rec.nameTa}
-            </span>
-            {rec.nameEn && rec.nameTa && (
-              <span className="text-[11px] text-text-muted block">
-                {isTamil ? rec.nameEn : rec.nameTa}
-              </span>
-            )}
-          </div>
+          <span className="font-extrabold text-xs sm:text-sm text-text-main block">
+            {isTamil && rec.nameTa ? rec.nameTa : rec.nameEn || rec.nameTa}
+          </span>
         ),
       },
       {
         title: c.colControlMessage,
         dataIndex: 'controlMessage',
         key: 'controlMessage',
-        width: '44%',
-        render: (val: string) => (
-          <p className="text-xs text-text-secondary whitespace-pre-line line-clamp-3 leading-relaxed m-0">
-            {val}
+        width: '50%',
+        render: (_: any, rec: CropHealthRecord) => (
+          <p className="text-xs text-text-secondary whitespace-pre-line leading-relaxed m-0">
+            {getControlMessage(rec)}
           </p>
         ),
       },
-      {
-        title: '',
-        key: 'action',
-        width: '10%',
-        align: 'right',
-        render: (_, rec) => (
-          <button
-            type="button"
-            onClick={() => setActiveRecord(rec)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass-surface border border-border-light hover:border-emerald-500/50 text-xs font-bold text-text-main transition-colors cursor-pointer"
-          >
-            <Eye size={13} />
-            <span className="hidden sm:inline">{c.viewDetails}</span>
-          </button>
-        ),
-      },
     ],
-    [c, activeTab, isTamil]
+    [c, activeTab, isTamil, getControlMessage]
   );
 
   const isDisease = activeTab === 'disease';
 
   return (
     <div className="relative min-h-screen w-full overflow-x-hidden">
+      {/* Background Photography Layer with Soft Vignette & Frosted Overlay */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out scale-105"
+        style={{
+          backgroundImage: `url('/images/crop.jpg')`,
+        }}
+      />
+      <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
+
       {/* Subtle Atmospheric Glow */}
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden z-0">
         <div className="absolute -top-28 left-1/4 w-[500px] h-[500px] rounded-full bg-emerald-500/10 blur-[130px]" />
@@ -429,58 +443,119 @@ export default function CropHealthPage() {
         ) : viewMode === 'cards' ? (
           <div className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
-              {pagedRecords.map((rec) => (
-                <ReflectiveCard
-                  key={rec.id}
-                  onClick={() => setActiveRecord(rec)}
-                  tiltStrength={9}
-                  radius={24}
-                  intro
-                >
-                  <div className="flex flex-col h-full justify-between gap-3.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
-                          isDisease
-                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/35'
-                            : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/35'
-                        }`}
-                      >
-                        <Sprout size={12} />
-                        <span>{rec.crop}</span>
-                      </span>
-                      <span className="font-mono text-[11px] font-bold text-text-muted">
-                        #{rec.slNo}
-                      </span>
-                    </div>
+              {pagedRecords.map((rec) => {
+                const isFlipped = Boolean(flippedCards[rec.id]);
+                return (
+                  <div
+                    key={rec.id}
+                    className="relative w-full h-[270px] [perspective:1200px] select-none"
+                  >
+                    <div
+                      onClick={() => toggleFlip(rec.id)}
+                      className={`relative w-full h-full transition-transform duration-500 ease-out [transform-style:preserve-3d] cursor-pointer ${
+                        isFlipped ? '[transform:rotateY(180deg)]' : ''
+                      }`}
+                    >
+                      {/* FRONT FACE: Shows Crop Name and Disease/Pest Name */}
+                      <div className="absolute inset-0 w-full h-full [backface-visibility:hidden] [-webkit-backface-visibility:hidden]">
+                        <ReflectiveCard
+                          height="100%"
+                          width="100%"
+                          radius={24}
+                          enableTilt={!isFlipped}
+                          tiltStrength={7}
+                          intro={false}
+                          className="h-full"
+                        >
+                          <div className="flex flex-col h-full justify-between items-center text-center">
+                            {/* Top row */}
+                            <div className="w-full flex items-center justify-between">
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                                  isDisease
+                                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/35'
+                                    : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/35'
+                                }`}
+                              >
+                                <Sprout size={12} />
+                                <span>{rec.crop}</span>
+                              </span>
+                              <span className="font-mono text-[11px] font-bold text-text-muted">
+                                #{rec.slNo}
+                              </span>
+                            </div>
 
-                    <div>
-                      <h3 className="text-base sm:text-lg font-extrabold text-text-main leading-snug line-clamp-2">
-                        {isTamil && rec.nameTa ? rec.nameTa : rec.nameEn || rec.nameTa}
-                      </h3>
-                      {rec.nameEn && rec.nameTa && (
-                        <p className="text-xs text-text-muted mt-0.5 truncate">
-                          {isTamil ? rec.nameEn : rec.nameTa}
-                        </p>
-                      )}
-                    </div>
+                            {/* Center Disease / Pest Title */}
+                            <div className="flex flex-col items-center justify-center my-auto px-2 py-1">
+                              <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-2.5 shadow-inner">
+                                <Sprout size={24} />
+                              </div>
+                              <h3 className="text-base sm:text-lg font-extrabold text-text-main leading-snug line-clamp-2">
+                                {isTamil && rec.nameTa ? rec.nameTa : rec.nameEn || rec.nameTa}
+                              </h3>
+                              <span className="text-[11px] font-semibold text-text-muted mt-1">
+                                {isDisease ? c.tabDisease : c.tabPest}
+                              </span>
+                            </div>
 
-                    <p className="text-xs text-text-secondary leading-relaxed line-clamp-4 whitespace-pre-line m-0">
-                      {rec.controlMessage}
-                    </p>
+                            {/* Bottom Flip Prompt */}
+                            <div className="w-full pt-2.5 border-t border-border-subtle flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                              <RefreshCw size={12} />
+                              <span>{isTamil ? 'கட்டுப்பாடு முறைகளைக் காண திருப்பவும்' : 'Click for control measures'}</span>
+                            </div>
+                          </div>
+                        </ReflectiveCard>
+                      </div>
 
-                    <div className="flex items-center justify-between pt-2.5 border-t border-border-subtle text-xs">
-                      <span className="text-[11px] font-semibold text-text-muted">
-                        {isDisease ? c.tabDisease : c.tabPest}
-                      </span>
-                      <span className="inline-flex items-center gap-1 font-bold text-emerald-600 dark:text-emerald-400">
-                        <Eye size={13} />
-                        <span>{c.viewDetails}</span>
-                      </span>
+                      {/* BACK FACE: Shows Control Advisory Measures & Details */}
+                      <div className="absolute inset-0 w-full h-full [backface-visibility:hidden] [-webkit-backface-visibility:hidden] [transform:rotateY(180deg)]">
+                        <ReflectiveCard
+                          height="100%"
+                          width="100%"
+                          radius={24}
+                          enableTilt={isFlipped}
+                          tiltStrength={7}
+                          intro={false}
+                          className="h-full"
+                        >
+                          <div className="flex flex-col h-full justify-between gap-2.5 text-left">
+                            {/* Top row */}
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-bold text-text-main truncate max-w-[170px]">
+                                {isTamil && rec.nameTa ? rec.nameTa : rec.nameEn || rec.nameTa}
+                              </span>
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                                <RefreshCw size={11} />
+                                <span>{isTamil ? 'முன்புறம்' : 'Flip back'}</span>
+                              </span>
+                            </div>
+
+                            {/* Advisory Control Heading & Details */}
+                            <div className="space-y-1.5 overflow-hidden">
+                              <div className="text-[10px] font-extrabold uppercase tracking-wider text-text-muted">
+                                {c.colControlMessage}
+                              </div>
+                              <p className="text-xs text-text-secondary leading-relaxed line-clamp-5 whitespace-pre-line m-0">
+                                {getControlMessage(rec)}
+                              </p>
+                            </div>
+
+                            {/* Bottom row */}
+                            <div className="flex items-center justify-between pt-2 border-t border-border-subtle text-[11px] text-text-muted">
+                              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                {rec.crop}
+                              </span>
+                              <span className="font-mono font-bold">
+                                #{rec.slNo}
+                              </span>
+                            </div>
+                          </div>
+                        </ReflectiveCard>
+                      </div>
                     </div>
                   </div>
-                </ReflectiveCard>
-              ))}
+                );
+              })}
             </div>
 
             {filteredRecords.length > CARDS_PAGE_SIZE && (
@@ -505,10 +580,6 @@ export default function CropHealthPage() {
                 pagination={{ pageSize: 15, showSizeChanger: false }}
                 className="reservoirs-table"
                 locale={{ emptyText: c.noDataText }}
-                onRow={(rec) => ({
-                  onClick: () => setActiveRecord(rec),
-                  className: 'hover:bg-surface/50 transition-colors cursor-pointer',
-                })}
               />
             </div>
 
@@ -521,45 +592,6 @@ export default function CropHealthPage() {
           </div>
         )}
       </div>
-
-      {/* Full Advisory Detail Modal */}
-      <Modal
-        open={Boolean(activeRecord)}
-        onCancel={() => setActiveRecord(null)}
-        footer={null}
-        width={680}
-        title={
-          activeRecord ? (
-            <div className="flex flex-wrap items-center gap-2 pr-6">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30">
-                <Sprout size={12} />
-                {activeRecord.crop}
-              </span>
-              <span className="text-base font-extrabold text-text-main">
-                {activeRecord.nameEn || activeRecord.nameTa}
-              </span>
-            </div>
-          ) : null
-        }
-      >
-        {activeRecord && (
-          <div className="space-y-4 pt-2">
-            {activeRecord.nameTa && (
-              <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                {activeRecord.nameTa}
-              </div>
-            )}
-            <div className="p-4 rounded-2xl glass-surface border border-border-light">
-              <div className="text-[11px] font-extrabold uppercase tracking-wider text-text-muted mb-2">
-                {c.colControlMessage}
-              </div>
-              <p className="text-sm text-text-main whitespace-pre-line leading-relaxed m-0">
-                {activeRecord.controlMessage}
-              </p>
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

@@ -1,23 +1,17 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
-  SproutIcon,
-  FlaskConicalIcon,
-  WavesIcon,
-  TractorIcon,
-  DropletsIcon,
   ArrowUpRightIcon,
   ChevronRightIcon,
   CloudSunIcon,
-  CheckCircleIcon,
 } from '@/components/icons/Icons';
 import { useLanguage } from '@/components/providers/LanguageProvider';
-import { AnimatedCounter } from '@/components/reactbits/AnimatedCounter';
 import MotionAutoplayCarousel from '@/components/reactbits/MotionAutoplayCarousel';
+import ScrollStack, { ScrollStackItemData } from '@/components/reactbits/ScrollStack';
 
 interface CultivationPlanSummary {
   id: string;
@@ -48,7 +42,7 @@ export default function FarmLandingPage() {
 
   const [savedPlans, setSavedPlans] = useState<CultivationPlanSummary[]>([
     {
-      id: 'plan_1793340611137',
+      id: '1',
       farmerName: 'Arun Kumar',
       landSize: 100,
       location: 'Kovilpatti, Thoothukkudi, Tamil Nadu',
@@ -59,7 +53,7 @@ export default function FarmLandingPage() {
       updated_at: '30 Oct 2026, 12:15 pm',
     },
     {
-      id: 'plan_1793343120000',
+      id: '2',
       farmerName: 'Karthik',
       landSize: 100,
       location: 'Thoothukkudi, Tamil Nadu',
@@ -71,9 +65,6 @@ export default function FarmLandingPage() {
     },
   ]);
 
-  const [plansCount, setPlansCount] = useState<number>(2);
-  const [reservoirPercent, setReservoirPercent] = useState<number>(55.4);
-  const [seedVarietiesCount, setSeedVarietiesCount] = useState<number>(78);
   const [activeConsoleTab, setActiveConsoleTab] = useState<'plans' | 'reservoirs' | 'seeds' | 'advisory'>('plans');
 
   const [majorDams, setMajorDams] = useState<ReservoirSnapshot[]>([
@@ -106,6 +97,72 @@ export default function FarmLandingPage() {
     },
   ]);
 
+  const cultivationPhases: ScrollStackItemData[] = useMemo(
+    () => [
+      {
+        id: 'phase-1',
+        eyebrow: isTamil ? 'நிலை 01 // நாட்கள் 1 – 20' : 'PHASE 01 // DAYS 1 – 20',
+        title: isTamil ? 'உழவு & மண்வள தயாரிப்பு' : 'Land Tillage & Soil Baseline Preparation',
+        body: isTamil
+          ? 'டிராக்டர் ஆரம்ப உழவு, சேற்றுழவு, வரப்பு செப்பனிடுதல் மற்றும் மண்ணின் தன்மைக்கேற்ற இயற்கை எரு இடுதல் மூலம் ஊட்டச்சத்து சமநிலையை உருவாக்குதல்.'
+          : 'Tractor primary plowing, secondary puddling, bund trimming, and baseline organic manure allocation tailored to soil texture and moisture.',
+        image: '/images/phase_1.jpg',
+        accent: '#10b981',
+        link: '/fertilizer',
+        linkText: isTamil ? 'அடி உர திட்டம் காண்க →' : 'Explore Basal Protocols →',
+      },
+      {
+        id: 'phase-2',
+        eyebrow: isTamil ? 'நிலை 02 // நாட்கள் 21 – 40' : 'PHASE 02 // DAYS 21 – 40',
+        title: isTamil ? 'சான்றளிக்கப்பட்ட விதை தேர்வு & நாற்றங்கால்' : 'Certified Seed Sowing & Nursery Care',
+        body: isTamil
+          ? 'பருவத்திற்கேற்ற உயர் விளைச்சல் சான்றளிக்கப்பட்ட விதை தேர்வு, பூஞ்சாண விதை நேர்த்தி மற்றும் முறையான இடைவெளியுடன் நாற்றங்கால் பாசன பராமரிப்பு.'
+          : 'Sowing high-germination certified TNAU cultivars with bio-fertilizer seed priming, calibrated nursery spacing, and seedling vitality monitoring.',
+        image: '/images/phase_2.png',
+        accent: '#8b5cf6',
+        link: '/seeds',
+        linkText: isTamil ? 'விதை அட்டவணையை காண்க →' : 'Explore Seed Varieties →',
+      },
+      {
+        id: 'phase-3',
+        eyebrow: isTamil ? 'நிலை 03 // நாட்கள் 41 – 65' : 'PHASE 03 // DAYS 41 – 65',
+        title: isTamil ? 'தூர் கட்டும் பருவம் & துல்லிய ஊட்டச்சத்து மேலாண்மை' : 'Vegetative Tiller Boost & Nutrient Fertigation',
+        body: isTamil
+          ? 'அதிக மகசூல் தரும் தூர்கள் உருவாக தழை, மணி, சாம்பல் சத்துக்கள் மற்றும் நுண்ணூட்டக் கலவைகளை அணை நீர் பாசனத்துடன் திட்டமிட்டு செலுத்துதல்.'
+          : 'Scheduled N-P-K micro-nutrient delivery and primary top-dressing synchronized with canal releases, rainfall patterns, and crop growth stage.',
+        image: '/images/phase_3.png',
+        accent: '#06b6d4',
+        link: '/fertilizer',
+        linkText: isTamil ? 'ஊட்டச்சத்து அட்டவணை →' : 'View Nutrition Schedule →',
+      },
+      {
+        id: 'phase-4',
+        eyebrow: isTamil ? 'நிலை 04 // நாட்கள் 66 – 90' : 'PHASE 04 // DAYS 66 – 90',
+        title: isTamil ? 'கதிர் உருவாவதும் & துல்லிய பயிர் பாதுகாப்பும்' : 'Panicle Initiation & Precision Crop Health',
+        body: isTamil
+          ? 'குருத்துப்பூச்சி, இலைக்கருகல் தடுப்பு தெளிப்புகள், பொட்டாஷ் மேலுரம் மற்றும் மணி பால் பிடிக்கும் பருவத்தில் நின்ற நீர் பராமரிப்பு மேலாண்மை.'
+          : 'Targeted bio-pest mitigation for stem borer and blast, balanced potash nourishment, and standing water calibration for optimal grain setting.',
+        image: '/images/phase_4.jpg',
+        accent: '#f59e0b',
+        link: '/crop-health',
+        linkText: isTamil ? 'பயிர் நலம் காண்க →' : 'Inspect Crop Health →',
+      },
+      {
+        id: 'phase-5',
+        eyebrow: isTamil ? 'நிலை 05 // நாட்கள் 91 – 120' : 'PHASE 05 // DAYS 91 – 120',
+        title: isTamil ? 'இயந்திர அறுவடை & மண்டி நேரடி கொள்முதல்' : 'Predictive Combine Harvest & Mandi Sale',
+        body: isTamil
+          ? 'சரியான மணி ஈரப்பதத்தில் ஒருங்கிணைந்த அறுவடை இயந்திரம் மூலம் அறுவடை செய்து அரசு கொள்முதல் நிலையங்கள் மற்றும் மண்டிகளில் அதிக விலைக்கு விற்பனை.'
+          : 'Combine harvester mobilization at optimal grain moisture to minimize shattering loss and secure peak Mandi MSP market realization.',
+        image: '/images/phase_5.jpg',
+        accent: '#3b82f6',
+        link: '/fertilizer',
+        linkText: isTamil ? 'சாகுபடி திட்டத்தை தொடங்கு →' : 'Calculate Your Plan →',
+      },
+    ],
+    [isTamil]
+  );
+
   // Fetch live counts from our DB APIs silently on mount
   useEffect(() => {
     let mounted = true;
@@ -117,7 +174,6 @@ export default function FarmLandingPage() {
         if (!mounted || !json) return;
         const plansList = json.plans || [];
         if (Array.isArray(plansList)) {
-          setPlansCount(plansList.length);
           const mapped: CultivationPlanSummary[] = plansList.slice(0, 3).map((item: any) => {
             const outlay = item.totals?.grandTotal || 50000;
             const profit = item.totals?.netProfit || 150000;
@@ -147,21 +203,6 @@ export default function FarmLandingPage() {
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
         if (!mounted || !json || !json.reservoirs) return;
-        if (typeof json.summary?.overallStoragePercentage === 'number') {
-          setReservoirPercent(Number(json.summary.overallStoragePercentage.toFixed(1)));
-        } else if (Array.isArray(json.reservoirs) && json.reservoirs.length > 0) {
-          const totalCur = json.reservoirs.reduce(
-            (acc: number, r: any) => acc + (Number(r.currentStorageMcft ?? r.currentStorage) || 0),
-            0
-          );
-          const totalCap = json.reservoirs.reduce(
-            (acc: number, r: any) => acc + (Number(r.fullCapacityMcft ?? r.fullCapacity) || 0),
-            0
-          );
-          if (totalCap > 0) {
-            setReservoirPercent(Number(((totalCur / totalCap) * 100).toFixed(1)));
-          }
-        }
 
         if (Array.isArray(json.reservoirs) && json.reservoirs.length > 0) {
           const targets = [
@@ -198,170 +239,20 @@ export default function FarmLandingPage() {
       })
       .catch(() => {});
 
-    // 3. Fetch TNAU seeds count
-    fetch('/api/tnau-seeds')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        if (!mounted || !json) return;
-        if (json.totalItems) {
-          setSeedVarietiesCount(json.totalItems);
-        } else if (Array.isArray(json.data)) {
-          setSeedVarietiesCount(json.data.length);
-        }
-      })
-      .catch(() => {});
-
     return () => {
       mounted = false;
     };
   }, []);
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-background text-text-main">
+    <div className="relative min-h-screen w-full overflow-x-clip bg-background text-text-main">
       {/* 1. HERO SHOWCASE: Full-Page Edge-to-Edge Autoplay Carousel with Scroll-Zoom Hero */}
       <section className="relative w-full">
         <MotionAutoplayCarousel />
       </section>
 
-      {/* 2. SUB-HERO RIBBON & QUICK DISCOVERY BAR (No harsh border line) */}
-      <section id="dashboard-metrics" className="relative z-10 w-full bg-surface/70 dark:bg-surface/50 backdrop-blur-xl">
-        <div className="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-            </span>
-            <div className="text-xs sm:text-sm font-semibold text-text-secondary">
-              <span className="font-extrabold text-text-main">Tamil Nadu Agro-Basin Network</span>
-              <span className="hidden sm:inline mx-2 text-text-muted">•</span>
-              <span className="hidden sm:inline text-text-muted">Real-Time Agronomy, Hydrology & Seed Pricing Telemetry</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap justify-center">
-            <Link
-              href="/fertilizer"
-              className="px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 transition-all flex items-center gap-1.5 shadow-sm"
-            >
-              <FlaskConicalIcon size={14} />
-              <span>{isTamil ? 'உர மேலாண்மை' : 'Fertilizer Calculator'}</span>
-            </Link>
-            <Link
-              href="/reservoirs"
-              className="px-3.5 py-1.5 rounded-full text-xs font-bold bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/25 transition-all flex items-center gap-1.5 shadow-sm"
-            >
-              <WavesIcon size={14} />
-              <span>{isTamil ? 'அணைகள் நிலவரம்' : 'Reservoirs Telemetry'}</span>
-            </Link>
-            <Link
-              href="/seeds"
-              className="px-3.5 py-1.5 rounded-full text-xs font-bold bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/25 transition-all flex items-center gap-1.5 shadow-sm"
-            >
-              <SproutIcon size={14} />
-              <span>{isTamil ? 'விதை விலைகள்' : 'TNAU Seeds'}</span>
-            </Link>
-            <Link
-              href="/weather-mcp"
-              className="px-3.5 py-1.5 rounded-full text-xs font-bold bg-sky-500/10 hover:bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-500/25 transition-all flex items-center gap-1.5 shadow-sm"
-            >
-              <CloudSunIcon size={14} />
-              <span>{isTamil ? 'வானிலை ரேடார்' : 'Weather MCP'}</span>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* 3. LUXURY STATS COUNTER TICKER (Evntly / Luxex Style Metric Band - No harsh borders) */}
-      <section className="relative z-10 w-full py-10 sm:py-14 bg-gradient-to-b from-surface/30 via-surface/10 to-transparent">
-        <div className="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-50px' }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-0 lg:divide-x divide-border-subtle glass-panel rounded-3xl p-6 sm:p-8 shadow-2xl"
-          >
-            {/* Stat 1 */}
-            <div className="flex flex-col justify-between space-y-3 lg:px-8 first:lg:pl-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs uppercase tracking-widest font-black text-text-muted">
-                  {t.metrics.activePlans}
-                </span>
-                <span className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                  <FlaskConicalIcon size={16} />
-                </span>
-              </div>
-              <div className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-text-main font-sans">
-                <AnimatedCounter value={plansCount} suffix={isTamil ? ' ஆவணங்கள்' : ' Plans'} />
-              </div>
-              <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-                <CheckCircleIcon size={13} />
-                <span>{t.metrics.activePlansTrend}</span>
-              </div>
-            </div>
-
-            {/* Stat 2 */}
-            <div className="flex flex-col justify-between space-y-3 lg:px-8">
-              <div className="flex items-center justify-between">
-                <span className="text-xs uppercase tracking-widest font-black text-text-muted">
-                  {t.metrics.reservoirsStorage}
-                </span>
-                <span className="w-8 h-8 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400">
-                  <WavesIcon size={16} />
-                </span>
-              </div>
-              <div className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-text-main font-sans">
-                <AnimatedCounter value={reservoirPercent} decimals={1} suffix="% Full" />
-              </div>
-              <div className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 flex items-center gap-1">
-                <span>🌊</span>
-                <span>{t.metrics.reservoirsTrend}</span>
-              </div>
-            </div>
-
-            {/* Stat 3 */}
-            <div className="flex flex-col justify-between space-y-3 lg:px-8">
-              <div className="flex items-center justify-between">
-                <span className="text-xs uppercase tracking-widest font-black text-text-muted">
-                  {t.metrics.tnauSeeds}
-                </span>
-                <span className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-600 dark:text-purple-400">
-                  <SproutIcon size={16} />
-                </span>
-              </div>
-              <div className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-text-main font-sans">
-                <AnimatedCounter value={seedVarietiesCount} suffix={isTamil ? ' வகைகள்' : ' Varieties'} />
-              </div>
-              <div className="text-xs font-semibold text-purple-700 dark:text-purple-400 flex items-center gap-1">
-                <span>🌱</span>
-                <span>{t.metrics.tnauSeedsTrend}</span>
-              </div>
-            </div>
-
-            {/* Stat 4 */}
-            <div className="flex flex-col justify-between space-y-3 lg:px-8 last:lg:pr-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs uppercase tracking-widest font-black text-text-muted">
-                  {t.metrics.estRoi}
-                </span>
-                <span className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                  <TractorIcon size={16} />
-                </span>
-              </div>
-              <div className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-emerald-600 dark:text-emerald-400 font-sans">
-                <AnimatedCounter value={314} prefix="+" suffix="% ROI" />
-              </div>
-              <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-                <span>💰</span>
-                <span>{t.metrics.estRoiTrend}</span>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* 4. SPLIT FEATURE SHOWCASE 1: Precision Fertilizer & Nutrient Scheduling (No image border) */}
-      <section className="relative z-10 w-full py-16 sm:py-24">
+      {/* 2. SPLIT FEATURE SHOWCASE 1: Precision Fertilizer & Nutrient Scheduling (No image border) */}
+      <section id="feature-sections" className="relative z-10 w-full py-16 sm:py-24">
         <div className="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
             {/* Left Content Column */}
@@ -430,7 +321,7 @@ export default function FarmLandingPage() {
                     {isTamil ? 'மாதிரி சாகுபடி வருமானம் (100 சென்ட்)' : 'Sample Cultivation Return (100 Cents)'}
                   </span>
                   <div className="text-xl sm:text-2xl font-black text-emerald-700 dark:text-emerald-400 mt-0.5">
-                    ₹1,86,550 <span className="text-xs font-semibold text-text-secondary">Net Profit (+314% ROI)</span>
+                    ₹1,86,550
                   </div>
                 </div>
                 <Link
@@ -682,144 +573,32 @@ export default function FarmLandingPage() {
         </div>
       </section>
 
-      {/* 7. 4-STAGE CULTIVATION WORKFLOW ARCHITECTURE (No border-y) */}
-      <section className="relative z-10 w-full py-16 sm:py-24 bg-surface/40">
-        <div className="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+      {/* 7. 5-PHASE CULTIVATION WORKFLOW ARCHITECTURE: React Bits Scroll Stack */}
+      <section id="lifecycle-scroll-stack" className="relative z-10 w-full py-16 sm:py-24 bg-surface/40 overflow-visible">
+        <div className="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 space-y-12 overflow-visible">
           <div className="text-center max-w-3xl mx-auto space-y-3">
             <span className="text-xs font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
-              END-TO-END AGRO LIFECYCLE
+              {isTamil ? 'முழுமையான சாகுபடி சுழற்சி' : 'END-TO-END AGRO LIFECYCLE'}
             </span>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-text-main">
-              {isTamil ? 'விதைப்பு முதல் அறுவடை வரை: 4-நிலை சாகுபடி நெறிமுறை' : 'From Tillage to Mandi: The 4-Stage Protocol'}
+              {isTamil ? 'விதைப்பு முதல் அறுவடை வரை: 5-நிலை சாகுபடி நெறிமுறை' : 'From Tillage to Mandi: The 5-Phase Protocol'}
             </h2>
             <p className="text-sm sm:text-base text-text-secondary font-normal">
               {isTamil
-                ? 'அதிக மகசூல் மற்றும் குறைந்த செலவுக்கான ஒருங்கிணைந்த விவசாய மேலாண்மை'
-                : 'Every phase calibrated for cost-efficiency, soil health, and maximum market realization.'}
+                ? 'அதிக மகசூல் மற்றும் குறைந்த செலவுக்கான ஒருங்கிணைந்த 5-நிலை விவசாய மேலாண்மை. கீழே உருட்டி ஒவ்வொரு நிலையின் விவரங்களையும் காண்க.'
+                : 'Cards that stack and fade away as you scroll through each calibrated vegetative phase for maximum ROI.'}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Step 1 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="p-6 rounded-3xl glass-panel shadow-xl flex flex-col justify-between hover:border-emerald-500/40 transition-all group"
-            >
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black font-mono text-emerald-600 dark:text-emerald-400 tracking-wider">STAGE 01</span>
-                  <span className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-lg">
-                    🚜
-                  </span>
-                </div>
-                <h3 className="text-lg font-black text-text-main group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                  {isTamil ? 'உழவு & நிலத்தயாரிப்பு' : 'Land Tillage & Soil Baseline'}
-                </h3>
-                <p className="text-xs text-text-secondary leading-relaxed font-normal">
-                  {isTamil
-                    ? 'டிராக்டர் உழவு, சேற்றுழவு மற்றும் இயற்கை எருமிட்டு மண்ணின் வளத்தை மேம்படுத்துதல்.'
-                    : 'Tractor primary plowing, secondary puddling, and baseline organic manure allocation tailored to soil type.'}
-                </p>
-              </div>
-              <div className="pt-6 border-t border-border-subtle text-[11px] font-semibold text-text-muted flex items-center justify-between">
-                <span>Phase 1 Allocation</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-mono font-bold">₹14,500 Avg</span>
-              </div>
-            </motion.div>
-
-            {/* Step 2 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="p-6 rounded-3xl glass-panel shadow-xl flex flex-col justify-between hover:border-purple-500/40 transition-all group"
-            >
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black font-mono text-purple-600 dark:text-purple-400 tracking-wider">STAGE 02</span>
-                  <span className="w-10 h-10 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-lg">
-                    🌱
-                  </span>
-                </div>
-                <h3 className="text-lg font-black text-text-main group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
-                  {isTamil ? 'சான்றளிக்கப்பட்ட விதை தேர்வு' : 'Certified Seed Sowing'}
-                </h3>
-                <p className="text-xs text-text-secondary leading-relaxed font-normal">
-                  {isTamil
-                    ? 'பருவத்திற்கேற்ற உயர் விளைச்சல் ரக விதைகளை தேர்வு செய்து நாற்றங்கால் அமைத்தல்.'
-                    : 'Sowing high-germination certified TNAU seeds with calibrated spacing and nursery care.'}
-                </p>
-              </div>
-              <div className="pt-6 border-t border-border-subtle text-[11px] font-semibold text-text-muted flex items-center justify-between">
-                <span>Phase 2 Allocation</span>
-                <span className="text-purple-600 dark:text-purple-400 font-mono font-bold">₹8,200 Avg</span>
-              </div>
-            </motion.div>
-
-            {/* Step 3 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className="p-6 rounded-3xl glass-panel shadow-xl flex flex-col justify-between hover:border-cyan-500/40 transition-all group"
-            >
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black font-mono text-cyan-600 dark:text-cyan-400 tracking-wider">STAGE 03</span>
-                  <span className="w-10 h-10 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-lg">
-                    💧
-                  </span>
-                </div>
-                <h3 className="text-lg font-black text-text-main group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
-                  {isTamil ? 'துல்லிய உரமிடுதல் & பாசனம்' : 'Fertigation & Dam Inflow Sync'}
-                </h3>
-                <p className="text-xs text-text-secondary leading-relaxed font-normal">
-                  {isTamil
-                    ? 'கதிர் உருவாவதற்கு முன் தேவையான தழை, மணி, சாம்பல் சத்துக்களை நீர்ப்பாசனத்துடன் செலுத்துதல்.'
-                    : 'Scheduled micro-nutrient delivery synchronized with dam canal releases and weather forecasts.'}
-                </p>
-              </div>
-              <div className="pt-6 border-t border-border-subtle text-[11px] font-semibold text-text-muted flex items-center justify-between">
-                <span>Phase 3 Allocation</span>
-                <span className="text-cyan-600 dark:text-cyan-400 font-mono font-bold">₹16,750 Avg</span>
-              </div>
-            </motion.div>
-
-            {/* Step 4 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-              className="p-6 rounded-3xl glass-panel shadow-xl flex flex-col justify-between hover:border-amber-500/40 transition-all group"
-            >
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black font-mono text-amber-600 dark:text-amber-400 tracking-wider">STAGE 04</span>
-                  <span className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-lg">
-                    💰
-                  </span>
-                </div>
-                <h3 className="text-lg font-black text-text-main group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                  {isTamil ? 'இயந்திர அறுவடை & மண்டி விற்பனை' : 'Predictive Harvest & Mandi Sale'}
-                </h3>
-                <p className="text-xs text-text-secondary leading-relaxed font-normal">
-                  {isTamil
-                    ? 'ஒருங்கிணைந்த அறுவடை இயந்திரம் மூலம் மகசூல் எடுத்து அதிகபட்ச விலைக்கு மண்டியில் விற்பனை.'
-                    : 'Combine harvester dispatch at optimum grain moisture to lock in peak market selling prices.'}
-                </p>
-              </div>
-              <div className="pt-6 border-t border-border-subtle text-[11px] font-semibold text-text-muted flex items-center justify-between">
-                <span>Realization Multiplier</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono">+314% ROI</span>
-              </div>
-            </motion.div>
-          </div>
+          <ScrollStack
+            items={cultivationPhases}
+            peek={28}
+            scaleStep={0.05}
+            blur={4}
+            dim={0.25}
+            topOffset={96}
+            isTamil={isTamil}
+          />
         </div>
       </section>
 
@@ -1109,7 +888,7 @@ export default function FarmLandingPage() {
                   href="/weather-mcp"
                   className="keep-white px-6 py-3.5 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-sm backdrop-blur-md border border-white/30 shadow-xl transition-all cursor-pointer flex items-center gap-2"
                 >
-                  <span className="keep-white">{isTamil ? 'வானிலை நிலவரம்' : 'Weather Radar MCP'}</span>
+                  <span className="keep-white">{isTamil ? 'வானிலை' : 'Weather'}</span>
                   <CloudSunIcon size={16} className="keep-white text-white" />
                 </Link>
               </div>
