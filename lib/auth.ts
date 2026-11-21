@@ -1,4 +1,3 @@
-import jwt from 'jsonwebtoken';
 import type { NextRequest } from 'next/server';
 
 export const AUTH_COOKIE_NAME = 'farmhub_token';
@@ -6,7 +5,7 @@ export const LEGACY_AUTH_COOKIE_NAME = 'agripulse_token';
 export const SESSION_MAX_AGE_SECONDS = 24 * 60 * 60; // 24 hours
 
 export const getSecretKey = () => {
-  return (process.env.JWT_SECRET || 'farmhub-super-secret-key-2026');
+  return (process.env.JWT_SECRET || 'farmhub-super-secret-key-2026').trim();
 };
 
 export interface AuthUserPayload {
@@ -20,12 +19,13 @@ export interface AuthUserPayload {
 }
 
 /**
- * Creates a signed JWT token using jsonwebtoken (default 24h expiry)
+ * Creates a signed JWT token using jsonwebtoken (dynamically loaded for Node API runtime only)
  */
 export async function createAuthToken(
   payload: AuthUserPayload,
   expiresIn: string | number = '24h'
 ): Promise<string> {
+  const jwt = await import('jsonwebtoken').then((m) => m.default || m);
   const jti = payload.jti || crypto.randomUUID();
   const loginAt = typeof payload.loginAt === 'number' ? payload.loginAt : Date.now();
   return jwt.sign({ ...payload, jti, loginAt }, getSecretKey(), { expiresIn: expiresIn as any });
@@ -80,8 +80,8 @@ export async function verifyAuthToken(token: string): Promise<AuthUserPayload | 
       typeof payload.loginAt === 'number'
         ? payload.loginAt
         : typeof payload.iat === 'number'
-        ? payload.iat * 1000
-        : null;
+          ? payload.iat * 1000
+          : null;
 
     if (sessionStartMs !== null && Date.now() - sessionStartMs >= SESSION_MAX_AGE_SECONDS * 1000) {
       return null;
