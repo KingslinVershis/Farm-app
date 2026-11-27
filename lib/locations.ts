@@ -115,90 +115,172 @@ export function matchDistrict(districts: LocationItem[], targetDistrict: string)
   return null;
 }
 
+// ─────────────────────────────────────────────────────────────
+// In-Flight Request Deduplication & Memory Caching
+// ─────────────────────────────────────────────────────────────
+let statesCache: LocationItem[] | null = null;
+let statesInFlight: Promise<LocationItem[]> | null = null;
+
+const districtsCache = new Map<string, LocationItem[]>();
+const districtsInFlight = new Map<string, Promise<LocationItem[]>>();
+
+const subdistrictsCache = new Map<string, LocationItem[]>();
+const subdistrictsInFlight = new Map<string, Promise<LocationItem[]>>();
+
+const panchayatsCache = new Map<string, PanchayatItem[]>();
+const panchayatsInFlight = new Map<string, Promise<PanchayatItem[]>>();
+
+const ulbCache = new Map<string, UlbItem[]>();
+const ulbInFlight = new Map<string, Promise<UlbItem[]>>();
+
+const placesCache = new Map<string, PlaceItem[]>();
+const placesInFlight = new Map<string, Promise<PlaceItem[]>>();
+
 /**
- * 1. Fetch States from LGD API dynamically
+ * 1. Fetch States from LGD API dynamically (deduplicated & cached)
  */
 export async function fetchLgdStates(): Promise<LocationItem[]> {
-  try {
-    const res = await fetch('/api/locations?type=lgd-states');
-    if (!res.ok) throw new Error('Failed to fetch states');
-    const json = await res.json();
-    return json.data || [];
-  } catch {
-    return [];
-  }
+  if (statesCache && statesCache.length > 0) return statesCache;
+  if (statesInFlight) return statesInFlight;
+
+  statesInFlight = (async () => {
+    try {
+      const res = await fetch('/api/locations?type=lgd-states');
+      if (!res.ok) throw new Error('Failed to fetch states');
+      const json = await res.json();
+      statesCache = json.data || [];
+      return statesCache!;
+    } catch {
+      return [];
+    } finally {
+      statesInFlight = null;
+    }
+  })();
+
+  return statesInFlight;
 }
 
 /**
- * 2. Fetch Districts for State from LGD API dynamically
+ * 2. Fetch Districts for State from LGD API dynamically (deduplicated & cached)
  */
 export async function fetchLgdDistricts(stateCode: string): Promise<LocationItem[]> {
   if (!stateCode) return [];
-  try {
-    const res = await fetch(`/api/locations?type=lgd-districts&stateCode=${encodeURIComponent(stateCode)}`);
-    if (!res.ok) throw new Error('Failed to fetch districts');
-    const json = await res.json();
-    return json.data || [];
-  } catch {
-    return [];
-  }
+  if (districtsCache.has(stateCode)) return districtsCache.get(stateCode)!;
+  if (districtsInFlight.has(stateCode)) return districtsInFlight.get(stateCode)!;
+
+  const promise = (async () => {
+    try {
+      const res = await fetch(`/api/locations?type=lgd-districts&stateCode=${encodeURIComponent(stateCode)}`);
+      if (!res.ok) throw new Error('Failed to fetch districts');
+      const json = await res.json();
+      const data: LocationItem[] = json.data || [];
+      districtsCache.set(stateCode, data);
+      return data;
+    } catch {
+      return [];
+    } finally {
+      districtsInFlight.delete(stateCode);
+    }
+  })();
+
+  districtsInFlight.set(stateCode, promise);
+  return promise;
 }
 
 /**
- * 3. RURAL PATHWAY: Fetch Subdistricts (Taluks / Blocks) from LGD API dynamically
+ * 3. RURAL PATHWAY: Fetch Subdistricts (Taluks / Blocks) from LGD API dynamically (deduplicated & cached)
  */
 export async function fetchLgdSubdistricts(districtCode: string, districtName?: string): Promise<LocationItem[]> {
   if (!districtCode && !districtName) return [];
-  try {
-    const res = await fetch(
-      `/api/locations?type=lgd-subdistricts&districtCode=${encodeURIComponent(districtCode || '')}&district=${encodeURIComponent(
-        districtName || ''
-      )}`
-    );
-    if (!res.ok) throw new Error('Failed to fetch subdistricts');
-    const json = await res.json();
-    return json.data || [];
-  } catch {
-    return [];
-  }
+  const key = `${districtCode}_${districtName || ''}`;
+  if (subdistrictsCache.has(key)) return subdistrictsCache.get(key)!;
+  if (subdistrictsInFlight.has(key)) return subdistrictsInFlight.get(key)!;
+
+  const promise = (async () => {
+    try {
+      const res = await fetch(
+        `/api/locations?type=lgd-subdistricts&districtCode=${encodeURIComponent(districtCode || '')}&district=${encodeURIComponent(
+          districtName || ''
+        )}`
+      );
+      if (!res.ok) throw new Error('Failed to fetch subdistricts');
+      const json = await res.json();
+      const data: LocationItem[] = json.data || [];
+      subdistrictsCache.set(key, data);
+      return data;
+    } catch {
+      return [];
+    } finally {
+      subdistrictsInFlight.delete(key);
+    }
+  })();
+
+  subdistrictsInFlight.set(key, promise);
+  return promise;
 }
 
 /**
- * 4. RURAL PATHWAY: Fetch Gram Panchayats / Villages dynamically from live Postal API
+ * 4. RURAL PATHWAY: Fetch Gram Panchayats / Villages dynamically from live Postal API (deduplicated & cached)
  */
 export async function fetchLgdPanchayats(talukName: string, districtName: string): Promise<PanchayatItem[]> {
   if (!talukName && !districtName) return [];
-  try {
-    const res = await fetch(
-      `/api/locations?type=lgd-panchayats&taluk=${encodeURIComponent(talukName || '')}&district=${encodeURIComponent(
-        districtName || ''
-      )}`
-    );
-    if (!res.ok) throw new Error('Failed to fetch panchayats');
-    const json = await res.json();
-    return json.data || [];
-  } catch {
-    return [];
-  }
+  const key = `${talukName}_${districtName}`;
+  if (panchayatsCache.has(key)) return panchayatsCache.get(key)!;
+  if (panchayatsInFlight.has(key)) return panchayatsInFlight.get(key)!;
+
+  const promise = (async () => {
+    try {
+      const res = await fetch(
+        `/api/locations?type=lgd-panchayats&taluk=${encodeURIComponent(talukName || '')}&district=${encodeURIComponent(
+          districtName || ''
+        )}`
+      );
+      if (!res.ok) throw new Error('Failed to fetch panchayats');
+      const json = await res.json();
+      const data: PanchayatItem[] = json.data || [];
+      panchayatsCache.set(key, data);
+      return data;
+    } catch {
+      return [];
+    } finally {
+      panchayatsInFlight.delete(key);
+    }
+  })();
+
+  panchayatsInFlight.set(key, promise);
+  return promise;
 }
 
 /**
- * 5. URBAN PATHWAY: Fetch Urban Local Bodies (Corporation, Municipality, Town Panchayat) dynamically
+ * 5. URBAN PATHWAY: Fetch Urban Local Bodies dynamically (deduplicated & cached)
  */
 export async function fetchLgdUlb(stateCode: string, districtName: string, category: string): Promise<UlbItem[]> {
   if (!stateCode) return [];
-  try {
-    const res = await fetch(
-      `/api/locations?type=lgd-ulb&stateCode=${encodeURIComponent(stateCode)}&district=${encodeURIComponent(
-        districtName || ''
-      )}&category=${encodeURIComponent(category || '')}`
-    );
-    if (!res.ok) throw new Error('Failed to fetch ULB');
-    const json = await res.json();
-    return json.data || [];
-  } catch {
-    return [];
-  }
+  const key = `${stateCode}_${districtName}_${category}`;
+  if (ulbCache.has(key)) return ulbCache.get(key)!;
+  if (ulbInFlight.has(key)) return ulbInFlight.get(key)!;
+
+  const promise = (async () => {
+    try {
+      const res = await fetch(
+        `/api/locations?type=lgd-ulb&stateCode=${encodeURIComponent(stateCode)}&district=${encodeURIComponent(
+          districtName || ''
+        )}&category=${encodeURIComponent(category || '')}`
+      );
+      if (!res.ok) throw new Error('Failed to fetch ULB');
+      const json = await res.json();
+      const data: UlbItem[] = json.data || [];
+      ulbCache.set(key, data);
+      return data;
+    } catch {
+      return [];
+    } finally {
+      ulbInFlight.delete(key);
+    }
+  })();
+
+  ulbInFlight.set(key, promise);
+  return promise;
 }
 
 /**
@@ -216,7 +298,7 @@ export async function fetchLgdWards(panchayatOrUlb: string): Promise<string[]> {
 }
 
 /**
- * 7. Fetch All Cities & Villages of the District dynamically
+ * 7. Fetch All Cities & Villages of the District dynamically (deduplicated & cached)
  */
 export async function fetchDistrictPlaces(
   stateCode: string,
@@ -224,18 +306,31 @@ export async function fetchDistrictPlaces(
   districtName: string
 ): Promise<PlaceItem[]> {
   if (!districtName && !districtCode) return [];
-  try {
-    const res = await fetch(
-      `/api/locations?type=places&stateCode=${encodeURIComponent(stateCode || '33')}&districtCode=${encodeURIComponent(
-        districtCode || ''
-      )}&district=${encodeURIComponent(districtName || '')}`
-    );
-    if (!res.ok) throw new Error('Failed to fetch district places');
-    const json = await res.json();
-    return json.data || [];
-  } catch {
-    return [];
-  }
+  const cacheKey = `${stateCode || '33'}_${districtCode || ''}_${districtName || ''}`.toLowerCase();
+  if (placesCache.has(cacheKey)) return placesCache.get(cacheKey)!;
+  if (placesInFlight.has(cacheKey)) return placesInFlight.get(cacheKey)!;
+
+  const inFlight = (async () => {
+    try {
+      const res = await fetch(
+        `/api/locations?type=places&stateCode=${encodeURIComponent(stateCode || '33')}&districtCode=${encodeURIComponent(
+          districtCode || ''
+        )}&district=${encodeURIComponent(districtName || '')}`
+      );
+      if (!res.ok) throw new Error('Failed to fetch district places');
+      const json = await res.json();
+      const data = json.data || [];
+      placesCache.set(cacheKey, data);
+      return data;
+    } catch {
+      return [];
+    } finally {
+      placesInFlight.delete(cacheKey);
+    }
+  })();
+
+  placesInFlight.set(cacheKey, inFlight);
+  return inFlight;
 }
 
 // ─────────────────────────────────────────────────────────────

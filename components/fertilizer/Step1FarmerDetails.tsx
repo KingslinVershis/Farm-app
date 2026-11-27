@@ -450,6 +450,16 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
     const parts = [activePlace, selectedDistrictName, selectedStateName].filter(Boolean);
     const formattedLocation = parts.join(', ');
 
+    // Only update context if location fields actually changed to prevent render loops
+    if (
+      userDetails.state === selectedStateName &&
+      userDetails.district === selectedDistrictName &&
+      (userDetails.village === activePlace || userDetails.city === activePlace) &&
+      userDetails.location === formattedLocation
+    ) {
+      return;
+    }
+
     setUserDetails({
       ...userDetails,
       country: 'India',
@@ -494,7 +504,7 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* 1. Farmer Name */}
           <div>
-            <div className="h-6 flex items-center mb-1.5">
+            <div className="min-h-[24px] flex items-center mb-1.5">
               <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondary">
                 {t.step1.nameLabel} <span className="text-rose-400">*</span>
               </label>
@@ -512,7 +522,7 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
 
           {/* 2. Mobile Phone Number */}
           <div>
-            <div className="h-6 flex items-center mb-1.5">
+            <div className="min-h-[24px] flex items-center mb-1.5">
               <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondary">
                 {t.step1.phoneLabel} <span className="text-rose-400">*</span>
               </label>
@@ -531,11 +541,11 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
 
           {/* 3. Land Cultivation Size (in Cents) */}
           <div>
-            <div className="h-6 flex items-center justify-between mb-1.5">
+            <div className="min-h-[24px] flex flex-wrap items-center justify-between gap-1 mb-1.5">
               <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondary">
                 {t.step1.landSizeLabel} <span className="text-rose-400">*</span>
               </label>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 shrink-0">
                 {[50, 100, 250, 500].map((preset) => (
                   <button
                     key={preset}
@@ -754,7 +764,7 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
                   setStateSearchText('');
                   setStateSearching(false);
                 }}
-                onDropdownVisibleChange={(open) => {
+                onOpenChange={(open) => {
                   if (!open) {
                     setStateSearchText('');
                     setStateSearching(false);
@@ -807,7 +817,7 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
                   setDistrictSearchText('');
                   setDistrictSearching(false);
                 }}
-                onDropdownVisibleChange={(open) => {
+                onOpenChange={(open) => {
                   if (!open) {
                     setDistrictSearchText('');
                     setDistrictSearching(false);
@@ -901,7 +911,7 @@ export const Step1FarmerDetails: React.FC<Step1FarmerDetailsProps> = ({
                     setPlaceSearchText('');
                     setPlaceSearching(false);
                   }}
-                  onDropdownVisibleChange={(open) => {
+                  onOpenChange={(open) => {
                     if (!open) {
                       setPlaceSearchText('');
                       setPlaceSearching(false);

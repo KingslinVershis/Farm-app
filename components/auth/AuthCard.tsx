@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion, type Variants } from 'framer-motion';
 import { ArrowRight, Eye, EyeOff, Lock, Mail, User } from '@/components/icons/FlaticonIcons';
-import { message } from 'antd';
+import { App } from 'antd';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { OtpVerificationModal } from '@/components/auth/OtpVerificationModal';
+import { LoginVideoLoader } from '@/components/auth/LoginVideoLoader';
 import type { CodeSlotsStatus } from '@/components/auth/CodeSlots';
 
 const CAROUSEL_SLIDES = [
@@ -65,6 +66,7 @@ interface AuthCardProps {
 }
 
 export function AuthCard({ initialMode }: AuthCardProps) {
+  const { message } = App.useApp();
   const router = useRouter();
   const { messages, locale } = useLanguage();
   const t = (messages as any).auth || {};
@@ -80,6 +82,7 @@ export function AuthCard({ initialMode }: AuthCardProps) {
   const [rememberMe, setRememberMe] = useState(true);
   const [signInLoading, setSignInLoading] = useState(false);
   const [signInError, setSignInError] = useState('');
+  const [showLoginLoader, setShowLoginLoader] = useState(false);
 
   // Sign Up states
   const [fullName, setFullName] = useState('');
@@ -148,25 +151,23 @@ export function AuthCard({ initialMode }: AuthCardProps) {
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!signInEmail.trim()) {
-      setSignInError(
-        locale === 'ta'
-          ? 'மின்னஞ்சல் அல்லது கைபேசி எண்ணை உள்ளிடவும்'
-          : 'Please enter your email or mobile number'
-      );
+      setSignInError(t.enterEmailOrPhone || 'Please enter your email or mobile number');
       return;
     }
     if (!signInPassword) {
-      setSignInError(
-        locale === 'ta'
-          ? 'கடவுச்சொல்லை உள்ளிடவும்'
-          : 'Please enter your password'
-      );
+      setSignInError(t.enterPassword || 'Please enter your password');
       return;
     }
+
+    const startTime = Date.now();
+    const LOADER_DURATION_MS = 3500; // Display loader for 3.5 seconds (within 3 to 5 seconds)
 
     try {
       setSignInLoading(true);
       setSignInError('');
+      // Show full-screen video loader immediately on click
+      setShowLoginLoader(true);
+
       const res = await fetch('/api/signin', {
         method: 'POST',
         headers: {
@@ -181,16 +182,21 @@ export function AuthCard({ initialMode }: AuthCardProps) {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        setSignInError(
-          data?.message ||
-            (locale === 'ta'
-              ? 'உள்நுழைவு தோல்வியடைந்தது'
-              : 'Invalid email or password')
-        );
-        setSignInLoading(false);
+        // API failed: display loader for 3 to 5 seconds before showing error on login page
+        const elapsed = Date.now() - startTime;
+        const remaining = Math.max(0, LOADER_DURATION_MS - elapsed);
+
+        setTimeout(() => {
+          setShowLoginLoader(false);
+          setSignInLoading(false);
+          setSignInError(
+            data?.message || t.invalidEmailOrPassword || 'Invalid email or password'
+          );
+        }, remaining);
         return;
       }
 
+      // API success: save session and redirect to destination/home page after 3.5-second loader
       if (data?.token && typeof window !== 'undefined') {
         document.cookie = `farmhub_token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
         document.cookie = `agripulse_token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
@@ -200,18 +206,25 @@ export function AuthCard({ initialMode }: AuthCardProps) {
         }
       }
 
-      setSignInLoading(false);
-      const params = new URLSearchParams(window.location.search);
-      const redirectUrl = params.get('redirect') || '/';
-      window.location.href = redirectUrl;
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, LOADER_DURATION_MS - elapsed);
+
+      setTimeout(() => {
+        setSignInLoading(false);
+        const params = new URLSearchParams(window.location.search);
+        const redirectUrl = params.get('redirect') || '/';
+        window.location.href = redirectUrl;
+      }, remaining);
     } catch (err: any) {
-      setSignInLoading(false);
-      setSignInError(
-        locale === 'ta'
-          ? 'சேவையக பிழை ஏற்பட்டது'
-          : 'Server authentication error'
-      );
-      console.error('Auth signin error:', err);
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, LOADER_DURATION_MS - elapsed);
+
+      setTimeout(() => {
+        setShowLoginLoader(false);
+        setSignInLoading(false);
+        setSignInError(t.serverAuthError || 'Server authentication error');
+        console.error('Auth signin error:', err);
+      }, remaining);
     }
   };
 
@@ -219,44 +232,24 @@ export function AuthCard({ initialMode }: AuthCardProps) {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim()) {
-      setSignUpError(
-        locale === 'ta'
-          ? 'முழு பெயரை உள்ளிடவும்'
-          : 'Please enter your full name'
-      );
+      setSignUpError(t.enterFullName || 'Please enter your full name');
       return;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!signUpEmail.trim() || !emailRegex.test(signUpEmail.trim())) {
-      setSignUpError(
-        locale === 'ta'
-          ? 'செல்லுபடியாகும் மின்னஞ்சல் முகவரியை உள்ளிடவும்'
-          : 'Please enter a valid email address'
-      );
+      setSignUpError(t.enterValidEmail || 'Please enter a valid email address');
       return;
     }
     if (!signUpPassword || signUpPassword.length < 6) {
-      setSignUpError(
-        locale === 'ta'
-          ? 'கடவுச்சொல் குறைந்தபட்சம் 6 எழுத்துகள் இருக்க வேண்டும்'
-          : 'Password must be at least 6 characters'
-      );
+      setSignUpError(t.passwordMinLength || 'Password must be at least 6 characters');
       return;
     }
     if (signUpPassword !== confirmPassword) {
-      setSignUpError(
-        locale === 'ta'
-          ? 'கடவுச்சொற்கள் பொருந்தவில்லை'
-          : 'Passwords do not match'
-      );
+      setSignUpError(t.passwordsDoNotMatch || 'Passwords do not match');
       return;
     }
     if (!agreeTerms) {
-      setSignUpError(
-        locale === 'ta'
-          ? 'விதிமுறைகளை ஏற்கவும்'
-          : 'Please agree to terms and privacy policy'
-      );
+      setSignUpError(t.agreeTermsRequired || 'Please agree to terms and privacy policy');
       return;
     }
 
@@ -278,10 +271,7 @@ export function AuthCard({ initialMode }: AuthCardProps) {
       const data = await res.json().catch(() => null);
       if (!res.ok) {
         setSignUpError(
-          data?.error ||
-            (locale === 'ta'
-              ? 'பதிவு செய்வதில் பிழை ஏற்பட்டது'
-              : 'Failed to create account')
+          data?.error || t.createAccountFailed || 'Failed to create account'
         );
         setSignUpLoading(false);
         return;
@@ -295,30 +285,18 @@ export function AuthCard({ initialMode }: AuthCardProps) {
         setSignUpOtpSeconds(data.expiresInSeconds || 300);
         setSignUpOtpPreviewUrl(data.previewUrl || null);
         setSignUpOtpOpen(true);
-        message.success(
-          locale === 'ta'
-            ? '6 இலக்க சரிபார்ப்பு குறியீடு உங்கள் மின்னஞ்சலுக்கு அனுப்பப்பட்டது!'
-            : '6-digit verification code sent to your email!'
-        );
+        message.success(t.otpSentToEmail || '6-digit verification code sent to your email!');
         return;
       }
 
       // Fallback direct creation
       setSignInEmail(signUpEmail.trim().toLowerCase());
-      setSignUpSuccessMsg(
-        locale === 'ta'
-          ? 'கணக்கு வெற்றிகரமாக உருவாக்கப்பட்டது! இப்போது உள்நுழையவும்.'
-          : 'Account created successfully! Please sign in.'
-      );
+      setSignUpSuccessMsg(t.accountCreatedSuccess || 'Account created successfully! Please sign in.');
       switchMode('signin');
     } catch (err: any) {
       console.error('ERROR', err);
       setSignUpLoading(false);
-      setSignUpError(
-        locale === 'ta'
-          ? 'சேவையக பிழை ஏற்பட்டது'
-          : 'Server error during sign up'
-      );
+      setSignUpError(t.serverSignUpError || 'Server error during sign up');
     }
   };
 
@@ -342,11 +320,7 @@ export function AuthCard({ initialMode }: AuthCardProps) {
       }
       setSignUpOtpSeconds(data.expiresInSeconds || 300);
       setSignUpOtpPreviewUrl(data.previewUrl || null);
-      message.success(
-        locale === 'ta'
-          ? 'புதிய 6 இலக்க குறியீடு அனுப்பப்பட்டது!'
-          : 'A new 6-digit verification code was sent!'
-      );
+      message.success(t.newOtpSent || 'A new 6-digit verification code was sent!');
     } catch {
       setSignUpOtpError('Server error while resending code.');
     } finally {
@@ -372,27 +346,18 @@ export function AuthCard({ initialMode }: AuthCardProps) {
       if (!res.ok || !data?.success) {
         setSignUpOtpStatus('error');
         setSignUpOtpError(
-          data?.error ||
-            (locale === 'ta' ? 'தவறான சரிபார்ப்பு குறியீடு.' : 'Invalid verification code.')
+          data?.error || t.otpModal.invalidCode
         );
         return;
       }
 
       setSignUpOtpStatus('success');
-      message.success(
-        locale === 'ta'
-          ? 'மின்னஞ்சல் சரிபார்க்கப்பட்டது! கணக்கு உருவாக்கப்பட்டது.'
-          : 'Email verified & account created successfully!'
-      );
+      message.success(t.otpModal.emailVerifiedSuccess);
 
       setTimeout(() => {
         setSignUpOtpOpen(false);
         setSignInEmail(signUpEmail.trim().toLowerCase());
-        setSignUpSuccessMsg(
-          locale === 'ta'
-            ? 'கணக்கு வெற்றிகரமாக உருவாக்கப்பட்டது! இப்போது உள்நுழையவும்.'
-            : 'Account verified & created successfully! Please sign in.'
-        );
+        setSignUpSuccessMsg(t.accountVerifiedSuccess || 'Account verified & created successfully! Please sign in.');
         switchMode('signin');
       }, 650);
     } catch {
@@ -423,9 +388,8 @@ export function AuthCard({ initialMode }: AuthCardProps) {
           transition={{
             layout: { duration: 1.25, ease: [0.65, 0, 0.35, 1] },
           }}
-          className={`w-full lg:w-1/2 relative rounded-2xl sm:rounded-[24px] overflow-hidden min-h-[340px] sm:min-h-[440px] lg:min-h-[540px] flex flex-col justify-end p-6 sm:p-8 bg-slate-950 text-white shadow-inner ${
-            mode === 'signup' ? 'lg:order-2' : 'lg:order-1'
-          }`}
+          className={`w-full lg:w-1/2 relative rounded-2xl sm:rounded-[24px] overflow-hidden min-h-[340px] sm:min-h-[440px] lg:min-h-[540px] flex flex-col justify-end p-6 sm:p-8 bg-slate-950 text-white shadow-inner ${mode === 'signup' ? 'lg:order-2' : 'lg:order-1'
+            }`}
         >
           {/* Background Video */}
           <video
@@ -435,7 +399,7 @@ export function AuthCard({ initialMode }: AuthCardProps) {
             playsInline
             className="absolute inset-0 w-full h-full object-cover scale-105"
           >
-            <source src="/videos/login.mp4" type="video/mp4" />
+            <source src="https://res.cloudinary.com/chk0va7a/video/upload/v1795760497/login.mp4" type="video/mp4" />
           </video>
 
           {/* Gradients for readability */}
@@ -457,15 +421,11 @@ export function AuthCard({ initialMode }: AuthCardProps) {
                     className="keep-white text-xl sm:text-2xl lg:text-3xl font-black leading-tight font-display tracking-tight"
                     style={{ color: '#ffffff' }}
                   >
-                    {locale === 'ta'
-                      ? CAROUSEL_SLIDES[activeSlide].titleTa
-                      : CAROUSEL_SLIDES[activeSlide].titleEn}
+                    {messages.auth.carouselSlides[activeSlide]?.title}
                   </h3>
 
                   <p className="text-xs sm:text-sm text-white/75 font-medium leading-relaxed mt-2 line-clamp-3">
-                    {locale === 'ta'
-                      ? CAROUSEL_SLIDES[activeSlide].descTa
-                      : CAROUSEL_SLIDES[activeSlide].descEn}
+                    {messages.auth.carouselSlides[activeSlide]?.desc}
                   </p>
                 </motion.div>
               </AnimatePresence>
@@ -478,11 +438,10 @@ export function AuthCard({ initialMode }: AuthCardProps) {
                   key={idx}
                   type="button"
                   onClick={() => setActiveSlide(idx)}
-                  className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
-                    activeSlide === idx
-                      ? 'w-8 bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.7)]'
-                      : 'w-3.5 bg-white/35 hover:bg-white/60'
-                  }`}
+                  className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${activeSlide === idx
+                    ? 'w-8 bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.7)]'
+                    : 'w-3.5 bg-white/35 hover:bg-white/60'
+                    }`}
                   aria-label={`Go to slide ${idx + 1}`}
                 />
               ))}
@@ -496,9 +455,8 @@ export function AuthCard({ initialMode }: AuthCardProps) {
           transition={{
             layout: { duration: 1.25, ease: [0.65, 0, 0.35, 1] },
           }}
-          className={`w-full lg:w-1/2 flex flex-col justify-center px-4 sm:px-6 lg:px-8 py-5 sm:py-8 overflow-hidden ${
-            mode === 'signup' ? 'lg:order-1' : 'lg:order-2'
-          }`}
+          className={`w-full lg:w-1/2 flex flex-col justify-center px-4 sm:px-6 lg:px-8 py-5 sm:py-8 overflow-hidden ${mode === 'signup' ? 'lg:order-1' : 'lg:order-2'
+            }`}
         >
           <AnimatePresence mode="wait" custom={direction} initial={false}>
             {mode === 'signin' ? (
@@ -846,9 +804,7 @@ export function AuthCard({ initialMode }: AuthCardProps) {
                       className="text-xs text-slate-600 dark:text-white/70 leading-relaxed cursor-pointer select-none"
                     >
                       <span>
-                        {locale === 'ta'
-                          ? 'விவசாய சேவை விதிமுறைகள் மற்றும் கொள்கைகளை ஏற்கிறேன்.'
-                          : 'I agree to the Terms of Service & Privacy Policy.'}
+                        {t.agreeTermsCheckbox || 'I agree to the Terms of Service & Privacy Policy.'}
                       </span>
                     </label>
                   </div>
@@ -882,13 +838,9 @@ export function AuthCard({ initialMode }: AuthCardProps) {
       <OtpVerificationModal
         open={signUpOtpOpen}
         email={signUpEmail.trim().toLowerCase()}
-        title={locale === 'ta' ? 'மின்னஞ்சலை சரிபார்க்கவும்' : 'Verify Your Email'}
-        subtitle={
-          locale === 'ta'
-            ? 'உங்கள் கணக்கை உருவாக்க, உங்கள் மின்னஞ்சலுக்கு அனுப்பப்பட்ட 6 இலக்க குறியீட்டை உள்ளிடவும்.'
-            : 'Enter the 6-digit verification code sent to your email address to activate your account.'
-        }
-        confirmLabel={locale === 'ta' ? 'சரிபார்த்து கணக்கை உருவாக்கு' : 'Verify & Create Account'}
+        title={t.otpModal.verifyEmailTitle}
+        subtitle={t.otpModal.verifyEmailSubtitle}
+        confirmLabel={t.otpModal.verifyAndCreateAccount}
         loading={signUpOtpLoading}
         resending={signUpOtpResending}
         errorMsg={signUpOtpError}
@@ -903,6 +855,11 @@ export function AuthCard({ initialMode }: AuthCardProps) {
         }}
         isTamil={locale === 'ta'}
         previewUrl={signUpOtpPreviewUrl}
+      />
+
+      <LoginVideoLoader
+        open={showLoginLoader}
+        locale={locale}
       />
     </motion.div>
   );

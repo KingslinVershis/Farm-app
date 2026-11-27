@@ -27,8 +27,8 @@ export const StepNavigation: React.FC<StepNavigationProps> = ({
   onOpenRecords,
   savedPlansCount,
 }) => {
-  const { locale } = useLanguage();
-  const isTamil = locale === 'ta';
+  const { messages } = useLanguage();
+  const t = messages.fertilizer.step3;
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3.5 mb-6">
       {stepsList.map((item) => {
@@ -41,7 +41,10 @@ export const StepNavigation: React.FC<StepNavigationProps> = ({
             id={`step-tab-${item.num}`}
             type="button"
             aria-disabled={isLocked}
-            onClick={() => onSelectStep(item.num)}
+            onClick={() => {
+              if (isLocked) return;
+              onSelectStep(item.num);
+            }}
             className={`flex flex-col text-left p-3 sm:p-4 rounded-xl glass-card transition-all duration-200 ${
               isLocked
                 ? 'opacity-80 cursor-not-allowed border-border-subtle'
@@ -100,18 +103,18 @@ export const StepNavigation: React.FC<StepNavigationProps> = ({
         >
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-text-secondary group-hover:text-emerald-500 dark:group-hover:text-emerald-400 transition-colors">
-              {isTamil ? 'பதிவுகள்' : 'Portfolio'}
+              {t.portfolio}
             </span>
             <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 dark:bg-emerald-500/20 px-2 py-0.5 text-[9px] font-extrabold text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
-              {savedPlansCount !== undefined ? `${savedPlansCount} ${isTamil ? 'திட்டங்கள்' : 'Plans'}` : 'Records'}
+              {savedPlansCount !== undefined ? `${savedPlansCount} ${t.plansSuffix}` : t.recordsSuffix}
             </span>
           </div>
           <div className="text-xs sm:text-sm font-bold text-text-main line-clamp-1 flex items-center gap-1.5 group-hover:text-emerald-600 dark:group-hover:text-emerald-300 transition-colors">
             <span>📋</span>
-            <span>{isTamil ? 'அனைத்து பதிவுகள்' : 'All Records'}</span>
+            <span>{t.allRecords}</span>
           </div>
           <div className="text-[11px] text-text-secondary line-clamp-1 mt-0.5">
-            {isTamil ? 'சேமிக்கப்பட்ட திட்டங்களைக் காண்க' : 'View saved cultivation plans'}
+            {t.viewSavedPlansTooltip}
           </div>
         </button>
       )}

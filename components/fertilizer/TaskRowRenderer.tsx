@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Switch, Input, Tooltip, message } from 'antd';
+import { Switch, Input, Tooltip, App } from 'antd';
 import type { ExpenseEntry, ExpenseTask, PhaseGroup, UserDetails } from '@/lib/fertilizer/types';
 import {
   formatCurrency as fmt,
@@ -106,8 +106,8 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
   handleToggleNotify,
   maxDaysOverride,
 }) => {
-  const { messages, locale } = useLanguage();
-  const isTamil = locale === 'ta';
+  const { message } = App.useApp();
+  const { messages } = useLanguage();
   const t = messages.fertilizer;
   const isSkipped = entry.isEnabled === false;
 
@@ -182,7 +182,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
 
   // Title with Nursery Bed removed as requested: always Seed Cost & Travel Cost
   const taskDisplayName = task.id === 'p1_nursery'
-    ? (t.step3.seedCostAndTravelCostTitle || (isTamil ? '2. விதை செலவு & பயணச் செலவு' : '2. Seed Cost & Travel Cost'))
+    ? t.step3.seedCostAndTravelCostTitle
     : meta.name.replace(/Nursery\s*Bed\s*&?\s*/gi, '');
 
   return (
@@ -254,7 +254,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
           )}
           {task.id === 'p1_fuel' && (
             <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold border border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-300 shadow-xs">
-              <span>{isTamil ? 'பழுது செலவு' : 'Repair Cost'}:</span>
+              <span>{t.step3.repairCost}:</span>
               <Switch
                 size="small"
                 checked={entry.hasRepairCost === true}
@@ -288,7 +288,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
           )}
           {task.id === 'p3_herbicide' && (
             <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold border border-purple-300 bg-purple-100 text-purple-800 dark:border-purple-500/40 dark:bg-purple-500/15 dark:text-purple-300 shadow-xs">
-              <span>🔔 {isTamil ? 'களைக்கொல்லி அறிவிப்பு' : 'Herbicide Alert'}:</span>
+              <span>🔔 {t.step3.herbicideAlert}:</span>
               <Switch
                 size="small"
                 checked={entry.herbicideNotify !== false}
@@ -300,7 +300,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
           )}
           {(task.id === 'p1_fert' || task.id === 'p2_tillering') && (
             <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold border border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-300 shadow-xs">
-              <span>🔔 {isTamil ? 'பூச்சிக்கொல்லி அறிவிப்பு' : 'Pesticide Alert'}:</span>
+              <span>🔔 {t.step3.pesticideAlert}:</span>
               <Switch
                 size="small"
                 checked={entry.pesticideNotify !== false}
@@ -312,7 +312,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
           )}
           {(task.id === 'p3_fert_dose3' || task.id === 'p3_potash_sulphide') && (
             <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold border border-teal-300 bg-teal-100 text-teal-800 dark:border-teal-500/40 dark:bg-teal-500/15 dark:text-teal-300 shadow-xs">
-              <span>🔔 {isTamil ? 'உர அறிவிப்பு' : 'Fertilizer Alert'}:</span>
+              <span>🔔 {t.step3.fertilizerAlert}:</span>
               <Switch
                 size="small"
                 checked={entry.fertilizerNotify !== false}
@@ -333,11 +333,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
         {isPesticideDose && (
           <div className={`mb-1.5 ${isSkipped ? 'pointer-events-none opacity-50' : ''}`}>
             <Tooltip
-              title={
-                isTamil
-                  ? 'ஒரு தெளிப்பான் கேனுக்கான பூச்சிக்கொல்லி மருந்து அளவு (50மி.லி – 100மி.லி)'
-                  : 'Pesticide dosage per spray can (50ml – 100ml)'
-              }
+              title={t.step3.canPesticideDosageTooltip}
               placement="top"
             >
               <div className="flex items-center gap-1 flex-wrap cursor-help">
@@ -378,38 +374,20 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               value={activeDay}
               min={1}
               max={stepperMax}
-              dayLabel={isTamil ? 'நாள்' : 'Day'}
-              maxLabel={
-                isTamil
-                  ? `(${filledMultiDays.length}/${totalDynamicDays} ${totalDynamicDays === 1 ? 'நாள்' : 'நாட்கள்'})`
-                  : `(${filledMultiDays.length}/${totalDynamicDays} ${totalDynamicDays === 1 ? 'day' : 'days'})`
-              }
+              dayLabel={t.step3.dayLabel}
+              maxLabel={`(${filledMultiDays.length}/${totalDynamicDays} ${totalDynamicDays === 1 ? t.step3.dayLabel : messages.common.days})`}
               disableNext={!isCurrentDayMandatoryFilled}
-              nextDisabledReason={
-                isTamil
-                  ? `அடுத்த நாளுக்குச் செல்ல நாள் ${activeDay}-ன் கட்டாய விவரங்களை நிரப்பவும்`
-                  : `Fill required fields for Day ${activeDay} to unlock Day ${activeDay + 1}`
-              }
+              nextDisabledReason={t.step3.fillDayRequiredPrompt.replace('{day}', String(activeDay)).replace('{nextDay}', String(activeDay + 1))}
               onNextBlocked={() => {
-                let msg = isTamil
-                  ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான ஆட்கள் எண்ணிக்கை மற்றும் கூலியை நிரப்பவும்.`
-                  : `Please fill Labour Count and Wage for Day ${activeDay} before moving to the next day.`;
+                let msg = t.step3.fillDayPrompt.replace('{day}', String(activeDay));
                 if (task.id === 'p4_harvest') {
-                  msg = isTamil
-                    ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான இயந்திர அறுவடை செலவை நிரப்பவும்.`
-                    : `Please fill Machine Harvest Cost for Day ${activeDay} before moving to the next day.`;
+                  msg = t.step3.fillMachineHarvestPrompt.replace('{day}', String(activeDay));
                 } else if (task.isGunnyBags) {
-                  msg = isTamil
-                    ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான சாக்கு எண்ணிக்கை மற்றும் விலையை நிரப்பவும்.`
-                    : `Please fill Gunny Bag Count and Price for Day ${activeDay} before moving to the next day.`;
+                  msg = t.step3.fillGunnyBagsPrompt.replace('{day}', String(activeDay));
                 } else if (task.id === 'p4_sack_stitcher') {
-                  msg = isTamil
-                    ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான தையல் சாக்கு எண்ணிக்கை மற்றும் ஒரு சாக்கு கூலியை நிரப்பவும்.`
-                    : `Please fill Stitched Bag Count and Cost per Bag for Day ${activeDay} before moving to the next day.`;
+                  msg = t.step3.fillSackStitcherPrompt.replace('{day}', String(activeDay));
                 } else if (task.isTransportLoading) {
-                  msg = isTamil
-                    ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான சாக்கு எண்ணிக்கை மற்றும் ஒரு சாக்கு ஏற்றுக் கூலியை நிரப்பவும்.`
-                    : `Please fill Bag Count and Per Bag Lifting Cost for Day ${activeDay} before moving to the next day.`;
+                  msg = t.step3.fillTransportLoadingPrompt.replace('{day}', String(activeDay));
                 }
                 message.warning(msg);
               }}
@@ -444,49 +422,43 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
             );
 
             const qtyTooltipContent = isPesticideDose
-              ? (isTamil
-                  ? `ஒரு கேனுக்கு ${activePesticideMl} மி.லி பூச்சிக்கொல்லி அளவு`
-                  : `${activePesticideMl} ml pesticide dose per can`)
+              ? t.step3.pesticideDosePerCanHint.replace('{ml}', String(activePesticideMl))
               : isBagCountDose
                 ? (
                   <div className="space-y-1 text-[11px]">
                     <div className="space-y-0.5">
                       <div>
-                        {isTamil
-                          ? `குறைந்தபட்சம்: ${bagRange.minBags} மூட்டை`
-                          : `Minimum: ${bagRange.minBags} bags`}
+                        {t.step3.minBagsLabel.replace('{count}', String(bagRange.minBags))}
                       </div>
                       <div>
-                        {isTamil
-                          ? `அதிகபட்சம்: ${bagRange.maxBags} மூட்டை`
-                          : `Maximum: ${bagRange.maxBags} bags`}
+                        {t.step3.maxBagsLabel.replace('{count}', String(bagRange.maxBags))}
                       </div>
                     </div>
                     <div className="border-t border-white/15 pt-1 space-y-0.5">
                       <div className="font-bold text-emerald-300">
-                        {isTamil ? `பரிந்துரை அளவு (${cents} சென்ட்):` : `Suggested Mix (${cents} cents):`}
+                        {t.step3.suggestedMixTitle.replace('{cents}', String(cents))}
                       </div>
-                      <div>{isTamil ? `யூரியா: ${fertMix.ureaKg} கிலோ` : `Urea: ${fertMix.ureaKg} kg`}</div>
-                      <div>{isTamil ? `காம்ப்ளக்ஸ்: ${fertMix.complexKg} கிலோ` : `Complex: ${fertMix.complexKg} kg`}</div>
-                      <div>{isTamil ? `பொட்டாஷ்: ${fertMix.potashKg} கிலோ` : `Potash: ${fertMix.potashKg} kg`}</div>
-                      <div>{isTamil ? `டி.ஏ.பி (DAP): ${fertMix.dapKg} கிலோ` : `DAP: ${fertMix.dapKg} kg`}</div>
-                      <div>{isTamil ? `வேப்பம் தூள்: ${fertMix.vembuPowderKg} கிலோ` : `Vembu Powder: ${fertMix.vembuPowderKg} kg`}</div>
+                      <div>{t.step3.ureaKgLabel.replace('{kg}', String(fertMix.ureaKg))}</div>
+                      <div>{t.step3.complexKgLabel.replace('{kg}', String(fertMix.complexKg))}</div>
+                      <div>{t.step3.potashKgLabel.replace('{kg}', String(fertMix.potashKg))}</div>
+                      <div>{t.step3.dapKgLabel.replace('{kg}', String(fertMix.dapKg))}</div>
+                      <div>{t.step3.vembuPowderKgLabel.replace('{kg}', String(fertMix.vembuPowderKg))}</div>
                     </div>
                   </div>
                 )
                 : isPotashSulphide
                   ? (
                     <div className="space-y-0.5 text-[11px]">
-                      <div>{isTamil ? `பொட்டாஷ்: ${splitHalfQty} கிலோ` : `Potash: ${splitHalfQty} kg`}</div>
-                      <div>{isTamil ? `சல்பைட்: ${splitHalfQty} கிலோ` : `Sulphide: ${splitHalfQty} kg`}</div>
+                      <div>{t.step3.potashKgLabel.replace('{kg}', String(splitHalfQty))}</div>
+                      <div>{t.step3.sulphideKgLabel.replace('{kg}', String(splitHalfQty))}</div>
                     </div>
                   )
                   : null;
 
             const qtyLabelText = isPesticideDose
-              ? (t.step3.tableHeaders.pesticideQty || (isTamil ? 'பூச்சிக்கொல்லி அளவு (லி)' : 'Pesticide Qty (L)'))
+              ? t.step3.tableHeaders.pesticideQty
               : isBagCountDose
-                ? (t.step3.tableHeaders.fertilizerBagCount || (isTamil ? 'மூட்டை எண்ணிக்கை' : 'Bag Count'))
+                ? t.step3.tableHeaders.fertilizerBagCount
                 : (t.step3.tableHeaders.fertQty || 'Fert Qty');
 
             return (
@@ -531,11 +503,11 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                     suffix={
                       isPesticideDose ? (
                         <span className="text-[10px] font-bold text-text-secondary">
-                          {isTamil ? 'லி' : 'L'}
+                          {t.step3.litreUnit}
                         </span>
                       ) : isBagCountDose ? (
                         <span className="text-[10px] font-bold text-text-secondary">
-                          {isTamil ? 'மூட்டை' : 'bags'}
+                          {t.step3.bagsUnit}
                         </span>
                       ) : undefined
                     }
@@ -740,7 +712,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
           /* Day-Wise Machine Harvesting Cost */
           <div className="relative max-w-[170px]">
             <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-              {isTamil ? `நாள் ${activeDay} இயந்திர வாடகை` : `Day ${activeDay} Machine Cost`}
+              {t.step3.dayMachineCost.replace('{day}', String(activeDay))}
               {requiredMark}
             </label>
             <Input
@@ -827,7 +799,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
           <div className="grid grid-cols-2 gap-2 max-w-sm">
             <div>
               <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                {t.step3.tableHeaders.transportBagCount || (isTamil ? 'சாக்கு எண்ணிக்கை' : 'Bag Count')}
+                {t.step3.tableHeaders.transportBagCount}
                 {requiredMark}
               </label>
               <Input
@@ -854,7 +826,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
             </div>
             <div>
               <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                {t.step3.tableHeaders.perBagLiftingCost || (isTamil ? 'ஒரு சாக்கு ஏற்றுக் கூலி (₹)' : 'Per Bag Lifting Cost (₹)')}
+                {t.step3.tableHeaders.perBagLiftingCost}
                 {requiredMark}
               </label>
               <Input
@@ -911,7 +883,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                   {
                     key: 'labourCount',
                     label: task.id === 'p4_sack_stitcher'
-                      ? (t.step3.tableHeaders.stitchedBagCount || (isTamil ? 'தையல் சாக்கு எண்ணிக்கை' : 'Stitched Bag Count'))
+                      ? t.step3.tableHeaders.stitchedBagCount
                       : t.step3.tableHeaders.labourCount,
                     val: currentDayEntry.labourCount,
                     required: true,
@@ -919,7 +891,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                   {
                     key: 'labourWage',
                     label: task.id === 'p4_sack_stitcher'
-                      ? (t.step3.tableHeaders.stitchingCostPerBag || (isTamil ? 'ஒரு சாக்கு தையல் கூலி (₹)' : 'Cost of per bag (₹)'))
+                      ? t.step3.tableHeaders.stitchingCostPerBag
                       : t.step3.tableHeaders.labourWage,
                     val: currentDayEntry.labourWage,
                     required: true,
@@ -1074,126 +1046,152 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
           </div>
         ) : task.isGrainYield ? (
           /* Grain Yield: Split into 2 fields per row (2x2 grid) for clean alignment */
-          <div className="grid grid-cols-2 gap-2 max-w-xs">
-            <div>
-              <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                {t.step3.tableHeaders.yieldKg || 'Total Yield (KG)'}
-                {requiredMark}
-              </label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={
-                  entry.yieldKg !== undefined && entry.yieldKg !== 0
-                    ? entry.yieldKg
-                    : (entry.yieldTons ? entry.yieldTons * 1000 : '')
-                }
-                onChange={(e) => {
-                  const kg = parseFloat(e.target.value) || 0;
-                  handleGrainYieldChange(task.id, {
-                    yieldKg: kg,
-                    bagWeightKg: entry.bagWeightKg ?? 0,
-                    bagPrice: entry.grainBagPrice ?? 0,
-                  });
-                }}
-                className="w-full rounded-lg text-xs font-bold text-emerald-400"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                {t.step3.tableHeaders.bagWeightKg || 'Bag Weight (KG)'}
-                {requiredMark}
-              </label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={entry.bagWeightKg !== undefined && entry.bagWeightKg !== 0 ? entry.bagWeightKg : ''}
-                onChange={(e) => {
-                  const bw = parseFloat(e.target.value) || 0;
-                  handleGrainYieldChange(task.id, {
-                    yieldKg: entry.yieldKg ?? ((entry.yieldTons ?? 0) * 1000),
-                    bagWeightKg: bw,
-                    bagPrice: entry.grainBagPrice ?? 0,
-                  });
-                }}
-                className="w-full rounded-lg text-xs font-bold text-text-main"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                {t.step3.tableHeaders.grainPrice || 'Price / Bag (₹)'}
-                {requiredMark}
-              </label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={entry.grainBagPrice !== undefined && entry.grainBagPrice !== 0 ? entry.grainBagPrice : ''}
-                onChange={(e) => {
-                  const price = parseFloat(e.target.value) || 0;
-                  handleGrainYieldChange(task.id, {
-                    yieldKg: entry.yieldKg ?? ((entry.yieldTons ?? 0) * 1000),
-                    bagWeightKg: entry.bagWeightKg ?? 0,
-                    bagPrice: price,
-                  });
-                }}
-                className="w-full rounded-lg text-xs font-bold text-text-main"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] text-cyan-400 block font-semibold mb-0.5">
-                {t.step3.tableHeaders.bagCount || 'Total Bags (Est.)'}
-              </label>
-              <Input
-                type="text"
-                disabled
-                value={`${entry.grainBagCount ?? 0} ${t.step3.bagsUnit || 'bags'}`}
-                className="w-full rounded-lg bg-surface/80 border border-cyan-500/30 text-xs font-black text-cyan-300 cursor-not-allowed select-none"
-              />
+          <div className="space-y-1.5 max-w-xs">
+            <button
+              type="button"
+              onClick={() => {
+                handleGrainYieldChange(task.id, {
+                  yieldKg: 10500,
+                  bagWeightKg: 75,
+                  bagPrice: 1650,
+                });
+              }}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
+            >
+              <span>⚡ {t.step3.recPaddyYield}</span>
+            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
+                  {t.step3.tableHeaders.yieldKg || 'Total Yield (KG)'}
+                  {requiredMark}
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={
+                    entry.yieldKg !== undefined && entry.yieldKg !== 0
+                      ? entry.yieldKg
+                      : (entry.yieldTons ? entry.yieldTons * 1000 : '')
+                  }
+                  onChange={(e) => {
+                    const kg = parseFloat(e.target.value) || 0;
+                    handleGrainYieldChange(task.id, {
+                      yieldKg: kg,
+                      bagWeightKg: entry.bagWeightKg ?? 0,
+                      bagPrice: entry.grainBagPrice ?? 0,
+                    });
+                  }}
+                  className="w-full rounded-lg text-xs font-bold text-emerald-400"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
+                  {t.step3.tableHeaders.bagWeightKg || 'Bag Weight (KG)'}
+                  {requiredMark}
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={entry.bagWeightKg !== undefined && entry.bagWeightKg !== 0 ? entry.bagWeightKg : ''}
+                  onChange={(e) => {
+                    const bw = parseFloat(e.target.value) || 0;
+                    handleGrainYieldChange(task.id, {
+                      yieldKg: entry.yieldKg ?? ((entry.yieldTons ?? 0) * 1000),
+                      bagWeightKg: bw,
+                      bagPrice: entry.grainBagPrice ?? 0,
+                    });
+                  }}
+                  className="w-full rounded-lg text-xs font-bold text-text-main"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
+                  {t.step3.tableHeaders.grainPrice || 'Price / Bag (₹)'}
+                  {requiredMark}
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={entry.grainBagPrice !== undefined && entry.grainBagPrice !== 0 ? entry.grainBagPrice : ''}
+                  onChange={(e) => {
+                    const price = parseFloat(e.target.value) || 0;
+                    handleGrainYieldChange(task.id, {
+                      yieldKg: entry.yieldKg ?? ((entry.yieldTons ?? 0) * 1000),
+                      bagWeightKg: entry.bagWeightKg ?? 0,
+                      bagPrice: price,
+                    });
+                  }}
+                  className="w-full rounded-lg text-xs font-bold text-text-main"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-cyan-400 block font-semibold mb-0.5">
+                  {t.step3.tableHeaders.bagCount || 'Total Bags (Est.)'}
+                </label>
+                <Input
+                  type="text"
+                  disabled
+                  value={`${entry.grainBagCount ?? 0} ${t.step3.bagsUnit || 'bags'}`}
+                  className="w-full rounded-lg bg-surface/80 border border-cyan-500/30 text-xs font-black text-cyan-300 cursor-not-allowed select-none"
+                />
+              </div>
             </div>
           </div>
         ) : task.isStrawYield ? (
           /* Straw Yield (Sacks, Price) */
-          <div className="grid grid-cols-2 gap-2 max-w-xs">
-            <div>
-              <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                {t.step3.tableHeaders.strawSacks}
-              </label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={entry.strawSackCount !== undefined && entry.strawSackCount !== 0 ? entry.strawSackCount : ''}
-                onChange={(e) =>
-                  handleStrawYieldChange(
-                    task.id,
-                    parseFloat(e.target.value) || 0,
-                    entry.strawPrice ?? 0
-                  )
-                }
-                className="w-full rounded-lg text-xs font-bold text-text-main"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                {t.step3.tableHeaders.strawPrice}
-              </label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={entry.strawPrice !== undefined && entry.strawPrice !== 0 ? entry.strawPrice : ''}
-                onChange={(e) =>
-                  handleStrawYieldChange(
-                    task.id,
-                    entry.strawSackCount ?? 0,
-                    parseFloat(e.target.value) || 0
-                  )
-                }
-                className="w-full rounded-lg text-xs font-bold text-text-main"
-              />
+          <div className="space-y-1.5 max-w-xs">
+            <button
+              type="button"
+              onClick={() => {
+                handleStrawYieldChange(task.id, 100, 150);
+              }}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
+            >
+              <span>⚡ {t.step3.recStrawSacks}</span>
+            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
+                  {t.step3.tableHeaders.strawSacks}
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={entry.strawSackCount !== undefined && entry.strawSackCount !== 0 ? entry.strawSackCount : ''}
+                  onChange={(e) =>
+                    handleStrawYieldChange(
+                      task.id,
+                      parseFloat(e.target.value) || 0,
+                      entry.strawPrice ?? 0
+                    )
+                  }
+                  className="w-full rounded-lg text-xs font-bold text-text-main"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
+                  {t.step3.tableHeaders.strawPrice}
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={entry.strawPrice !== undefined && entry.strawPrice !== 0 ? entry.strawPrice : ''}
+                  onChange={(e) =>
+                    handleStrawYieldChange(
+                      task.id,
+                      entry.strawSackCount ?? 0,
+                      parseFloat(e.target.value) || 0
+                    )
+                  }
+                  className="w-full rounded-lg text-xs font-bold text-text-main"
+                />
+              </div>
             </div>
           </div>
         ) : task.isMandiTrip ? (
@@ -1298,7 +1296,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
             <div className="grid grid-cols-2 gap-2 max-w-sm bg-transparent">
               <div>
                 <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                  {isTamil ? 'எரிபொருள் செலவு' : 'Fuel Cost'}
+                  {t.step3.fuelCost}
                   {requiredMark}
                 </label>
                 <Input
@@ -1314,7 +1312,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               </div>
               <div>
                 <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                  {isTamil ? 'பழுது செலவு' : 'Repair Cost'}
+                  {t.step3.repairCost}
                 </label>
                 <Input
                   type="number"
@@ -1336,12 +1334,12 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               </div>
               <div>
                 <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                  {isTamil ? 'மெக்கானிக் எண்' : 'Mechanic Phone'}
+                  {t.step3.mechanicPhone}
                 </label>
                 <Input
                   type="tel"
                   maxLength={10}
-                  placeholder={isTamil ? 'எ.கா. 9876543210' : 'e.g. 9876543210'}
+                  placeholder="9876543210"
                   disabled={isSkipped}
                   value={entry.mechanicNumber || ''}
                   onChange={(e) => {
@@ -1358,11 +1356,11 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               </div>
               <div>
                 <label className="text-[11px] text-slate-700 dark:text-slate-300 block font-bold mb-0.5">
-                  {isTamil ? 'மெக்கானிக் பெயர்' : 'Mechanic Name'}
+                  {t.step3.mechanicName}
                 </label>
                 <Input
                   type="text"
-                  placeholder={isTamil ? 'பெயர்' : 'Name'}
+                  placeholder={t.step3.mechanicName}
                   disabled={isSkipped}
                   value={entry.mechanicName || ''}
                   onChange={(e) =>
@@ -1483,7 +1481,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               return (
                 <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
                   <span>
-                    {isTamil ? 'இயந்திரம்' : 'Machine'}: {filledDaysCount} {filledDaysCount === 1 ? (isTamil ? 'நாள்' : 'day') : (isTamil ? 'நாட்கள்' : 'days')}
+                    {t.step3.machine}: {filledDaysCount} {filledDaysCount === 1 ? t.step3.dayLabel : messages.common.days}
                   </span>
                 </div>
               );
@@ -1503,8 +1501,8 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               return (
                 <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
                   <span>
-                    {filledDaysCount} {filledDaysCount === 1 ? (isTamil ? 'நாள்' : 'day') : (isTamil ? 'நாட்கள்' : 'days')}
-                    {totalBags > 0 && ` (${totalBags} ${isTamil ? 'சாக்குகள்' : 'bags'})`}
+                    {filledDaysCount} {filledDaysCount === 1 ? t.step3.dayLabel : messages.common.days}
+                    {totalBags > 0 && ` (${totalBags} ${t.step3.bagsUnit})`}
                   </span>
                 </div>
               );
@@ -1524,8 +1522,8 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               return (
                 <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
                   <span>
-                    {isTamil ? 'போக்குவரத்து' : 'Transport'}: {filledDaysCount} {filledDaysCount === 1 ? (isTamil ? 'நாள்' : 'day') : (isTamil ? 'நாட்கள்' : 'days')}
-                    {totalBags > 0 && ` (${totalBags} ${isTamil ? 'சாக்குகள்' : 'bags'})`}
+                    {t.step3.transportLabel}: {filledDaysCount} {filledDaysCount === 1 ? t.step3.dayLabel : messages.common.days}
+                    {totalBags > 0 && ` (${totalBags} ${t.step3.bagsUnit})`}
                   </span>
                 </div>
               );
@@ -1545,8 +1543,8 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               return (
                 <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
                   <span>
-                    {isTamil ? 'தையல்' : 'Stitching'}: {filledDaysCount} {filledDaysCount === 1 ? (isTamil ? 'நாள்' : 'day') : (isTamil ? 'நாட்கள்' : 'days')}
-                    {totalBags > 0 && ` (${totalBags} ${isTamil ? 'சாக்குகள்' : 'bags'})`}
+                    {t.step3.stitchingLabel}: {filledDaysCount} {filledDaysCount === 1 ? t.step3.dayLabel : messages.common.days}
+                    {totalBags > 0 && ` (${totalBags} ${t.step3.bagsUnit})`}
                   </span>
                 </div>
               );
@@ -1565,7 +1563,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
               return (
                 <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
                   <span>
-                    {t.step3.tableHeaders.fertLabour || 'Labour'}: {filledDaysCount} {filledDaysCount === 1 ? (isTamil ? 'நாள்' : 'day') : (isTamil ? 'நாட்கள்' : 'days')}
+                    {t.step3.tableHeaders.fertLabour || 'Labour'}: {filledDaysCount} {filledDaysCount === 1 ? t.step3.dayLabel : messages.common.days}
                   </span>
                 </div>
               );
@@ -1611,7 +1609,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                 <span className="text-slate-500 font-semibold">{t.step3.skipped || 'Skipped (₹0)'}</span>
               ) : (
                 <>
-                  <span>{isTamil ? 'விதை' : 'Seed'}: ₹{fmt(entry.ratePerCent)}</span>
+                  <span>{t.step3.seedLabel}: ₹{fmt(entry.ratePerCent)}</span>
                   {entry.hasTravelCost !== false && (entry.travelCost ?? 0) > 0 && (
                     <span className="text-amber-600 dark:text-amber-300"> + ₹{fmt(entry.travelCost ?? 0)} travel</span>
                   )}
@@ -1635,10 +1633,10 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                 <span className="text-slate-500 font-semibold">{t.step3.skipped || 'Skipped (₹0)'}</span>
               ) : (
                 <>
-                  <span>{isTamil ? 'எரிபொருள்' : 'Diesel/Petrol'}: ₹{fmt(entry.ratePerCent)}</span>
+                  <span>{t.step3.dieselPetrolLabel}: ₹{fmt(entry.ratePerCent)}</span>
                   {entry.hasRepairCost && (entry.repairCost ?? 0) > 0 && (
                     <span className="block text-[10px] text-amber-600 dark:text-amber-300 font-medium">
-                      + ₹{fmt(entry.repairCost ?? 0)} {isTamil ? 'பழுது' : 'repair'}
+                      + ₹{fmt(entry.repairCost ?? 0)} {t.step3.repairSuffix}
                       {entry.mechanicName ? ` (${entry.mechanicName})` : ''}
                     </span>
                   )}
@@ -1664,7 +1662,7 @@ export const TaskRowRenderer: React.FC<TaskRowRendererProps> = ({
                 <span className="text-slate-500 font-semibold">{t.step3.skipped || 'Skipped (₹0)'}</span>
               ) : (
                 <span>
-                  {isTamil ? 'நேரடி தொகை' : 'Total Cost'}: ₹{fmt(entry.ratePerCent)}
+                  {t.step3.totalCostLabel}: ₹{fmt(entry.ratePerCent)}
                 </span>
               )}
             </div>

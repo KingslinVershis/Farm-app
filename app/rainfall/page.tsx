@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { DatePicker, Table, Pagination, message } from 'antd';
+import { DatePicker, Table, Pagination, App } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { motion } from 'motion/react';
@@ -162,11 +162,12 @@ function getRainIntensity(mm: number) {
 }
 
 export default function RainfallPage() {
+  const { message } = App.useApp();
   const { messages, locale } = useLanguage();
   const isTamil = locale === 'ta';
   const r = (messages as any).rainfallPage;
 
-  const [selectedDate, setSelectedDate] = useState<string>('2026-11-08');
+  const [selectedDate, setSelectedDate] = useState<string>(() => dayjs().format('YYYY-MM-DD'));
   const [data, setData] = useState<RainfallApiResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [downloadingPdf, setDownloadingPdf] = useState<boolean>(false);
@@ -182,18 +183,22 @@ export default function RainfallPage() {
   const [cardPage, setCardPage] = useState<number>(1);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  const fetchRainfall = useCallback(async (date?: string) => {
+  const fetchRainfall = useCallback(async (dateToFetch?: string) => {
     setLoading(true);
     setError(null);
     try {
-      const url = date ? `/api/rainfall?date=${encodeURIComponent(date)}` : '/api/rainfall';
+      const url = dateToFetch ? `/api/rainfall?date=${encodeURIComponent(dateToFetch)}` : '/api/rainfall';
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Failed to fetch rainfall report (${res.status})`);
       const json: RainfallApiResponse = await res.json();
       if (!json.success) throw new Error(json.error || 'No rainfall data found.');
       setData(json);
-      if (json.report_date && /^\d{4}-\d{2}-\d{2}$/.test(json.report_date)) {
-        setSelectedDate(json.report_date);
+      // On initial load without an explicit date parameter, sync selectedDate to requested or report_date
+      if (!dateToFetch) {
+        const initialDate = json.requested || json.report_date;
+        if (initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate)) {
+          setSelectedDate(initialDate);
+        }
       }
     } catch (err: any) {
       console.error('[RainfallPage] fetch error:', err);
@@ -260,6 +265,45 @@ export default function RainfallPage() {
     }));
   }, [data]);
   const availableDates = useMemo(() => data?.dates || [], [data]);
+
+  const formatDisplayDate = useCallback((dateStr: string) => {
+    if (!dateStr) return '';
+    const d = dayjs(dateStr);
+    if (!d.isValid()) return dateStr;
+    if (isTamil) {
+      const monthMap: Record<number, string> = {
+        0: 'ஜன', 1: 'பிப்', 2: 'மார்ச்', 3: 'ஏப்',
+        4: 'மே', 5: 'ஜூன்', 6: 'ஜூலை', 7: 'ஆக',
+        8: 'செப்', 9: 'அக்', 10: 'நவ', 11: 'டிச'
+      };
+      return `${d.date()} ${monthMap[d.month()] || d.format('MMM')} ${d.year()}`;
+    }
+    return d.format('DD MMM YYYY');
+  }, [isTamil]);
+
+  const requestedDate = data?.requested || selectedDate;
+  const reportDate = data?.report_date;
+  const hasMismatch = Boolean(reportDate && requestedDate && reportDate !== requestedDate);
+
+  const daysDiff = useMemo(() => {
+    if (typeof data?.days_old === 'number' && data.days_old > 0) {
+      return data.days_old;
+    }
+    if (requestedDate && reportDate) {
+      const diff = dayjs(requestedDate).startOf('day').diff(dayjs(reportDate).startOf('day'), 'day');
+      return Math.max(0, diff);
+    }
+    return 0;
+  }, [data, requestedDate, reportDate]);
+
+  // Check if requested date was very recent (within 2 days of today)
+  const isRecentRequest = useMemo(() => {
+    return Math.abs(dayjs().startOf('day').diff(dayjs(requestedDate).startOf('day'), 'day')) <= 2;
+  }, [requestedDate]);
+
+  const isStaleWarning = Boolean(hasMismatch && isRecentRequest && daysDiff > 1);
+  const isNoDataWarning = Boolean(hasMismatch && !isStaleWarning);
+  const showDateWarning = Boolean(!loading && !error && hasMismatch);
 
   const regionCounts = useMemo(() => {
     const map = new Map<string, number>();
@@ -625,6 +669,10 @@ export default function RainfallPage() {
   const shiftDate = (deltaDays: number) => {
     const next = dayjs(selectedDate).add(deltaDays, 'day');
     if (next.isAfter(dayjs(), 'day')) return;
+    if (availableDates.length > 0) {
+      const earliest = dayjs(availableDates[availableDates.length - 1]).startOf('day');
+      if (next.isBefore(earliest)) return;
+    }
     handleDateSelect(next.format('YYYY-MM-DD'));
   };
 
@@ -634,7 +682,7 @@ export default function RainfallPage() {
       <div
         className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out scale-105"
         style={{
-          backgroundImage: `url('/images/city.jpg')`,
+          backgroundImage: `url('https://res.cloudinary.com/chk0va7a/image/upload/v1795763637/city.jpg')`,
         }}
       />
       <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
@@ -727,7 +775,34 @@ export default function RainfallPage() {
             <div className="flex items-center gap-2 flex-nowrap shrink-0">
               <DatePicker
                 value={selectedDate ? dayjs(selectedDate) : null}
-                disabledDate={(cur) => cur && cur > dayjs().endOf('day')}
+                disabledDate={(cur) => {
+                  if (!cur) return false;
+                  if (cur.isAfter(dayjs().endOf('day'))) return true;
+                  if (availableDates.length > 0) {
+                    const earliest = dayjs(availableDates[availableDates.length - 1]).startOf('day');
+                    if (cur.isBefore(earliest)) return true;
+                  }
+                  return false;
+                }}
+                cellRender={(current, info) => {
+                  if (info.type !== 'date') return info.originNode;
+                  const dObj = dayjs(current);
+                  const dateStr = dObj.format('YYYY-MM-DD');
+                  const hasReport = availableDates.includes(dateStr);
+                  const isSelected = dateStr === selectedDate;
+                  return (
+                    <div className="ant-picker-cell-inner relative flex flex-col items-center justify-center">
+                      <span>{dObj.date()}</span>
+                      {hasReport && (
+                        <span
+                          className={`w-1 h-1 rounded-full absolute bottom-0.5 ${
+                            isSelected ? 'bg-white' : 'bg-cyan-500'
+                          }`}
+                        />
+                      )}
+                    </div>
+                  );
+                }}
                 format="DD MMM YYYY"
                 allowClear={false}
                 onChange={(d) => {
@@ -738,7 +813,14 @@ export default function RainfallPage() {
               <button
                 type="button"
                 onClick={() => shiftDate(-1)}
-                className="h-10 w-10 rounded-xl glass-surface border border-border-light flex items-center justify-center text-text-main hover:border-cyan-500/50 transition-colors cursor-pointer"
+                disabled={
+                  availableDates.length > 0 &&
+                  dayjs(selectedDate).isSame(
+                    dayjs(availableDates[availableDates.length - 1]),
+                    'day'
+                  )
+                }
+                className="h-10 w-10 rounded-xl glass-surface border border-border-light flex items-center justify-center text-text-main hover:border-cyan-500/50 transition-colors cursor-pointer disabled:opacity-40"
                 aria-label="Previous day"
               >
                 <ArrowLeft size={14} />
@@ -806,6 +888,71 @@ export default function RainfallPage() {
           )}
         </motion.div>
 
+        {/* Warning Banner: When requested date differs from report date */}
+        {showDateWarning && reportDate && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className={`rounded-2xl border p-3.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-sm backdrop-blur-md ${
+              isStaleWarning
+                ? 'border-rose-300/80 dark:border-rose-500/25 bg-rose-50/95 dark:bg-rose-950/40 text-rose-950 dark:text-rose-100'
+                : 'border-amber-300/80 dark:border-amber-500/25 bg-amber-50/95 dark:bg-amber-950/40 text-amber-950 dark:text-amber-100'
+            }`}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
+                  isStaleWarning
+                    ? 'bg-rose-500/15 border-rose-500/25 text-rose-600 dark:text-rose-400'
+                    : 'bg-amber-500/15 border-amber-500/25 text-amber-600 dark:text-amber-400'
+                }`}
+              >
+                <AlertTriangle size={17} />
+              </div>
+              <div className="leading-snug">
+                {isStaleWarning ? (
+                  <>
+                    <strong className="font-extrabold">
+                      {locale === 'ta'
+                        ? `${r.dataNotUpdatedPrefix} ${formatDisplayDate(reportDate)} (${daysDiff} ${r.daysAgoSuffix}).`
+                        : `${r.dataNotUpdatedPrefix} ${formatDisplayDate(reportDate)} (${daysDiff} ${daysDiff === 1 ? r.dayAgoSuffix : r.daysAgoSuffix}).`}{' '}
+                    </strong>
+                    <span className="opacity-90 font-medium">
+                      {r.lastAvailableReportNote}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <strong className="font-extrabold">
+                      {locale === 'ta'
+                        ? `${formatDisplayDate(requestedDate)} ${r.noReportForDate}`
+                        : `${r.noReportForDate} ${formatDisplayDate(requestedDate)}.`}{' '}
+                    </strong>
+                    <span className="opacity-90 font-medium">
+                      {`${r.showingNearestReport} ${formatDisplayDate(reportDate)}.`}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleDateSelect(reportDate)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer shadow-sm active:scale-95 border ${
+                isStaleWarning
+                  ? 'text-rose-950 dark:text-rose-100 bg-rose-500/15 hover:bg-rose-500/25 border-rose-400/30'
+                  : 'text-amber-950 dark:text-amber-100 bg-amber-500/15 hover:bg-amber-500/25 border-amber-400/30'
+              }`}
+            >
+              {isTamil
+                ? `${formatDisplayDate(reportDate)} ${r.viewDateBtn}`
+                : `${r.viewDateBtn} ${formatDisplayDate(reportDate)}`}
+            </button>
+          </motion.div>
+        )}
+
         {/* KPI Bento Grid */}
         {!loading && !error && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -855,8 +1002,8 @@ export default function RainfallPage() {
               </div>
               <span className="text-xs text-text-muted mt-1 block">
                 {selectedRegion === 'all'
-                  ? (isTamil ? 'தமிழ்நாடு' : 'Tamil Nadu')
-                  : (isTamil && REGION_LABELS[selectedRegion]?.ta
+                  ? r.tamilNadu
+                  : (locale === 'ta' && REGION_LABELS[selectedRegion]?.ta
                       ? REGION_LABELS[selectedRegion].ta
                       : (REGION_LABELS[selectedRegion]?.en || selectedRegion))}
               </span>
@@ -1301,7 +1448,7 @@ export default function RainfallPage() {
                 <Table<RainfallStationRecord>
                   columns={stationColumns}
                   dataSource={filteredStations}
-                  rowKey={(rec, idx) => `${rec.district_id}-${rec.sl_no}-${rec.station}-${idx}`}
+                  rowKey={(rec) => `${rec.district_id}-${rec.sl_no}-${rec.station}`}
                   pagination={{ pageSize: 15, showSizeChanger: false }}
                   className="reservoirs-table"
                   locale={{ emptyText: r.noDataText }}

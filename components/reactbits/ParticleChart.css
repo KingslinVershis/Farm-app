@@ -198,15 +198,31 @@ html[data-theme="light"] .particle-chart-tab-btn.active,
 
 .particle-chart-bar-value {
   position: absolute;
-  font-size: 12px;
-  font-weight: 700;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  font-weight: 800;
   font-family: 'JetBrains Mono', monospace;
   letter-spacing: -0.01em;
   white-space: nowrap;
-  transition: color 200ms ease, opacity 200ms ease;
+  transition: color 200ms ease, opacity 200ms ease, transform 150ms ease;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
-  z-index: 3;
+  z-index: 5;
+  padding: 2px 7.5px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.90);
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+}
+
+html[data-theme="light"] .particle-chart-bar-value,
+[data-theme="light"] .particle-chart-bar-value {
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a !important;
+  border: 1px solid rgba(0, 0, 0, 0.22);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
 }
 
 .particle-chart-baseline {
@@ -255,17 +271,33 @@ html[data-theme="light"] .particle-chart-label-cell.active,
 .particle-chart-floating-tooltip {
   pointer-events: none;
   z-index: 60;
-  filter: drop-shadow(0 15px 30px rgba(0, 0, 0, 0.45));
+  filter: drop-shadow(0 15px 30px rgba(0, 0, 0, 0.35));
   animation: pcTooltipIn 0.16s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes pcTooltipIn {
   from {
     opacity: 0;
-    transform: translate(-50%, -92%) scale(0.96);
+    transform: translateY(-94%) scale(0.97);
   }
+
   to {
     opacity: 1;
-    transform: translate(-50%, -100%) scale(1);
+    transform: translateY(-100%) scale(1);
   }
+}
+
+.particle-chart-tooltip-arrow {
+  background: rgba(255, 255, 255, 0.96);
+  border-right: 1px solid rgba(226, 232, 240, 0.8);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+html[data-theme="dark"] .particle-chart-tooltip-arrow,
+[data-theme="dark"] .particle-chart-tooltip-arrow {
+  background: rgba(15, 23, 42, 0.96);
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.4);
 }

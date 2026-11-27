@@ -7,6 +7,8 @@ import { motion } from 'motion/react';
 import { ShinyText } from '@/components/reactbits/ShinyText';
 import FlipCard from '@/components/reactbits/FlipCard';
 import MotionFreeScrollCarousel from '@/components/reactbits/MotionFreeScrollCarousel';
+import { AnimatedCounter } from '@/components/reactbits/AnimatedCounter';
+import AnimatedContent from '@/components/reactbits/AnimatedContent';
 import {
   WeatherDayIcon,
   getWeatherBackgroundVideo,
@@ -22,7 +24,7 @@ import {
   RefreshCw,
 } from '@/components/icons/FlaticonIcons';
 import type { WeatherMcpCallResponse } from '@/app/api/weather-mcp/route';
-import { normalizeWeatherConditionText } from '@/lib/weather';
+import { normalizeWeatherConditionText, isNightHour, formatHourWithAmPm } from '@/lib/weather';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 
 interface SampleLocation {
@@ -172,9 +174,14 @@ const WEATHER_CONDITION_TAMIL_MAP: Array<{ pattern: RegExp; tamil: string }> = [
   { pattern: /light rain|light drizzle|drizzle/i, tamil: 'தூறல் மழை' },
   { pattern: /\brain\b/i, tamil: 'மழை' },
   { pattern: /overcast/i, tamil: 'முழு மேகமூட்டம்' },
+  { pattern: /partly sunny/i, tamil: 'பகுதி வெயில்' },
+  { pattern: /mostly sunny/i, tamil: 'பெரும்பாலும் வெயில்' },
+  { pattern: /partly cloudy night/i, tamil: 'பகுதி மேகமூட்டமான இரவு' },
   { pattern: /partly cloudy|scattered clouds/i, tamil: 'பகுதி மேகமூட்டம்' },
   { pattern: /cloudy|clouds/i, tamil: 'மேகமூட்டம்' },
-  { pattern: /clear sky|mostly clear|clear/i, tamil: 'தெளிவான வானம்' },
+  { pattern: /clear night/i, tamil: 'தெளிவான இரவு' },
+  { pattern: /mostly clear/i, tamil: 'பெரும்பாலும் தெளிவான வானம்' },
+  { pattern: /clear sky|clear/i, tamil: 'தெளிவான வானம்' },
   { pattern: /sunny/i, tamil: 'வெயில் / தெளிவான வானம்' },
   { pattern: /fog|mist|haze|smoke|dust/i, tamil: 'மூடுபனி' },
   { pattern: /windy|breezy/i, tamil: 'பலத்த காற்று' },
@@ -357,12 +364,35 @@ function getVideoForWeatherConditions(
   conditions?: string,
   precipChance?: string,
   precipAmount?: string,
-  shortDayOrTime?: string
+  shortDayOrTime?: string,
+  isNight?: boolean
 ): string {
   const cond = (conditions || '').toLowerCase();
   const rainAmountVal = precipAmount ? parseFloat(precipAmount) : 0;
   const rainChanceVal = precipChance ? parseFloat(precipChance) : 0;
 
+  // Night check:
+  const isNightTime =
+    Boolean(isNight) ||
+    /night/i.test(cond) ||
+    Boolean(shortDayOrTime && isNightHour(shortDayOrTime));
+
+  const isRaining =
+    /rain|drizzle|shower|downpour|thunder|storm|squall|cyclone|tornado|lightning/i.test(cond) ||
+    rainAmountVal >= 0.5 ||
+    (rainChanceVal >= 55 && rainAmountVal > 0);
+
+  // Night-time rules:
+  // 1. Any kind of rain weather at night -> Heavy_rain.mp4
+  // 2. Not raining (cloudy, partly cloudy, basically if night time is not raining) -> watermark-removed-Transform_storm_sky_to_night_a7ceeb1c_t1.8-8_1080p.mp4
+  if (isNightTime) {
+    if (isRaining) {
+      return 'https://res.cloudinary.com/chk0va7a/video/upload/v1795760491/Heavy_rain.mp4';
+    }
+    return 'https://res.cloudinary.com/chk0va7a/video/upload/v1795760443/watermark-removed-Transform_storm_sky_to_night_a7ceeb1c_t1.8-8_1080p.mp4';
+  }
+
+  // --- DAYTIME LOGIC ---
   // 1. Severe weather / Thunderstorm / Squall / Cyclone
   if (
     /thunder|storm|squall|cyclone|tornado|severe|lightning/i.test(cond) ||
@@ -370,39 +400,41 @@ function getVideoForWeatherConditions(
     rainAmountVal >= 10 ||
     (rainChanceVal >= 75 && rainAmountVal >= 4)
   ) {
-    return '/videos/Heavy_rain.mp4';
+    return 'https://res.cloudinary.com/chk0va7a/video/upload/v1795760491/Heavy_rain.mp4';
   }
 
-  // 2. Real Rain / Drizzle Rain / Showers:
-  // Require precipitation >= 1.5mm OR explicit active drizzle/rain condition with rain >= 0.5mm
-  // (Trace precipitation like 0.1mm - 0.3mm is NOT rain and plays cloud video)
+  // 2. Real Rain / Drizzle Rain / Showers
   if (
     /heavy rain|moderate rain|downpour/i.test(cond) ||
     rainAmountVal >= 2.0 ||
     ((/rain|drizzle|shower/i.test(cond)) && (rainAmountVal >= 0.5 || rainChanceVal >= 55))
   ) {
-    return '/videos/Drizzle rain.mp4';
+    return 'https://res.cloudinary.com/chk0va7a/video/upload/v1795760488/Drizzle_rain.mp4';
   }
 
-  // 3. Cloudy / Overcast / Gloomy / Fog / Mist / Haze / Trace moisture
-  if (/cloud|overcast|fog|mist|haze|smoke|dust/i.test(cond) || rainChanceVal >= 35) {
-    return '/videos/cloudy.mp4';
+  // 3. Partly Sunny
+  if (
+    /partly\s*sunny|mostly\s*sunny/i.test(cond) ||
+    (/partly/i.test(cond) && /sun/i.test(cond)) ||
+    (/partly\s*cloud/i.test(cond) && !/rain/i.test(cond))
+  ) {
+    return 'https://res.cloudinary.com/chk0va7a/video/upload/v1795760487/partly_sunny.mp4';
   }
 
-  // 4. Night check if clear or time matches night (e.g. 19:00 - 05:00)
-  const isNightTime =
-    /night/i.test(cond) ||
-    (shortDayOrTime &&
-      /^\d{1,2}:\d{2}$/.test(shortDayOrTime) &&
-      (parseInt(shortDayOrTime.split(':')[0], 10) >= 19 ||
-        parseInt(shortDayOrTime.split(':')[0], 10) < 6));
-
-  if (isNightTime && !/rain|storm/i.test(cond)) {
-    return '/videos/night.mp4';
+  // 4. Sunny / Clear
+  if (/sunny|clear/i.test(cond)) {
+    return 'https://res.cloudinary.com/chk0va7a/video/upload/v1795760491/sunny.mp4';
   }
 
-  // 5. Clear / Sunny / Default
-  return '/videos/sunny.mp4';
+  // 5. Cloudy / Overcast / Gloomy / Fog / Mist / Haze / Trace moisture
+  if (/overcast|fog|mist|haze|smoke|dust/i.test(cond) || rainChanceVal >= 40) {
+    return 'https://res.cloudinary.com/chk0va7a/video/upload/v1795760489/cloudy.mp4';
+  }
+  if (/cloud/i.test(cond)) {
+    return 'https://res.cloudinary.com/chk0va7a/video/upload/v1795760489/cloudy.mp4';
+  }
+
+  return 'https://res.cloudinary.com/chk0va7a/video/upload/v1795760491/sunny.mp4';
 }
 
 function getVisualMetricsForDay(day: {
@@ -460,17 +492,34 @@ function formatShortDate(subDate: string): string {
     .trim();
 }
 
-function formatSunSpan(sunrise?: string, sunset?: string, daylight?: string): string {
+function formatSunSpan(
+  sunrise?: string,
+  sunset?: string,
+  daylight?: string,
+  isNight?: boolean,
+  wm?: { night: string; daylight: string; sunset: string }
+): { label: string; span: string } {
   const cleanT = (s?: string) => {
     if (!s) return '';
     const m = s.match(/(\d{1,2}:\d{2})/);
     return m ? m[1] : s;
   };
-  const r = cleanT(sunrise);
-  const set = cleanT(sunset);
-  if (r && set) return `${r} – ${set}`;
-  if (daylight) return daylight;
-  return '06:07 – 17:39';
+  const r = cleanT(sunrise) || '06:07';
+  const set = cleanT(sunset) || '17:39';
+
+  const setInfo = formatHourWithAmPm(set);
+
+  if (isNight) {
+    return {
+      label: wm?.night || 'Night',
+      span: `${wm?.sunset || 'Sunset'} ${set} (${setInfo.time12})`,
+    };
+  }
+
+  return {
+    label: wm?.daylight || 'Daylight',
+    span: `${r} – ${set}`,
+  };
 }
 
 function formatUvIndex(uv?: string) {
@@ -520,6 +569,7 @@ interface ParsedWeatherMcp {
   currentTempUnit?: string;
   feelsLike?: string;
   conditions?: string;
+  isNight?: boolean;
   todayRange?: string;
   humidity?: string;
   wind?: string;
@@ -536,6 +586,7 @@ interface ParsedWeatherMcp {
     highTemp: string;
     lowTemp: string;
     conditions: string;
+    isNight?: boolean;
     precipChance?: string;
     precipAmount?: string;
     wind?: string;
@@ -594,6 +645,19 @@ function parseMcpResponse(text: string | undefined, defaultLoc: string): ParsedW
   const feelsMatch = text.match(/\*\*Feels Like:\*\*\s*([^\n\r]+)/i);
   if (feelsMatch) result.feelsLike = feelsMatch[1].trim();
 
+  const isDayMatch = text.match(/\*\*Is Day:\*\*\s*(\d+)/i);
+  const sunriseMatch = text.match(/\*\*Sunrise:\*\*\s*([^\n\r]+)/i);
+  const sunsetMatch = text.match(/\*\*Sunset:\*\*\s*([^\n\r]+)/i);
+  const currentSr = sunriseMatch ? sunriseMatch[1].trim() : '06:07';
+  const currentSs = sunsetMatch ? sunsetMatch[1].trim() : '17:39';
+
+  const nowHourStr = `${new Date().getHours()}:${new Date().getMinutes()}`;
+  const isCurrentNight = isDayMatch
+    ? isDayMatch[1] === '0'
+    : isNightHour(nowHourStr, currentSr, currentSs);
+
+  result.isNight = isCurrentNight;
+
   const condMatch = text.match(/\*\*Conditions:\*\*\s*([^\n\r]+)/i);
   if (condMatch) {
     const rawCond = condMatch[1].trim();
@@ -601,7 +665,7 @@ function parseMcpResponse(text: string | undefined, defaultLoc: string): ParsedW
     const rainAmt = rainMatch ? parseFloat(rainMatch[1]) : 0;
     const cloudMatch = text.match(/\*\*Cloud Cover:\*\*\s*([^\n\r]+)/i);
     const cloudVal = cloudMatch ? parseInt(cloudMatch[1], 10) : 50;
-    result.conditions = normalizeWeatherConditionText(rawCond, rainAmt, 0, cloudVal);
+    result.conditions = normalizeWeatherConditionText(rawCond, rainAmt, 0, cloudVal, isCurrentNight);
   }
 
   const rangeMatch = text.match(/\*\*Today's Range:\*\*\s*([^\n\r]+)/i);
@@ -697,6 +761,7 @@ function parseMcpResponse(text: string | undefined, defaultLoc: string): ParsedW
     const hourlyMatch = dayTitle.match(/(\d+\/\d+\/\d+),\s*(\d+:\d+)/);
     let shortDay = '';
     let subDate = '';
+    let isNight = false;
 
     if (hourlyMatch) {
       shortDay = hourlyMatch[2];
@@ -709,11 +774,23 @@ function parseMcpResponse(text: string | undefined, defaultLoc: string): ParsedW
       subDate = dateRest || dayTitle;
     }
 
+    const sunriseVal = sunrise ? sunrise[1].trim() : currentSr;
+    const sunsetVal = sunset ? sunset[1].trim() : currentSs;
+    const isDayBlock = body.match(/\*\*Is Day:\*\*\s*(\d+)/i);
+
+    if (shortDay && /^\d{1,2}:\d{2}$/.test(shortDay)) {
+      if (isDayBlock) {
+        isNight = isDayBlock[1] === '0';
+      } else {
+        isNight = isNightHour(shortDay, sunriseVal, sunsetVal);
+      }
+    }
+
     if (tempH || dayCond || rainCh || diagnostics.length > 0) {
-      const rawCond = dayCond ? dayCond[1].trim() : 'Partly Cloudy';
+      const rawCond = dayCond ? dayCond[1].trim() : (isNight ? 'Partly Cloudy' : 'Partly Sunny');
       const pMm = rainAmt ? parseFloat(rainAmt[1]) : 0;
       const pChance = rainCh ? parseFloat(rainCh[1]) : 0;
-      const normalizedCond = normalizeWeatherConditionText(rawCond, pMm, pChance, 50);
+      const normalizedCond = normalizeWeatherConditionText(rawCond, pMm, pChance, 50, isNight);
 
       result.forecast.push({
         dayTitle,
@@ -722,6 +799,7 @@ function parseMcpResponse(text: string | undefined, defaultLoc: string): ParsedW
         highTemp: tempH ? tempH[1].replace(/High\s*/i, '').trim() : '',
         lowTemp: tempL ? tempL[1].trim() : '',
         conditions: normalizedCond,
+        isNight,
         precipChance: rainCh ? rainCh[1].trim() : undefined,
         precipAmount: rainAmt ? rainAmt[1].trim() : undefined,
         wind: dayWind ? dayWind[1].trim() : undefined,
@@ -820,7 +898,8 @@ function parseMcpResponse(text: string | undefined, defaultLoc: string): ParsedW
 }
 
 export default function WeatherMcpTestPage() {
-  const { locale } = useLanguage();
+  const { messages, locale } = useLanguage();
+  const wm = messages.weatherMcpPage;
   const isTamil = locale === 'ta';
 
   const [selectedTool, setSelectedTool] = useState<string>('forecast_7');
@@ -860,7 +939,7 @@ export default function WeatherMcpTestPage() {
         success: false,
         tool: actualToolName,
         location: locToRun,
-        error: err?.message || (isTamil ? 'வானிலை MCP சேவையகத்துடன் இணைக்க முடியவில்லை.' : 'Failed to connect to Weather MCP server.'),
+        error: err?.message || wm.failedToConnect,
         durationMs: Date.now() - startTime,
       });
     } finally {
@@ -892,13 +971,14 @@ export default function WeatherMcpTestPage() {
         activeDay.conditions,
         activeDay.precipChance,
         activeDay.precipAmount,
-        activeDay.shortDay
+        activeDay.shortDay,
+        activeDay.isNight
       );
     }
     const rainNumeric = parsed.rain ? parseFloat(parsed.rain) || 0 : 0;
     const cloudNumeric = parsed.cloudCover ? parseFloat(parsed.cloudCover) / 12.5 : 4;
-    return getWeatherBackgroundVideo(rainNumeric, cloudNumeric);
-  }, [activeDay, parsed.rain, parsed.cloudCover]);
+    return getWeatherBackgroundVideo(rainNumeric, cloudNumeric, parsed.conditions, parsed.isNight);
+  }, [activeDay, parsed.rain, parsed.cloudCover, parsed.conditions, parsed.isNight]);
 
   const displayTemp = useMemo(() => {
     if (safeDayIndex > 0 && activeDay?.highTemp) {
@@ -920,10 +1000,10 @@ export default function WeatherMcpTestPage() {
     if (safeDayIndex > 0 && activeDay?.conditions) {
       raw = activeDay.conditions;
     } else {
-      raw = parsed.conditions || activeDay?.conditions || (response?.tool ? `Tool: ${response.tool}` : (isTamil ? 'நேரலை வானிலை' : 'Live Telemetry'));
+      raw = parsed.conditions || activeDay?.conditions || (response?.tool ? `Tool: ${response.tool}` : wm.liveTelemetry);
     }
     return translateWeatherCondition(raw, isTamil);
-  }, [safeDayIndex, activeDay, parsed.conditions, response?.tool, isTamil]);
+  }, [safeDayIndex, activeDay, parsed.conditions, response?.tool, isTamil, wm.liveTelemetry]);
 
   const displayRange = useMemo(() => {
     if (safeDayIndex > 0 && activeDay) {
@@ -948,15 +1028,15 @@ export default function WeatherMcpTestPage() {
   const displayRainCloud = useMemo(() => {
     if (safeDayIndex > 0 && activeDay) {
       const parts: string[] = [];
-      if (activeDay.precipChance) parts.push(`${isTamil ? 'மழை' : 'Rain'}: ${activeDay.precipChance}`);
-      if (activeDay.precipAmount) parts.push(`${isTamil ? 'அளவு' : 'Amount'}: ${activeDay.precipAmount}`);
+      if (activeDay.precipChance) parts.push(`${wm.rain}: ${activeDay.precipChance}`);
+      if (activeDay.precipAmount) parts.push(`${wm.amount}: ${activeDay.precipAmount}`);
       if (parts.length > 0) return parts.join(' • ');
     }
     const parts: string[] = [];
-    if (parsed.rain) parts.push(`${isTamil ? 'மழைப்பொழிவு' : 'Precipitation'}: ${parsed.rain}`);
-    if (parsed.cloudCover) parts.push(`${isTamil ? 'மேகமூட்டம்' : 'Cloud'}: ${parsed.cloudCover}`);
+    if (parsed.rain) parts.push(`${wm.precipitation}: ${parsed.rain}`);
+    if (parsed.cloudCover) parts.push(`${wm.cloud}: ${parsed.cloudCover}`);
     return parts.join(' • ');
-  }, [safeDayIndex, activeDay, parsed.rain, parsed.cloudCover, isTamil]);
+  }, [safeDayIndex, activeDay, parsed.rain, parsed.cloudCover, wm.rain, wm.amount, wm.precipitation, wm.cloud]);
 
   const displayFeelsLike = useMemo(() => {
     if (safeDayIndex > 0 && activeDay?.feelsLike) {
@@ -976,7 +1056,7 @@ export default function WeatherMcpTestPage() {
           loop
           muted
           playsInline
-          poster="/images/weather.jpg"
+          poster="https://res.cloudinary.com/chk0va7a/image/upload/v1795773757/weather.jpg"
           className="w-full h-full object-cover scale-105"
         />
       </div>
@@ -984,17 +1064,20 @@ export default function WeatherMcpTestPage() {
 
       <div className="relative z-10 flex flex-col gap-6 p-4 sm:p-6 lg:p-8 max-w-[1720px] w-full mx-auto pb-24">
         {/* Top Controls: Location & MCP Tool Selector (Matching Weather Page's Glass Panel) */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: 'easeOut' }}
+        <AnimatedContent
+          distance={40}
+          direction="vertical"
+          duration={1.2}
+          ease="back.out(1.6)"
+          blur={0}
+          threshold={0.1}
           className="glass-panel weather-top-controls p-3.5 sm:px-5 sm:py-4 rounded-2xl border border-border-light shadow-xl space-y-3"
         >
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
             {/* Tool Selector */}
             <div className="md:col-span-5">
               <label className="block text-[11px] font-extrabold uppercase tracking-wider text-text-muted mb-1.5">
-                {isTamil ? 'முன்னறிவிப்பு முறை' : 'Forecast Mode'}
+                {wm.forecastMode}
               </label>
               <Select
                 value={selectedTool}
@@ -1007,7 +1090,7 @@ export default function WeatherMcpTestPage() {
                   value: t.value,
                   label: (
                     <div className="flex items-center justify-between gap-2 py-0.5">
-                      <span className="font-bold">{isTamil ? t.labelTa : t.label}</span>
+                      <span className="font-bold text-slate-900 dark:text-white">{isTamil ? t.labelTa : t.label}</span>
                     </div>
                   ),
                 }))}
@@ -1017,7 +1100,7 @@ export default function WeatherMcpTestPage() {
             {/* Target Location Input */}
             <div className="md:col-span-5">
               <label className="block text-[11px] font-extrabold uppercase tracking-wider text-text-muted mb-1.5">
-                {isTamil ? 'இடம்' : 'Location'}
+                {wm.location}
               </label>
               <div className="relative">
                 <Search
@@ -1029,7 +1112,7 @@ export default function WeatherMcpTestPage() {
                   value={locationInput}
                   onChange={(e) => setLocationInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && executeMcpTool()}
-                  placeholder={isTamil ? 'உதா. சென்னை, தமிழ்நாடு அல்லது தஞ்சாவூர்...' : 'e.g. Chennai, Tamil Nadu or Thanjavur...'}
+                  placeholder={wm.searchPlaceholder}
                   className="w-full h-10 pl-9 pr-3 rounded-xl bg-surface/80 border border-border-light text-xs font-semibold text-text-main placeholder:text-text-muted focus:outline-none focus:border-sky-500"
                 />
               </div>
@@ -1046,12 +1129,12 @@ export default function WeatherMcpTestPage() {
                 {loading ? (
                   <>
                     <RefreshCw size={14} className="animate-spin text-slate-950" />
-                    <span>{isTamil ? 'தேடுகிறது...' : 'Searching...'}</span>
+                    <span>{wm.searching}</span>
                   </>
                 ) : (
                   <>
                     <Search size={14} />
-                    <span>{isTamil ? 'தேடுக' : 'Search'}</span>
+                    <span>{wm.search}</span>
                   </>
                 )}
               </button>
@@ -1061,7 +1144,7 @@ export default function WeatherMcpTestPage() {
           {/* Quick Location Chips */}
           <div className="flex items-center gap-1.5 flex-wrap pt-1.5 border-t border-border-subtle">
             <span className="text-[11px] font-bold text-text-muted mr-1">
-              {isTamil ? 'விரைவு இடங்கள்:' : 'Quick Locations:'}
+              {wm.quickLocations}
             </span>
             {SAMPLE_LOCATIONS.map((loc) => {
               const isSelected = locationInput === loc.value || locationInput === loc.labelTa;
@@ -1073,25 +1156,24 @@ export default function WeatherMcpTestPage() {
                     setLocationInput(loc.value);
                     executeMcpTool(selectedTool, loc.value);
                   }}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
-                    isSelected
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${isSelected
                       ? 'bg-sky-500 text-slate-950 border-sky-400 font-extrabold shadow-sm'
                       : 'glass-surface border-border-subtle text-text-secondary hover:text-text-main'
-                  }`}
+                    }`}
                 >
                   {isTamil ? loc.labelTa : loc.labelEn}
                 </button>
               );
             })}
           </div>
-        </motion.div>
+        </AnimatedContent>
 
         {/* Loading State */}
         {loading && (
           <div className="glass-panel rounded-2xl border border-border-light p-8 space-y-5 animate-pulse">
             <div className="flex items-center gap-2 text-xs font-semibold text-text-muted">
               <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
-              <span>{isTamil ? 'நேரலை வானிலை முன்னறிவிப்பு பெறப்படுகிறது...' : 'Fetching live high-resolution weather forecast...'}</span>
+              <span>{wm.fetchingLiveForecast}</span>
             </div>
             <div className="h-64 rounded-3xl skeleton-box" />
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
@@ -1107,7 +1189,7 @@ export default function WeatherMcpTestPage() {
           <div className="glass-panel rounded-2xl border border-rose-500/30 bg-rose-500/[0.08] p-8 text-center space-y-3">
             <span className="text-4xl inline-block">⚠️</span>
             <h3 className="text-base font-bold text-rose-500">
-              {isTamil ? 'வானிலை முன்னறிவிப்பு கிடைக்கவில்லை' : 'Weather Forecast Unavailable'}
+              {wm.forecastUnavailable}
             </h3>
             <p className="text-xs text-text-muted max-w-md mx-auto font-mono">{response.error}</p>
             <button
@@ -1115,31 +1197,48 @@ export default function WeatherMcpTestPage() {
               onClick={() => executeMcpTool()}
               className="px-4 py-2 rounded-xl bg-sky-500 text-white keep-white font-bold text-xs shadow-md hover:bg-sky-400 transition-all cursor-pointer"
             >
-              {isTamil ? 'மீண்டும் முயற்சிக்கவும்' : 'Retry Forecast'}
+              {wm.retryForecast}
             </button>
           </div>
         )}
 
         {/* Success Data Presentation: Styled with Interactive 3D FlipCards */}
         {response?.success && !loading && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: 'easeOut' }}
-            className="w-full space-y-6"
-          >
-            {/* FLOATING TOP HERO ROW (Matching existing Weather Page) */}
-            <div className="keep-white relative z-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 px-2 sm:px-4 pt-2 text-white [text-shadow:0_2px_14px_rgba(0,0,0,0.65)]">
+          <div className="w-full space-y-6">
+            {/* FLOATING TOP HERO ROW with AnimatedContent reveal */}
+            <AnimatedContent
+              key={`weather-hero-${parsed.location || 'loc'}-${safeDayIndex}`}
+              distance={60}
+              direction="vertical"
+              duration={1.2}
+              ease="back.out(1.6)"
+              blur={0}
+              stagger={0.08}
+              threshold={0.1}
+              className="keep-white relative z-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 px-2 sm:px-4 pt-2 text-white [text-shadow:0_2px_14px_rgba(0,0,0,0.65)]"
+            >
               {/* Left Column: Location, Conditions, Droplets, Wind, Rain */}
               <div className="space-y-4">
-                <div>
+                <AnimatedContent
+                  distance={40}
+                  direction="vertical"
+                  duration={1.2}
+                  ease="back.out(1.6)"
+                  blur={0}
+                  stagger={0.06}
+                  threshold={0.1}
+                  className="space-y-2"
+                >
                   <div className="flex items-baseline gap-2.5 flex-wrap">
                     <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white keep-white m-0">
                       {formatLocationDisplay(parsed.location, locationInput, isTamil)}
                     </h2>
                     {safeDayIndex > 0 && activeDay && (
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-500/25 border border-sky-400/50 text-sky-200 uppercase tracking-wider backdrop-blur-md shadow-sm">
-                        {translateShortDay(activeDay.shortDay, isTamil)} • {translateShortDate(activeDay.subDate, isTamil)}
+                        {/^\d{1,2}:\d{2}$/.test(activeDay.shortDay)
+                          ? formatHourWithAmPm(activeDay.shortDay).full
+                          : translateShortDay(activeDay.shortDay, isTamil)}{' '}
+                        • {translateShortDate(activeDay.subDate, isTamil)}
                       </span>
                     )}
                   </div>
@@ -1147,24 +1246,33 @@ export default function WeatherMcpTestPage() {
                     <span>{displayConditions}</span>
                     {displayRange && (
                       <span className="text-sm font-normal text-white/75">
-                        • {isTamil ? 'வரம்பு' : 'Range'}: {displayRange}
+                        • {wm.range}: {displayRange}
                       </span>
                     )}
                   </p>
-                </div>
+                </AnimatedContent>
 
-                <div className="space-y-2.5 text-sm text-white/95">
+                <AnimatedContent
+                  distance={30}
+                  direction="vertical"
+                  duration={1.2}
+                  ease="back.out(1.6)"
+                  blur={0}
+                  stagger={0.06}
+                  threshold={0.1}
+                  className="space-y-2.5 text-sm text-white/95"
+                >
                   {parsed.humidity && (
                     <div className="flex items-center gap-3.5">
                       <Droplets size={18} className="text-white/90 shrink-0" strokeWidth={1.6} />
-                      <span className="font-normal">{isTamil ? 'ஈரப்பதம்' : 'Humidity'}: {parsed.humidity}</span>
+                      <span className="font-normal">{wm.humidity}: {parsed.humidity}</span>
                     </div>
                   )}
 
                   {displayWind && (
                     <div className="flex items-center gap-3.5">
                       <Wind size={18} className="text-white/90 shrink-0" strokeWidth={1.6} />
-                      <span className="font-normal">{isTamil ? 'காற்று' : 'Wind'}: {displayWind}</span>
+                      <span className="font-normal">{wm.wind}: {displayWind}</span>
                     </div>
                   )}
 
@@ -1174,14 +1282,23 @@ export default function WeatherMcpTestPage() {
                       <span className="font-normal">{displayRainCloud}</span>
                     </div>
                   )}
-                </div>
+                </AnimatedContent>
               </div>
 
               {/* Right Column: Big Temperature & Status Display */}
-              <div className="flex flex-col sm:items-end justify-start shrink-0">
+              <AnimatedContent
+                distance={50}
+                direction="vertical"
+                duration={1.2}
+                ease="back.out(1.6)"
+                blur={0}
+                stagger={0.06}
+                threshold={0.1}
+                className="flex flex-col sm:items-end justify-start shrink-0"
+              >
                 {displayTemp != null ? (
                   <div className="text-6xl sm:text-7xl lg:text-[5.5rem] font-extralight tracking-tight text-white keep-white leading-none font-sans">
-                    +{displayTemp}
+                    <AnimatedCounter value={Number(displayTemp) || 0} prefix="+" />
                     <span className="text-4xl sm:text-5xl align-top ml-1 font-extralight text-white keep-white">
                       {parsed.currentTempUnit || '°C'}
                     </span>
@@ -1194,21 +1311,21 @@ export default function WeatherMcpTestPage() {
 
                 <div className="mt-2.5 flex items-center gap-2.5 text-sm font-light text-white/90 flex-wrap">
                   {displayFeelsLike && (
-                    <span>{isTamil ? 'உணரப்படும் வெப்பநிலை' : 'Feels Like'} {displayFeelsLike}</span>
+                    <span>{wm.feelsLike} {displayFeelsLike}</span>
                   )}
                   {safeDayIndex > 0 && activeDay?.lowTemp && (
-                    <span>{isTamil ? 'குறைந்தது' : 'Min'} {activeDay.lowTemp}</span>
+                    <span>{wm.min} {activeDay.lowTemp}</span>
                   )}
                 </div>
-              </div>
-            </div>
+              </AnimatedContent>
+            </AnimatedContent>
 
             {/* MOTION CAROUSEL: FREE SCROLL (Interactive 3D FlipCards in free horizontal momentum scroll) */}
             {parsed.forecast.length > 0 && (
               <div className="relative z-10 w-full">
                 <MotionFreeScrollCarousel
                   itemCount={parsed.forecast.length}
-                  helperText={isTamil ? 'சுழல் பலகை • கிடைமட்டமாக இழுக்கவும்' : 'Free scroll carousel • Drag or swipe horizontally'}
+                  helperText={wm.freeScrollCarousel}
                 >
                   {parsed.forecast.map((day, idx) => {
                     const isSelected = idx === safeDayIndex;
@@ -1220,16 +1337,16 @@ export default function WeatherMcpTestPage() {
                     const windFormatted = formatWindTile(day.wind);
                     const rainData = formatRainTile(day.precipChance, day.precipAmount);
                     const uvData = formatUvIndex(day.uvIndex);
-                    const sunSpanFormatted = formatSunSpan(day.sunrise, day.sunset, day.daylight);
+                    const sunSpanInfo = formatSunSpan(day.sunrise, day.sunset, day.daylight, day.isNight, wm);
+                    const isHourly = /^\d{1,2}:\d{2}$/.test(day.shortDay);
+                    const hourInfo = formatHourWithAmPm(day.shortDay);
                     const shortDate = formatShortDate(day.subDate);
 
                     return (
                       <div
                         key={`${day.dayTitle}-${idx}`}
                         onClick={() => setSelectedDayIndex(idx)}
-                        className={`w-[290px] sm:w-[310px] shrink-0 transition-all duration-300 cursor-pointer ${
-                          isSelected ? '-translate-y-1.5' : 'hover:-translate-y-0.5'
-                        }`}
+                        className="w-[290px] sm:w-[310px] shrink-0 transition-colors duration-200 cursor-pointer"
                       >
                         <FlipCard
                           axis="y"
@@ -1253,25 +1370,30 @@ export default function WeatherMcpTestPage() {
                           className="w-full"
                           front={
                             <div
-                              className={`w-full h-full p-5 flex flex-col justify-between items-center text-center rounded-[24px] glass-panel backdrop-blur-xl relative overflow-hidden group select-none transition-all text-white keep-white ${
-                                isSelected
+                              className={`w-full h-full p-5 flex flex-col justify-between items-center text-center rounded-[24px] glass-panel backdrop-blur-xl relative overflow-hidden group select-none transition-all text-white keep-white ${isSelected
                                   ? 'weather-card-active border-2 border-sky-400 bg-sky-500/[0.08] dark:bg-sky-950/30 shadow-[0_12px_36px_rgba(14,165,233,0.38)] ring-2 ring-sky-400/50'
                                   : 'weather-card-inactive border border-white/20 dark:border-white/10 bg-white/[0.04] dark:bg-black/25 shadow-xl hover:border-sky-400/50'
-                              }`}
+                                }`}
                             >
-                              {/* Top Bar: TODAY / SAT + Date */}
+                              {/* Top Bar: TODAY / 19:00 (7:00 PM) + Date */}
                               <div className="w-full flex items-center justify-between pb-2 border-b border-white/10">
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
                                   <span
-                                    className={`text-xs font-black tracking-widest uppercase font-mono ${
-                                      isSelected ? 'text-sky-300' : 'text-emerald-400'
-                                    }`}
+                                    className={`text-xs font-black tracking-wide uppercase font-mono ${isSelected ? 'text-sky-300' : 'text-emerald-400'
+                                      }`}
                                   >
-                                    {idx === 0 ? (isTamil ? 'இன்று' : 'TODAY') : translateShortDay(day.shortDay, isTamil)}
+                                    {isHourly
+                                      ? hourInfo.full
+                                      : (idx === 0 ? wm.today : translateShortDay(day.shortDay, isTamil))}
                                   </span>
+                                  {isHourly && idx === 0 && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-500/80 text-white shadow-sm">
+                                      {wm.now}
+                                    </span>
+                                  )}
                                   {isSelected && (
                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-sky-400 text-slate-950 shadow-sm">
-                                      {isTamil ? 'செயலில்' : 'ACTIVE'}
+                                      {wm.active}
                                     </span>
                                   )}
                                 </div>
@@ -1286,6 +1408,7 @@ export default function WeatherMcpTestPage() {
                                   rainfall={visual.rainfall}
                                   cloudCover={visual.cloudCover}
                                   conditionText={day.conditions}
+                                  isNight={day.isNight}
                                   className="w-16 h-14 mb-2 drop-shadow-[0_4px_16px_rgba(0,0,0,0.5)] transition-transform group-hover:scale-110"
                                 />
                                 <div className="text-sm text-white/95 keep-white font-semibold truncate max-w-[220px]">
@@ -1295,39 +1418,46 @@ export default function WeatherMcpTestPage() {
                                   {cleanH !== '--' ? `+${cleanH}°C` : (day.highTemp ? `+${day.highTemp}` : '--')}
                                 </div>
                                 <div className="text-xs text-white/70 keep-white font-medium mt-1">
-                                  {cleanL !== '--' ? `${isTamil ? 'குறைந்தது' : 'Min'} ${cleanL}°C` : ''}
-                                  {rainData.percent ? ` • ${rainData.percent} ${isTamil ? 'மழை' : 'rain'}` : ''}
+                                  {cleanL !== '--' ? `${wm.min} ${cleanL}°C` : ''}
+                                  {rainData.percent ? ` • ${rainData.percent} ${wm.rain.toLowerCase()}` : ''}
                                 </div>
                               </div>
 
-                              {/* Bottom Daylight Pill */}
+                              {/* Bottom Daylight / Night Pill */}
                               <div className="w-full px-3.5 py-2 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-between text-xs text-white/80 keep-white backdrop-blur-md">
-                                <span className="text-white/70 keep-white font-medium text-[11px]">
-                                  {isTamil ? 'பகற்பொழுது' : 'Daylight'}
+                                <span className="text-white/70 keep-white font-medium text-[11px] flex items-center gap-1">
+                                  <span>{day.isNight ? '🌙' : '☀️'}</span>
+                                  <span>{sunSpanInfo.label}</span>
                                 </span>
-                                <span className="font-mono text-xs text-white/95 keep-white font-semibold tracking-tight">
-                                  {sunSpanFormatted}
+                                <span className="font-mono text-xs text-white/95 keep-white font-semibold tracking-tight truncate ml-2">
+                                  {sunSpanInfo.span}
                                 </span>
                               </div>
                             </div>
                           }
                           back={
                             <div
-                              className={`w-full h-full p-4 sm:p-5 flex flex-col justify-between text-left rounded-[24px] glass-panel text-white keep-white backdrop-blur-xl relative overflow-hidden select-none transition-all ${
-                                isSelected
+                              className={`w-full h-full p-4 sm:p-5 flex flex-col justify-between text-left rounded-[24px] glass-panel text-white keep-white backdrop-blur-xl relative overflow-hidden select-none transition-all ${isSelected
                                   ? 'weather-card-active border-2 border-sky-400 bg-sky-500/[0.1] dark:bg-sky-950/40 shadow-[0_12px_36px_rgba(14,165,233,0.38)] ring-2 ring-sky-400/50'
                                   : 'weather-card-inactive border border-white/20 dark:border-white/10 bg-white/[0.05] dark:bg-black/35 shadow-xl hover:border-sky-400/50'
-                              }`}
+                                }`}
                             >
-                              {/* Top Bar: SAT / SUN + Date */}
+                              {/* Top Bar: SAT / 19:00 (7:00 PM) + Date */}
                               <div className="w-full pb-2 border-b border-white/10 flex items-center justify-between">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs font-black uppercase tracking-wider font-mono text-emerald-400">
-                                    {idx === 0 ? (isTamil ? 'இன்று' : 'TODAY') : translateShortDay(day.shortDay, isTamil)}
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-xs font-black uppercase tracking-wide font-mono text-emerald-400">
+                                    {isHourly
+                                      ? hourInfo.full
+                                      : (idx === 0 ? wm.today : translateShortDay(day.shortDay, isTamil))}
                                   </span>
+                                  {isHourly && idx === 0 && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-500/80 text-white shadow-sm">
+                                      {wm.now}
+                                    </span>
+                                  )}
                                   {isSelected && (
                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-sky-400 text-slate-950 shadow-sm">
-                                      {isTamil ? 'செயலில்' : 'ACTIVE'}
+                                      {wm.active}
                                     </span>
                                   )}
                                 </div>
@@ -1343,6 +1473,7 @@ export default function WeatherMcpTestPage() {
                                     rainfall={visual.rainfall}
                                     cloudCover={visual.cloudCover}
                                     conditionText={day.conditions}
+                                    isNight={day.isNight}
                                     className="w-9 h-8 shrink-0 drop-shadow"
                                   />
                                   <div className="min-w-0 text-left">
@@ -1351,9 +1482,7 @@ export default function WeatherMcpTestPage() {
                                     </div>
                                     {rangeStr && (
                                       <div className="text-[11px] text-white/70 keep-white font-medium font-mono mt-0.5">
-                                        {isTamil
-                                          ? rangeStr.replace(/^H\s*/, 'அதிகம் ').replace(/•\s*L\s*/, '• குறைவு ')
-                                          : rangeStr}
+                                        {rangeStr.replace(/^H\s*/, wm.highPrefix || 'H ').replace(/•\s*L\s*/, wm.lowPrefix || '• L ')}
                                       </div>
                                     )}
                                   </div>
@@ -1369,7 +1498,7 @@ export default function WeatherMcpTestPage() {
                                 <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col justify-between min-h-[58px] text-left">
                                   <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/60 keep-white tracking-wider uppercase">
                                     <span className="text-xs leading-none">🌡️</span>
-                                    <span className="text-white/70 keep-white">{isTamil ? 'உணரப்படும்' : 'FEELS'}</span>
+                                    <span className="text-white/70 keep-white">{wm.feels}</span>
                                   </div>
                                   <div className="text-xs sm:text-sm font-bold text-white keep-white font-mono mt-1 truncate">
                                     {feelsLikeFormatted}
@@ -1380,7 +1509,7 @@ export default function WeatherMcpTestPage() {
                                 <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col justify-between min-h-[58px] text-left">
                                   <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/60 keep-white tracking-wider uppercase">
                                     <Wind size={12} className="text-white/80 keep-white" />
-                                    <span className="text-white/70 keep-white">{isTamil ? 'காற்று' : 'WIND'}</span>
+                                    <span className="text-white/70 keep-white">{wm.wind.toUpperCase()}</span>
                                   </div>
                                   <div className="text-xs sm:text-sm font-bold text-white keep-white font-mono mt-1 truncate">
                                     {translateWind(windFormatted, isTamil)}
@@ -1391,7 +1520,7 @@ export default function WeatherMcpTestPage() {
                                 <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col justify-between min-h-[58px] text-left">
                                   <div className="flex items-center gap-1.5 text-[10px] font-bold text-sky-400 tracking-wider uppercase">
                                     <Droplets size={12} className="text-sky-400" />
-                                    <span className="text-white/70 keep-white">{isTamil ? 'மழை' : 'RAIN'}</span>
+                                    <span className="text-white/70 keep-white">{wm.rain.toUpperCase()}</span>
                                   </div>
                                   <div className="text-xs sm:text-sm font-bold mt-1 font-mono flex items-baseline gap-1 truncate">
                                     <span className="text-sky-400">{rainData.percent}</span>
@@ -1405,7 +1534,7 @@ export default function WeatherMcpTestPage() {
                                 <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col justify-between min-h-[58px] text-left">
                                   <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 tracking-wider uppercase">
                                     <Sparkles size={12} className="text-amber-400" />
-                                    <span className="text-white/70 keep-white">{isTamil ? 'புறஊதா' : 'UV IDX'}</span>
+                                    <span className="text-white/70 keep-white">{wm.uvIdx}</span>
                                   </div>
                                   <div className="text-xs sm:text-sm font-bold mt-1 font-mono flex items-baseline gap-1.5 truncate">
                                     <span className="text-amber-400">{uvData.val}</span>
@@ -1421,13 +1550,13 @@ export default function WeatherMcpTestPage() {
                               {/* Bottom Sun Pill */}
                               <div className="w-full px-3.5 py-2 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-between text-xs text-white/80 keep-white backdrop-blur-md">
                                 <div className="flex items-center gap-1.5 text-amber-300 font-medium">
-                                  <span className="text-sm">🌅</span>
+                                  <span className="text-sm">{day.isNight ? '🌙' : '🌅'}</span>
                                   <span className="text-[11px] font-semibold text-white/80 keep-white">
-                                    {isTamil ? 'சூரியன்' : 'Sun'}
+                                    {day.isNight ? wm.night : wm.sun}
                                   </span>
                                 </div>
                                 <span className="font-mono text-xs text-white/95 keep-white font-semibold tracking-tight">
-                                  {sunSpanFormatted}
+                                  {sunSpanInfo.span}
                                 </span>
                               </div>
                             </div>
@@ -1445,7 +1574,7 @@ export default function WeatherMcpTestPage() {
               <div className="relative z-10 w-full">
                 <MotionFreeScrollCarousel
                   itemCount={parsed.detailCards.length}
-                  helperText={isTamil ? 'சுழல் பலகை • கிடைமட்டமாக இழுக்கவும்' : 'Free scroll carousel • Drag or swipe horizontally'}
+                  helperText={wm.freeScrollCarousel}
                 >
                   {parsed.detailCards.map((card, idx) => {
                     const cardTitle = translateDetailCardTitle(card.title, isTamil);
@@ -1483,7 +1612,7 @@ export default function WeatherMcpTestPage() {
                                   </h4>
                                 </div>
                                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/15 text-sky-600 dark:text-sky-300 border border-sky-500/30">
-                                  {isTamil ? 'MCP நேரலை' : 'MCP Live'}
+                                  {wm.mcpLive}
                                 </span>
                               </div>
 
@@ -1504,7 +1633,7 @@ export default function WeatherMcpTestPage() {
                                   {cardTitle}
                                 </h4>
                                 <span className="text-[10px] font-mono text-emerald-400 font-bold">
-                                  {isTamil ? 'முழு விவரங்கள்' : 'Full Diagnostics'}
+                                  {wm.fullDiagnostics}
                                 </span>
                               </div>
 
@@ -1524,7 +1653,7 @@ export default function WeatherMcpTestPage() {
                 </MotionFreeScrollCarousel>
               </div>
             )}
-          </motion.div>
+          </div>
         )}
       </div>
     </div>

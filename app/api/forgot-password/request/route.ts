@@ -58,11 +58,17 @@ export async function POST(request: NextRequest) {
     );
 
     // 4. Dispatch 6-digit verification code to the user's email address via SMTP (nodemailer)
+    const forwardedHost = request.headers.get('x-forwarded-host');
+    const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
+    const publicOrigin = forwardedHost
+      ? `${forwardedProto}://${forwardedHost}`
+      : request.nextUrl.origin;
+
     const mailResult = await sendPasswordResetEmail(
       cleanEmail,
       userRes.rows[0].username,
       code,
-      request.nextUrl.origin
+      publicOrigin
     );
 
     if (!mailResult.sent) {

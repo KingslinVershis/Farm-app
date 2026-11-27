@@ -7,8 +7,9 @@ import { motion } from 'motion/react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { ShinyText } from '@/components/reactbits/ShinyText';
 import { AnimatedCounter } from '@/components/reactbits/AnimatedCounter';
-import { SpotlightCard } from '@/components/reactbits/SpotlightCard';
 import ReflectiveCard from '@/components/reactbits/ReflectiveCard';
+import PlanSummaryReflectiveCard from '@/components/reactbits/PlanSummaryReflectiveCard';
+import AnimatedContent from '@/components/reactbits/AnimatedContent';
 import {
   ShieldCheck,
   Sprout,
@@ -197,7 +198,7 @@ export default function CropHealthPage() {
       <div
         className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out scale-105"
         style={{
-          backgroundImage: `url('/images/crop.jpg')`,
+          backgroundImage: `url('https://res.cloudinary.com/chk0va7a/image/upload/v1795773768/crop_img.jpg')`,
         }}
       />
       <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
@@ -248,11 +249,10 @@ export default function CropHealthPage() {
                 role="tab"
                 aria-selected={activeTab === 'disease'}
                 onClick={() => setActiveTab('disease')}
-                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                  activeTab === 'disease'
-                    ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
-                    : 'text-text-secondary hover:text-text-main'
-                }`}
+                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${activeTab === 'disease'
+                  ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
+                  : 'text-text-secondary hover:text-text-main'
+                  }`}
               >
                 <ShieldCheck size={15} />
                 <span>{c.tabDisease}</span>
@@ -262,11 +262,10 @@ export default function CropHealthPage() {
                 role="tab"
                 aria-selected={activeTab === 'pest'}
                 onClick={() => setActiveTab('pest')}
-                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                  activeTab === 'pest'
-                    ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
-                    : 'text-text-secondary hover:text-text-main'
-                }`}
+                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${activeTab === 'pest'
+                  ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
+                  : 'text-text-secondary hover:text-text-main'
+                  }`}
               >
                 <AlertTriangle size={15} />
                 <span>{c.tabPest}</span>
@@ -277,56 +276,141 @@ export default function CropHealthPage() {
 
         {/* KPI Cards */}
         {!loading && !error && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <SpotlightCard className="glass-panel rounded-2xl border border-border-light p-5 shadow-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-text-muted">
-                  {c.totalAdvisories}
-                </span>
-                <span className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-500 flex items-center justify-center">
-                  <FileText size={15} />
-                </span>
-              </div>
-              <div className="text-2xl sm:text-3xl font-black text-text-main font-mono">
-                <AnimatedCounter value={records.length} />
-              </div>
-              <span className="text-xs text-text-muted mt-1 block">
-                {isDisease ? c.tabDisease : c.tabPest}
-              </span>
-            </SpotlightCard>
+          <AnimatedContent
+            distance={25}
+            direction="vertical"
+            duration={0.6}
+            ease="back.out(1.2)"
+            stagger={0.08}
+            trigger="mount"
+            className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+          >
+            <PlanSummaryReflectiveCard
+              theme="dark"
+              tint="#10b981"
+              metalness={0.9}
+              roughness={0.3}
+              blurStrength={6}
+              shine={1}
+              glare={0.5}
+              warp={0.5}
+              bevel={3}
+              radius={20}
+              enableTilt
+              height="100%"
+              className="min-h-[175px] shadow-xl"
+              bodyClassName="border border-white/10 hover:border-emerald-400/50 transition-colors"
+            >
+              <div className="h-full flex flex-col justify-between text-left select-none p-1">
+                <div className="flex items-center justify-between gap-1">
+                  <div className="leading-tight text-left">
+                    <div className="text-[11px] font-bold text-white uppercase tracking-wider">
+                      {c.totalAdvisories}
+                    </div>
+                    <div className="text-[9px] font-mono text-emerald-300 mt-0.5">
+                      {isDisease ? c.tabDisease : c.tabPest}
+                    </div>
+                  </div>
+                  <span className="plan-reflective-card__tile !w-11 !h-11 flex items-center justify-center p-1 overflow-hidden rounded-2xl bg-slate-900/40 border border-white/10 shadow-inner text-emerald-400 shrink-0">
+                    <FileText size={17} />
+                  </span>
+                </div>
 
-            <SpotlightCard className="glass-panel rounded-2xl border border-border-light p-5 shadow-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-text-muted">
-                  {c.cropsCovered}
-                </span>
-                <span className="w-8 h-8 rounded-xl bg-cyan-500/15 text-cyan-500 flex items-center justify-center">
-                  <Sprout size={15} />
-                </span>
+                <div className="my-auto py-2 text-left">
+                  <div className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none font-mono">
+                    <AnimatedCounter value={records.length} />
+                  </div>
+                  <div className="text-[11px] text-slate-300 mt-1 font-medium">
+                    {isDisease ? c.tabDisease : c.tabPest}
+                  </div>
+                </div>
               </div>
-              <div className="text-2xl sm:text-3xl font-black text-cyan-600 dark:text-cyan-400 font-mono">
-                <AnimatedCounter value={crops.length} />
-              </div>
-              <span className="text-xs text-text-muted mt-1 block">Tamil Nadu Crops</span>
-            </SpotlightCard>
+            </PlanSummaryReflectiveCard>
 
-            <SpotlightCard className="glass-panel rounded-2xl border border-border-light p-5 shadow-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-text-muted">
-                  {c.matchingRecords}
-                </span>
-                <span className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-500 flex items-center justify-center">
-                  <ShieldCheck size={15} />
-                </span>
+            <PlanSummaryReflectiveCard
+              theme="dark"
+              tint="#06b6d4"
+              metalness={0.9}
+              roughness={0.3}
+              blurStrength={6}
+              shine={1}
+              glare={0.5}
+              warp={0.5}
+              bevel={3}
+              radius={20}
+              enableTilt
+              height="100%"
+              className="min-h-[175px] shadow-xl"
+              bodyClassName="border border-white/10 hover:border-cyan-400/50 transition-colors"
+            >
+              <div className="h-full flex flex-col justify-between text-left select-none p-1">
+                <div className="flex items-center justify-between gap-1">
+                  <div className="leading-tight text-left">
+                    <div className="text-[11px] font-bold text-white uppercase tracking-wider">
+                      {c.cropsCovered}
+                    </div>
+                    <div className="text-[9px] font-mono text-cyan-300 mt-0.5">
+                      {c.cropsCoverage}
+                    </div>
+                  </div>
+                  <span className="plan-reflective-card__tile !w-11 !h-11 flex items-center justify-center p-1 overflow-hidden rounded-2xl bg-slate-900/40 border border-white/10 shadow-inner text-cyan-400 shrink-0">
+                    <Sprout size={17} />
+                  </span>
+                </div>
+
+                <div className="my-auto py-2 text-left">
+                  <div className="text-2xl sm:text-3xl font-black text-cyan-400 tracking-tight leading-none font-mono">
+                    <AnimatedCounter value={crops.length} />
+                  </div>
+                  <div className="text-[11px] text-slate-300 mt-1 font-medium">
+                    Tamil Nadu Crops
+                  </div>
+                </div>
               </div>
-              <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-                <AnimatedCounter value={filteredRecords.length} />
+            </PlanSummaryReflectiveCard>
+
+            <PlanSummaryReflectiveCard
+              theme="dark"
+              tint="#0ea5e9"
+              metalness={0.9}
+              roughness={0.3}
+              blurStrength={6}
+              shine={1}
+              glare={0.5}
+              warp={0.5}
+              bevel={3}
+              radius={20}
+              enableTilt
+              height="100%"
+              className="min-h-[175px] shadow-xl"
+              bodyClassName="border border-white/10 hover:border-sky-400/50 transition-colors"
+            >
+              <div className="h-full flex flex-col justify-between text-left select-none p-1">
+                <div className="flex items-center justify-between gap-1">
+                  <div className="leading-tight text-left">
+                    <div className="text-[11px] font-bold text-white uppercase tracking-wider">
+                      {c.matchingRecords}
+                    </div>
+                    <div className="text-[9px] font-mono text-sky-300 mt-0.5">
+                      {selectedCrop === 'all' ? c.allCrops : selectedCrop}
+                    </div>
+                  </div>
+                  <span className="plan-reflective-card__tile !w-11 !h-11 flex items-center justify-center p-1 overflow-hidden rounded-2xl bg-slate-900/40 border border-white/10 shadow-inner text-sky-400 shrink-0">
+                    <ShieldCheck size={17} />
+                  </span>
+                </div>
+
+                <div className="my-auto py-2 text-left">
+                  <div className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none font-mono">
+                    <AnimatedCounter value={filteredRecords.length} />
+                  </div>
+                  <div className="text-[11px] text-slate-300 mt-1 font-medium truncate">
+                    {selectedCrop === 'all' ? c.allCrops : selectedCrop}
+                  </div>
+                </div>
               </div>
-              <span className="text-xs text-text-muted mt-1 block">
-                {selectedCrop === 'all' ? c.allCrops : selectedCrop}
-              </span>
-            </SpotlightCard>
-          </div>
+            </PlanSummaryReflectiveCard>
+          </AnimatedContent>
         )}
 
         {/* Filter Bar: Crop Select + Search + Cards/Table Switch */}
@@ -380,11 +464,10 @@ export default function CropHealthPage() {
             <button
               type="button"
               onClick={() => setViewMode('cards')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                viewMode === 'cards'
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm font-extrabold'
-                  : 'text-text-secondary hover:text-text-main'
-              }`}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewMode === 'cards'
+                ? 'bg-emerald-500 text-slate-950 shadow-sm font-extrabold'
+                : 'text-text-secondary hover:text-text-main'
+                }`}
             >
               <LayoutGrid size={13} />
               <span>Cards</span>
@@ -392,11 +475,10 @@ export default function CropHealthPage() {
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                viewMode === 'table'
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm font-extrabold'
-                  : 'text-text-secondary hover:text-text-main'
-              }`}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewMode === 'table'
+                ? 'bg-emerald-500 text-slate-950 shadow-sm font-extrabold'
+                : 'text-text-secondary hover:text-text-main'
+                }`}
             >
               <TableList size={13} />
               <span>Table</span>
@@ -442,7 +524,16 @@ export default function CropHealthPage() {
           </div>
         ) : viewMode === 'cards' ? (
           <div className="space-y-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+            <AnimatedContent
+              key={`crop-health-grid-${activeTab}-${selectedCrop}-${searchQuery}-${cardPage}`}
+              distance={35}
+              direction="vertical"
+              duration={0.7}
+              ease="back.out(1.2)"
+              stagger={0.05}
+              trigger="mount"
+              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5"
+            >
               {pagedRecords.map((rec) => {
                 const isFlipped = Boolean(flippedCards[rec.id]);
                 return (
@@ -452,9 +543,8 @@ export default function CropHealthPage() {
                   >
                     <div
                       onClick={() => toggleFlip(rec.id)}
-                      className={`relative w-full h-full transition-transform duration-500 ease-out [transform-style:preserve-3d] cursor-pointer ${
-                        isFlipped ? '[transform:rotateY(180deg)]' : ''
-                      }`}
+                      className={`relative w-full h-full transition-transform duration-500 ease-out [transform-style:preserve-3d] cursor-pointer ${isFlipped ? '[transform:rotateY(180deg)]' : ''
+                        }`}
                     >
                       {/* FRONT FACE: Shows Crop Name and Disease/Pest Name */}
                       <div className="absolute inset-0 w-full h-full [backface-visibility:hidden] [-webkit-backface-visibility:hidden]">
@@ -471,11 +561,10 @@ export default function CropHealthPage() {
                             {/* Top row */}
                             <div className="w-full flex items-center justify-between">
                               <span
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
-                                  isDisease
-                                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/35'
-                                    : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/35'
-                                }`}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${isDisease
+                                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/35'
+                                  : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/35'
+                                  }`}
                               >
                                 <Sprout size={12} />
                                 <span>{rec.crop}</span>
@@ -501,7 +590,7 @@ export default function CropHealthPage() {
                             {/* Bottom Flip Prompt */}
                             <div className="w-full pt-2.5 border-t border-border-subtle flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
                               <RefreshCw size={12} />
-                              <span>{isTamil ? 'கட்டுப்பாடு முறைகளைக் காண திருப்பவும்' : 'Click for control measures'}</span>
+                              <span>{c.clickForControl}</span>
                             </div>
                           </div>
                         </ReflectiveCard>
@@ -526,18 +615,24 @@ export default function CropHealthPage() {
                               </span>
                               <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
                                 <RefreshCw size={11} />
-                                <span>{isTamil ? 'முன்புறம்' : 'Flip back'}</span>
+                                <span>{c.flipBack}</span>
                               </span>
                             </div>
 
                             {/* Advisory Control Heading & Details */}
-                            <div className="space-y-1.5 overflow-hidden">
-                              <div className="text-[10px] font-extrabold uppercase tracking-wider text-text-muted">
+                            <div className="flex-1 min-h-0 flex flex-col gap-1.5 my-1 overflow-hidden">
+                              <div className="text-[10px] font-extrabold uppercase tracking-wider text-text-muted shrink-0">
                                 {c.colControlMessage}
                               </div>
-                              <p className="text-xs text-text-secondary leading-relaxed line-clamp-5 whitespace-pre-line m-0">
-                                {getControlMessage(rec)}
-                              </p>
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                onWheel={(e) => e.stopPropagation()}
+                                className="flex-1 overflow-y-auto pr-1.5 mini-scrollbar max-h-[140px]"
+                              >
+                                <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-line m-0 select-text">
+                                  {getControlMessage(rec)}
+                                </p>
+                              </div>
                             </div>
 
                             {/* Bottom row */}
@@ -556,7 +651,7 @@ export default function CropHealthPage() {
                   </div>
                 );
               })}
-            </div>
+            </AnimatedContent>
 
             {filteredRecords.length > CARDS_PAGE_SIZE && (
               <div className="flex justify-center pt-2">

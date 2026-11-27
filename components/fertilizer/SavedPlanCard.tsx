@@ -12,9 +12,16 @@ interface SavedPlanCardProps {
   index: number;
   totalCount: number;
   isSelected?: boolean;
+  isDraggingThisCard?: boolean;
   onSelect: (planId: string) => void;
   onEdit: (planId: string, e: React.MouseEvent) => void;
   onDelete: (planId: string, e: React.MouseEvent) => void;
+  onStartHoldDrag?: (
+    plan: SavedPlanRecord,
+    initialPoint: { clientX: number; clientY: number },
+    rect: DOMRect | null,
+    index: number
+  ) => void;
 }
 
 export const SavedPlanCard: React.FC<SavedPlanCardProps> = ({
@@ -22,9 +29,11 @@ export const SavedPlanCard: React.FC<SavedPlanCardProps> = ({
   index,
   totalCount,
   isSelected = false,
+  isDraggingThisCard = false,
   onSelect,
   onEdit,
   onDelete,
+  onStartHoldDrag,
 }) => {
   const { messages, locale } = useLanguage();
   const isTamil = locale === 'ta';
@@ -54,8 +63,84 @@ export const SavedPlanCard: React.FC<SavedPlanCardProps> = ({
   const transportRent = transportTask?.transportRent ?? 1500;
   const loadingWorkers = transportTask?.loadingWorkers ?? (transportTask?.loadingLabourCount ?? 4);
 
+  // Hold & Drag detection for 3D Paper Crumple Trash Action
+  const holdTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const startPosRef = React.useRef<{ x: number; y: number } | null>(null);
+  const isHeldRef = React.useRef(false);
+
+  const onCardPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('a')) {
+      return;
+    }
+    const startX = e.clientX;
+    const startY = e.clientY;
+    startPosRef.current = { x: startX, y: startY };
+    isHeldRef.current = false;
+
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = setTimeout(() => {
+      isHeldRef.current = true;
+      const cardEl = document.getElementById(`saved-card-${plan.id}`);
+      const rect = cardEl ? cardEl.getBoundingClientRect() : null;
+      onStartHoldDrag?.(plan, { clientX: startX, clientY: startY }, rect, index);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(40);
+      }
+    }, 240);
+  };
+
+  const onCardPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!startPosRef.current || isHeldRef.current) return;
+    const dist = Math.hypot(e.clientX - startPosRef.current.x, e.clientY - startPosRef.current.y);
+    if (dist > 12) {
+      if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+      isHeldRef.current = true;
+      const cardEl = document.getElementById(`saved-card-${plan.id}`);
+      const rect = cardEl ? cardEl.getBoundingClientRect() : null;
+      onStartHoldDrag?.(plan, { clientX: e.clientX, clientY: e.clientY }, rect, index);
+    }
+  };
+
+  const onCardPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (!isHeldRef.current) {
+      const target = e.target as HTMLElement;
+      if (!target.closest('button') && !target.closest('a')) {
+        onSelect(plan.id);
+      }
+    }
+    startPosRef.current = null;
+    isHeldRef.current = false;
+  };
+
+  const onCardPointerCancel = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    startPosRef.current = null;
+    isHeldRef.current = false;
+  };
+
   return (
-    <>
+    <div
+      id={`saved-card-${plan.id}`}
+      onPointerDown={onCardPointerDown}
+      onPointerMove={onCardPointerMove}
+      onPointerUp={onCardPointerUp}
+      onPointerCancel={onCardPointerCancel}
+      className={`rounded-2xl glass-panel p-5 sm:p-6 shadow-xl transition-colors duration-200 hover:border-emerald-500/50 cursor-pointer relative group flex flex-col justify-between border select-none ${isDraggingThisCard
+        ? 'opacity-20 scale-95 border-dashed border-purple-500/70 ring-2 ring-purple-500/40 pointer-events-none'
+        : isSelected
+          ? 'border-emerald-500 ring-2 ring-emerald-500/40 bg-emerald-950/30'
+          : 'border-white/10 hover:border-emerald-500/50'
+        }`}
+    >
       {/* Delete Confirmation Modal */}
       <AnimatePresence>
         {showDeleteConfirm && (
@@ -127,7 +212,7 @@ export const SavedPlanCard: React.FC<SavedPlanCardProps> = ({
                 </div>
                 <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/80 dark:border-white/10 text-[11px]">
                   <span className="text-slate-500 dark:text-slate-400">Saved Date:</span>
-                  <span className="font-medium text-slate-700 dark:text-slate-300">
+                  <span className="font-medium text-slate-700 dark:text-slate-300" suppressHydrationWarning>
                     {plan.updated_at || plan.created_at}
                   </span>
                 </div>
@@ -167,188 +252,184 @@ export const SavedPlanCard: React.FC<SavedPlanCardProps> = ({
         )}
       </AnimatePresence>
 
-      <div
-        id={`saved-card-${plan.id}`}
-        onClick={() => onSelect(plan.id)}
-        className={`rounded-2xl glass-panel p-5 shadow-xl transition-all duration-300 hover:scale-[1.01] hover:shadow-2xl cursor-pointer relative group flex flex-col justify-between border ${isSelected
-          ? 'border-emerald-500 ring-2 ring-emerald-500/40 bg-emerald-950/30'
-          : 'border-white/10 hover:border-emerald-500/50'
-          }`}
-      >
-        <div>
-          {/* Top Metadata, Edit & Delete Action */}
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-slate-200/90 text-slate-800 dark:bg-white/10 dark:text-text-secondary tracking-wider">
-                Record #{totalCount - index}
+      <div>
+        {/* Top Metadata, Edit & Delete Action */}
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-slate-200/90 text-slate-800 dark:bg-white/10 dark:text-text-secondary tracking-wider">
+              Record #{totalCount - index}
+            </span>
+            <span className="text-[10px] font-bold text-emerald-900 bg-emerald-100 border-emerald-300 dark:text-emerald-400 dark:bg-emerald-500/10 px-2 py-0.5 rounded-md border dark:border-emerald-500/20">
+              🌾 Paddy
+            </span>
+            {plan.isCompleted ? (
+              <span className="text-[10px] font-bold text-emerald-950 bg-emerald-200/90 border-emerald-400 dark:text-emerald-300 dark:bg-emerald-500/20 px-2 py-0.5 rounded-md border dark:border-emerald-500/40 flex items-center gap-1 shadow-2xs">
+                <span>✓</span> Completed
               </span>
-              <span className="text-[10px] font-bold text-emerald-900 bg-emerald-100 border-emerald-300 dark:text-emerald-400 dark:bg-emerald-500/10 px-2 py-0.5 rounded-md border dark:border-emerald-500/20">
-                🌾 Paddy
+            ) : (
+              <span className="text-[10px] font-bold text-amber-900 bg-amber-100 border-amber-300 dark:text-amber-400 dark:bg-amber-500/15 px-2 py-0.5 rounded-md border dark:border-amber-500/30">
+                📝 In Progress
               </span>
-              {plan.isCompleted ? (
-                <span className="text-[10px] font-bold text-emerald-950 bg-emerald-200/90 border-emerald-400 dark:text-emerald-300 dark:bg-emerald-500/20 px-2 py-0.5 rounded-md border dark:border-emerald-500/40 flex items-center gap-1 shadow-2xs">
-                  <span>✓</span> Completed
-                </span>
-              ) : (
-                <span className="text-[10px] font-bold text-amber-900 bg-amber-100 border-amber-300 dark:text-amber-400 dark:bg-amber-500/15 px-2 py-0.5 rounded-md border dark:border-amber-500/30">
-                  📝 In Progress
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-slate-600 dark:text-text-muted font-medium mr-1">
-                {plan.updated_at || plan.created_at}
-              </span>
-              {/* Show Edit button only when plan is not completed */}
-              {!plan.isCompleted ? (
-                <button
-                  type="button"
-                  title="Edit this record from Step 1"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEdit(plan.id, e);
-                  }}
-                  className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 transition-colors cursor-pointer"
-                >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
-                </button>
-              ) : (
-                <span
-                  title="Completed plan is finalized and non-editable"
-                  className="p-1.5 text-slate-500 cursor-not-allowed text-xs flex items-center"
-                >
-                  🔒
-                </span>
-              )}
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-slate-600 dark:text-text-muted font-medium mr-1" suppressHydrationWarning>
+              {plan.updated_at || plan.created_at}
+            </span>
+            {/* Show Edit button only when plan is not completed */}
+            {!plan.isCompleted ? (
               <button
                 type="button"
-                title="Delete this record"
+                title="Edit this record from Step 1"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowDeleteConfirm(true);
+                  onEdit(plan.id, e);
                 }}
-                className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 transition-colors cursor-pointer"
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                 </svg>
               </button>
-            </div>
+            ) : (
+              <span
+                title="Completed plan is finalized and non-editable"
+                className="p-1.5 text-slate-500 cursor-not-allowed text-xs flex items-center"
+              >
+                🔒
+              </span>
+            )}
+            <button
+              type="button"
+              title="Delete this record"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowDeleteConfirm(true);
+              }}
+              className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition-colors cursor-pointer"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Farmer & Land Identity */}
+        <div className="mb-3.5">
+          <h4 className="font-display text-lg font-black text-text-main group-hover:text-emerald-400 transition-colors tracking-tight">
+            {plan.userDetails.name || 'Unnamed Farm Plot'}
+          </h4>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary mt-1">
+            <span className="font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+              {plan.userDetails.landSize} {messages.common.cents}
+            </span>
+            <span>•</span>
+            <span className="truncate max-w-[200px] text-text-muted">
+              {[plan.userDetails.village, plan.userDetails.district, plan.userDetails.state].filter(Boolean).join(', ') || plan.userDetails.address || ''}
+            </span>
+            {plan.userDetails.phone && (
+              <>
+                <span>•</span>
+                <span className="text-text-muted">+91 {plan.userDetails.phone}</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* User Entered Details Highlight Grid (Exterior Preview) */}
+        <div className="rounded-xl glass-surface p-3.5 mb-4 border border-white/5 space-y-2 text-xs">
+          {/* Grain Yield */}
+          <div className="flex items-center justify-between">
+            <span className="text-text-muted">{t.step3.cardLabels?.grainYield || 'Grain Yield'}:</span>
+            <span className="font-bold text-text-main">
+              {yieldMode === 'tons'
+                ? `${yieldTons} Tons (${grainBagCount} Bags)`
+                : `${grainBagCount} Bags`}
+            </span>
           </div>
 
-          {/* Farmer & Land Identity */}
-          <div className="mb-3.5">
-            <h4 className="font-display text-lg font-black text-text-main group-hover:text-emerald-400 transition-colors tracking-tight">
-              {plan.userDetails.name || 'Unnamed Farm Plot'}
-            </h4>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary mt-1">
-              <span className="font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-md">
-                {plan.userDetails.landSize} {messages.common.cents}
-              </span>
-              <span>•</span>
-              <span className="truncate max-w-[200px] text-text-muted">
-                {[plan.userDetails.village, plan.userDetails.district, plan.userDetails.state].filter(Boolean).join(', ') || plan.userDetails.address || ''}
-              </span>
-              {plan.userDetails.phone && (
-                <>
-                  <span>•</span>
-                  <span className="text-text-muted">+91 {plan.userDetails.phone}</span>
-                </>
-              )}
-            </div>
+          {/* Mandi Price */}
+          <div className="flex items-center justify-between">
+            <span className="text-text-muted">{t.step3.cardLabels?.mandiPrice || 'Mandi Price'}:</span>
+            <span className="font-extrabold text-emerald-400">
+              ₹{fmt(grainBagPrice)} / Bag
+            </span>
           </div>
 
-          {/* User Entered Details Highlight Grid (Exterior Preview) */}
-          <div className="rounded-xl glass-surface p-3.5 mb-4 border border-white/5 space-y-2 text-xs">
-            {/* Grain Yield */}
-            <div className="flex items-center justify-between">
-              <span className="text-text-muted">{t.step3.cardLabels?.grainYield || 'Grain Yield'}:</span>
-              <span className="font-bold text-text-main">
-                {yieldMode === 'tons'
-                  ? `${yieldTons} Tons (${grainBagCount} Bags)`
-                  : `${grainBagCount} Bags`}
-              </span>
-            </div>
-
-            {/* Mandi Price */}
-            <div className="flex items-center justify-between">
-              <span className="text-text-muted">{t.step3.cardLabels?.mandiPrice || 'Mandi Price'}:</span>
-              <span className="font-extrabold text-emerald-400">
-                ₹{fmt(grainBagPrice)} / Bag
-              </span>
-            </div>
-
-            {/* Straw Byproduct */}
-            <div className="flex items-center justify-between">
-              <span className="text-text-muted">{t.step3.cardLabels?.strawYield || 'Straw Byproduct'}:</span>
-              <span className="font-medium text-text-secondary">
-                {strawSackCount} Sacks @ ₹{fmt(strawPrice)}
-              </span>
-            </div>
-
-            {/* Gunny Bags */}
-            <div className="flex items-center justify-between">
-              <span className="text-text-muted">{t.step3.cardLabels?.gunnyBags || 'Gunny Bags'}:</span>
-              <span className="font-medium text-text-secondary">
-                {gunnyCount} ({gunnyType === 'plastic' ? 'Modern Plastic' : 'Traditional'})
-              </span>
-            </div>
-
-            {/* Transport & Mandi */}
-            <div className="flex items-center justify-between">
-              <span className="text-text-muted">{t.step3.cardLabels?.transport || 'Transport & Mandi'}:</span>
-              <span className="font-medium text-text-secondary">
-                ₹{fmt(transportRent)} Rent • {loadingWorkers} Workers
-              </span>
-            </div>
+          {/* Straw Byproduct */}
+          <div className="flex items-center justify-between">
+            <span className="text-text-muted">{t.step3.cardLabels?.strawYield || 'Straw Byproduct'}:</span>
+            <span className="font-medium text-text-secondary">
+              {strawSackCount} Sacks @ ₹{fmt(strawPrice)}
+            </span>
           </div>
 
-          {/* Financial Realization Box */}
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            <div className="rounded-xl bg-black/25 p-2.5 border border-white/5">
-              <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider block">
-                {t.step3.cardLabels?.outlay || 'Cultivation Outlay'}
+          {/* Gunny Bags */}
+          <div className="flex items-center justify-between">
+            <span className="text-text-muted">{t.step3.cardLabels?.gunnyBags || 'Gunny Bags'}:</span>
+            <span className="font-medium text-text-secondary">
+              {gunnyCount} ({gunnyType === 'plastic' ? 'Modern Plastic' : 'Traditional'})
+            </span>
+          </div>
+
+          {/* Transport & Mandi */}
+          <div className="flex items-center justify-between">
+            <span className="text-text-muted">{t.step3.cardLabels?.transport || 'Transport & Mandi'}:</span>
+            <span className="font-medium text-text-secondary">
+              ₹{fmt(transportRent)} Rent • {loadingWorkers} Workers
+            </span>
+          </div>
+        </div>
+
+        {/* Financial Realization Box */}
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <div className="rounded-xl bg-black/25 p-2.5 border border-white/5">
+            <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider block">
+              {t.step3.cardLabels?.outlay || 'Cultivation Outlay'}
+            </span>
+            <span className="text-sm font-extrabold text-amber-400">₹{fmt(plan.totals.grandTotal)}</span>
+          </div>
+          <div className="rounded-xl bg-black/25 p-2.5 border border-white/5">
+            <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider block">
+              {t.step3.cardLabels?.revenue || 'Gross Revenue'}
+            </span>
+            <span className="text-sm font-extrabold text-cyan-400">₹{fmt(plan.totals.revenueTotal)}</span>
+          </div>
+          <div className="col-span-2 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 p-3 border border-emerald-300 dark:border-emerald-500/25 flex items-center justify-between shadow-xs">
+            <div>
+              <span className="text-[10px] text-emerald-800 dark:text-emerald-300 uppercase font-black tracking-wider block">
+                {t.step3.cardLabels?.netProfit || 'Net Farm Profit'}
               </span>
-              <span className="text-sm font-extrabold text-amber-400">₹{fmt(plan.totals.grandTotal)}</span>
+              <span className="text-lg font-black text-emerald-700 dark:text-emerald-400">₹{fmt(plan.totals.netProfit)}</span>
             </div>
-            <div className="rounded-xl bg-black/25 p-2.5 border border-white/5">
-              <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider block">
-                {t.step3.cardLabels?.revenue || 'Gross Revenue'}
+            <div className="text-right">
+              <span className="text-[10px] text-slate-600 dark:text-text-muted font-bold block">
+                {t.step3.cardLabels?.profitPercent || 'Profit %'}
               </span>
-              <span className="text-sm font-extrabold text-cyan-400">₹{fmt(plan.totals.revenueTotal)}</span>
-            </div>
-            <div className="col-span-2 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 p-3 border border-emerald-300 dark:border-emerald-500/25 flex items-center justify-between shadow-xs">
-              <div>
-                <span className="text-[10px] text-emerald-800 dark:text-emerald-300 uppercase font-black tracking-wider block">
-                  {t.step3.cardLabels?.netProfit || 'Net Farm Profit'}
-                </span>
-                <span className="text-lg font-black text-emerald-700 dark:text-emerald-400">₹{fmt(plan.totals.netProfit)}</span>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] text-slate-600 dark:text-text-muted font-bold block">
-                  {t.step3.cardLabels?.profitPercent || (isTamil ? 'லாப சதவீதம்' : 'Profit %')}
-                </span>
-                <span className="text-xs font-black text-emerald-950 bg-emerald-200/90 border border-emerald-400 dark:text-emerald-300 dark:bg-emerald-500/20 dark:border-emerald-500/30 px-2 py-0.5 rounded shadow-2xs">
-                  {plan.totals.revenueTotal > 0
-                    ? Math.round((plan.totals.netProfit / plan.totals.revenueTotal) * 100)
-                    : plan.totals.grandTotal > 0
+              <span className="text-xs font-black text-emerald-950 bg-emerald-200/90 border border-emerald-400 dark:text-emerald-300 dark:bg-emerald-500/20 dark:border-emerald-500/30 px-2 py-0.5 rounded shadow-2xs">
+                {plan.totals.revenueTotal > 0
+                  ? Math.round((plan.totals.netProfit / plan.totals.revenueTotal) * 100)
+                  : plan.totals.grandTotal > 0
                     ? Math.round((plan.totals.netProfit / plan.totals.grandTotal) * 100)
                     : 0}%
-                </span>
-              </div>
+              </span>
             </div>
           </div>
         </div>
-
-        {/* Bottom Call to Action */}
-        <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs font-bold text-emerald-400 group-hover:text-emerald-300 transition-colors">
-          <span>{t.step3.viewSummaryCardBtn || 'View Summary Dossier →'}</span>
-          <span className="transition-transform group-hover:translate-x-1.5 font-black text-sm">→</span>
-        </div>
       </div>
-    </>
+
+      {/* Bottom Call to Action */}
+      <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs font-bold text-emerald-400 group-hover:text-emerald-300 transition-colors">
+        <div className="flex items-center gap-2">
+          <span>{t.step3.viewSummaryCardBtn || 'View Summary Dossier'}</span>
+          <span className="hidden sm:inline-block text-[10px] text-purple-300/80 bg-purple-500/15 border border-purple-500/25 px-2 py-0.5 rounded-full font-medium">
+            {t.step3.holdDragToDelete || 'Hold & drag to 🗑️ to delete'}
+          </span>
+        </div>
+        <span className="transition-transform group-hover:translate-x-1.5 font-black text-sm">→</span>
+      </div>
+    </div>
   );
 };

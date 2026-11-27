@@ -4,6 +4,7 @@ import React, { useRef, useEffect } from 'react';
 import { Select, Input, FloatButton, type InputRef } from 'antd';
 import type { useLocationSelector } from '@/lib/hooks/useLocationSelector';
 import { MapPin, Search, Compass, X } from '@/components/icons/FlaticonIcons';
+import { useLanguage } from '@/components/providers/LanguageProvider';
 
 interface LocationSelectorFieldsProps {
   location: ReturnType<typeof useLocationSelector>;
@@ -14,10 +15,12 @@ interface LocationSelectorFieldsProps {
 
 export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
   location,
-  isTamil = false,
+  isTamil: propIsTamil,
   disabled = false,
   hideSearch = false,
 }) => {
+  const { messages } = useLanguage();
+  const loc = messages.common.locationSelector;
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<InputRef>(null);
   const manualPlaceInputRef = useRef<InputRef>(null);
@@ -68,7 +71,7 @@ export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold text-text-main flex items-center gap-1.5">
               <MapPin size={15} className="text-emerald-400" />
-              <span>{isTamil ? 'நேரடி இருப்பிடம் (GPS)' : 'Live Location & Geodata'}</span>
+              <span>{loc.liveLocation}</span>
             </span>
 
             {/* GPS Auto-Detect Button */}
@@ -81,12 +84,8 @@ export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
               <Compass size={13} className={location.detectingGps ? 'animate-spin' : ''} />
               <span>
                 {location.detectingGps
-                  ? isTamil
-                    ? 'கண்டறியப்படுகிறது...'
-                    : 'Locating...'
-                  : isTamil
-                  ? 'GPS கண்டறி'
-                  : 'Use Live GPS'}
+                  ? loc.locatingGps
+                  : loc.useLiveGps}
               </span>
             </button>
           </div>
@@ -117,7 +116,7 @@ export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
               <div className="flex items-center gap-1.5">
                 {location.searching && (
                   <span className="text-[10px] text-emerald-400 animate-pulse font-bold whitespace-nowrap">
-                    {isTamil ? 'தேடுகிறது...' : 'Searching...'}
+                    {loc.searching}
                   </span>
                 )}
                 {location.searchQuery && (
@@ -139,7 +138,7 @@ export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
             onFocus={() => {
               if (location.searchQuery.trim().length >= 2) location.setShowSearchDropdown(true);
             }}
-            placeholder={isTamil ? 'ஊர் / கிராமத்தை தேடுங்கள்...' : 'Search town, village or pincode...'}
+            placeholder={loc.searchPlaceholder}
             disabled={disabled}
             className="h-[38px] w-full rounded-xl text-xs font-medium"
           />
@@ -150,7 +149,7 @@ export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
               {location.searching ? (
                 <div className="px-4 py-3 text-center text-xs text-emerald-400 flex items-center justify-center gap-2">
                   <Compass size={14} className="animate-spin" />
-                  <span className="font-semibold">{isTamil ? 'இடங்கள் தேடப்படுகிறது...' : 'Locating places...'}</span>
+                  <span className="font-semibold">{loc.locating}</span>
                 </div>
               ) : location.searchResults.length > 0 ? (
                 location.searchResults.map((item, idx) => (
@@ -173,17 +172,17 @@ export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
                       </div>
                     </div>
                     <span className="text-[11px] font-extrabold text-emerald-400 opacity-90 group-hover:opacity-100 transition-opacity bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
-                      {isTamil ? 'தேர்ந்தெடு' : 'Select'}
+                      {loc.select}
                     </span>
                   </button>
                 ))
               ) : (
                 <div className="p-4 text-center space-y-1 bg-slate-950 dark:bg-slate-950 bg-white">
                   <p className="text-xs font-bold text-rose-400">
-                    {isTamil ? 'இடம் கண்டறியப்படவில்லை' : 'Location Not Found'}
+                    {loc.notFound}
                   </p>
                   <p className="text-[11px] text-slate-300 dark:text-slate-300 text-slate-600 max-w-xs mx-auto">
-                    {isTamil ? 'கீழே உள்ள உள்ளீட்டில் நேரடியாக தட்டச்சு செய்யலாம்' : 'You can enter your exact village/town manually below'}
+                    {loc.notFoundDesc}
                   </p>
                 </div>
               )}
@@ -197,7 +196,7 @@ export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
         {/* 1. State */}
         <div>
           <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
-            {isTamil ? 'மாநிலம் (State)' : 'State'}
+            {loc.state}
           </label>
           <Select
             size="middle"
@@ -213,7 +212,7 @@ export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
               location.setStateSearchText('');
               location.setStateSearching(false);
             }}
-            placeholder={isTamil ? 'மாநிலத்தைத் தேர்ந்தெடுக்கவும்' : 'Select State'}
+            placeholder={loc.selectState}
             className="w-full custom-antd-select"
             popupMatchSelectWidth={false}
             options={location.stateOptions}
@@ -227,7 +226,7 @@ export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
         {/* 2. District */}
         <div>
           <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
-            {isTamil ? 'மாவட்டம் (District)' : 'District'}
+            {loc.district}
           </label>
           <Select
             size="middle"
@@ -247,12 +246,8 @@ export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
             disabled={!location.selectedStateCode || disabled}
             placeholder={
               !location.selectedStateCode
-                ? isTamil
-                  ? 'முதலில் மாநிலத்தைத் தேர்ந்தெடுக்கவும்'
-                  : 'Select State First'
-                : isTamil
-                ? 'மாவட்டத்தைத் தேர்ந்தெடுக்கவும்'
-                : 'Select District'
+                ? loc.selectStateFirst
+                : loc.selectDistrict
             }
             className="w-full custom-antd-select"
             popupMatchSelectWidth={false}
@@ -267,7 +262,7 @@ export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider truncate">
-              {isTamil ? 'கிராமம் / நகரம் (City)' : 'City / Village'}
+              {loc.cityVillage}
             </label>
             <button
               type="button"
@@ -280,12 +275,8 @@ export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
               className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
             >
               {location.isManualInput
-                ? isTamil
-                  ? 'பட்டியலுக்கு திரும்பு'
-                  : 'Choose from List'
-                : isTamil
-                ? 'தட்டச்சு செய்'
-                : 'Enter Manually'}
+                ? loc.chooseFromList
+                : loc.enterManually}
             </button>
           </div>
 
@@ -308,12 +299,8 @@ export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
               disabled={!location.selectedDistrictName || disabled}
               placeholder={
                 !location.selectedDistrictName
-                  ? isTamil
-                    ? 'முதலில் மாவட்டத்தைத் தேர்ந்தெடுக்கவும்'
-                    : 'Select District First'
-                  : isTamil
-                  ? 'ஊரைத் தேர்ந்தெடுக்கவும்'
-                  : 'Select City/Village'
+                  ? loc.selectDistrictFirst
+                  : loc.selectCityVillage
               }
               className="w-full custom-antd-select"
               popupMatchSelectWidth={false}
@@ -324,14 +311,14 @@ export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
               notFoundContent={
                 <div className="p-3 text-center">
                   <p className="text-xs text-text-muted mb-2">
-                    {isTamil ? 'பட்டியலில் இடம் கிடைக்கவில்லை' : 'Place not found in list'}
+                    {loc.placeNotFoundInList}
                   </p>
                   <button
                     type="button"
                     onClick={handleFocusCityVillageInput}
                     className="px-3 py-1 text-xs font-bold text-white keep-white bg-emerald-500 rounded-lg hover:bg-emerald-400 transition-colors cursor-pointer"
                   >
-                    {isTamil ? 'ஊர் பெயரை தட்டச்சு செய்' : 'Enter Exact Place'}
+                    {loc.enterExactPlace}
                   </button>
                 </div>
               }
@@ -346,7 +333,7 @@ export const LocationSelectorFields: React.FC<LocationSelectorFieldsProps> = ({
                   location.setManualPlaceName(e.target.value);
                   location.setSelectedPlace(e.target.value);
                 }}
-                placeholder={isTamil ? 'ஊர் / கிராமப் பெயரை உள்ளிடவும்' : 'Enter city or village name'}
+                placeholder={loc.enterCityVillagePlaceholder}
                 allowClear
                 className="h-[38px] w-full rounded-xl text-xs font-semibold text-text-main border-emerald-500/40"
                 disabled={disabled}

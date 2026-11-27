@@ -5,6 +5,7 @@ import { Modal } from 'antd';
 import { Clock, RefreshCw, ShieldCheck, AlertCircle } from '@/components/icons/FlaticonIcons';
 import CodeSlots, { type CodeSlotsStatus } from '@/components/auth/CodeSlots';
 import { useTheme } from '@/components/providers/ThemeProvider';
+import { useLanguage } from '@/components/providers/LanguageProvider';
 
 export interface OtpVerificationModalProps {
   open: boolean;
@@ -40,10 +41,12 @@ export function OtpVerificationModal({
   onVerify,
   onResend,
   onCancel,
-  isTamil = false,
+  isTamil: propIsTamil,
   previewUrl,
 }: OtpVerificationModalProps) {
   const { theme } = useTheme();
+  const { messages } = useLanguage();
+  const m = messages.auth.otpModal;
   const isDark = theme === 'dark';
   const [code, setCode] = useState('');
 
@@ -70,7 +73,7 @@ export function OtpVerificationModal({
       }}
       footer={null}
       centered
-      destroyOnClose
+      destroyOnHidden
       width={460}
       title={
         <div className="flex items-center gap-2 text-emerald-500 font-black text-base">
@@ -88,7 +91,7 @@ export function OtpVerificationModal({
         <div className="px-3.5 py-2.5 rounded-xl bg-slate-100/90 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="flex flex-col min-w-0">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-white/50">
-              {isTamil ? 'மின்னஞ்சல்' : 'Verification Sent To'}
+              {m.verificationSentTo}
             </span>
             <span className="font-mono font-bold text-slate-900 dark:text-white truncate">
               {email}
@@ -106,7 +109,7 @@ export function OtpVerificationModal({
           >
             <Clock size={13} />
             <span>
-              {secondsLeft > 0 ? formatTimer(secondsLeft) : isTamil ? 'காலாவதியானது' : 'Expired'}
+              {secondsLeft > 0 ? formatTimer(secondsLeft) : m.expired}
             </span>
           </span>
         </div>
@@ -123,7 +126,7 @@ export function OtpVerificationModal({
         <div>
           <div className="flex items-center justify-between mb-2">
             <span className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80">
-              {isTamil ? '6 இலக்க குறியீடு' : '6-Digit Verification Code'} *
+              {m.sixDigitCode} *
             </span>
             <button
               type="button"
@@ -138,12 +141,10 @@ export function OtpVerificationModal({
               <RefreshCw size={12} className={resending ? 'animate-spin' : ''} />
               <span>
                 {resending
-                  ? isTamil
-                    ? 'அனுப்புகிறது...'
-                    : 'Resending...'
-                  : isTamil
-                  ? 'மீண்டும் அனுப்பு'
-                  : 'Resend Code'}
+                  ? m.resending
+                  : secondsLeft > 0
+                  ? m.resendIn.replace('{sec}', String(secondsLeft))
+                  : m.resendCode}
               </span>
             </button>
           </div>
@@ -177,7 +178,7 @@ export function OtpVerificationModal({
               caret
               autoFocus
               disabled={loading || resending}
-              ariaLabel={isTamil ? '6 இலக்க சரிபார்ப்பு குறியீடு' : '6-digit verification code'}
+              ariaLabel={m.codeAriaLabel}
             />
           </div>
 
@@ -189,7 +190,7 @@ export function OtpVerificationModal({
                 rel="noopener noreferrer"
                 className="text-emerald-600 dark:text-emerald-400 font-bold underline"
               >
-                {isTamil ? 'சோதனை மின்னஞ்சலைத் திற →' : 'Open Test Email Inbox →'}
+                {m.openTestInbox}
               </a>
             </p>
           )}
@@ -203,7 +204,7 @@ export function OtpVerificationModal({
             onClick={onCancel}
             className="flex-1 h-11 rounded-xl border border-slate-200 dark:border-white/15 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 font-bold text-xs sm:text-sm hover:bg-slate-200/70 dark:hover:bg-white/10 transition-all cursor-pointer disabled:opacity-50"
           >
-            {isTamil ? 'ரத்து' : 'Cancel'}
+            {m.cancel}
           </button>
           <button
             type="button"
@@ -212,11 +213,7 @@ export function OtpVerificationModal({
             style={{ color: '#ffffff' }}
             className="keep-white flex-[1.5] h-11 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-white font-black text-xs sm:text-sm shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading
-              ? isTamil
-                ? 'சரிபார்க்கிறது...'
-                : 'Verifying...'
-              : confirmLabel}
+            {loading ? m.verifying : confirmLabel}
           </button>
         </div>
       </div>

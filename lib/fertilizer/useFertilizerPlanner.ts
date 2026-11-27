@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
+import { fetchUserData, invalidateUserDataCache } from '@/lib/clientUser';
 import { PADDY_PHASES } from './data';
 import {
   buildEmptyExpenses,
@@ -43,7 +44,7 @@ export function sanitizeUserDetails(userDetails?: Partial<UserDetails> | null): 
     name: userDetails?.name || '',
     phone: userDetails?.phone || '',
     landSize: toSafeNum(userDetails?.landSize),
-    state: userDetails?.state || 'Tamil Nadu',
+    state: userDetails?.state || '',
     district: userDetails?.district || '',
     city: userDetails?.city || '',
     village: userDetails?.village || '',
@@ -277,6 +278,7 @@ export function useFertilizerPlanner() {
       });
       const json = await res.json();
       if (json.success && json.data) {
+        invalidateUserDataCache();
         return sanitizePlanRecord(json.data);
       }
     } catch (e) {
@@ -289,12 +291,13 @@ export function useFertilizerPlanner() {
     if (typeof window === 'undefined') return;
     try {
       await fetch(`/api/user?id=${encodeURIComponent(planId)}`, { method: 'DELETE' });
+      invalidateUserDataCache();
     } catch (e) {
       console.warn('[FertilizerAPI] Could not delete plan from API:', e);
     }
   };
 
-  // Hydrate user-specific saved plans from /api/user and user-scoped storage
+  // Hydrate user-specific saved plans from /api/user (deduplicated) and user-scoped storage
   useEffect(() => {
     let active = true;
 
@@ -302,10 +305,20 @@ export function useFertilizerPlanner() {
       try {
         localStorage.removeItem('farm_app_saved_plans');
       } catch (_) {}
+
+      try {
+        const key = getStorageKey();
+        const stored = localStorage.getItem(key);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSavedPlans(parsed.map(sanitizePlanRecord));
+          }
+        }
+      } catch (_) {}
     }
 
-    fetch('/api/user')
-      .then((res) => (res.ok ? res.json() : null))
+    fetchUserData()
       .then((json) => {
         if (!active || !json || !json.success) return;
         const plansList = json.plans || [];
@@ -350,6 +363,7 @@ export function useFertilizerPlanner() {
     const autoTargets: Array<{ id: string; qty: number }> = [
       { id: 'p1_fert', qty: pesticideLitres },
       { id: 'p2_tillering', qty: pesticideLitres },
+      { id: 'p2_fert_labour', qty: fertMinBags },
       { id: 'p3_fert_dose3', qty: fertMinBags },
     ];
 

@@ -1,4 +1,6 @@
 import { computeDailyLabourCost, formatCurrency as fmt } from './calc';
+import { en } from '@/messages/en';
+import { tamil } from '@/messages/tamil';
 import type {
   CultivationType,
   ExpenseEntry,
@@ -476,14 +478,16 @@ export function buildSimplePhaseSummaryHtml(params: PrintDossierParams): string 
     isTamil = false,
   } = params;
 
+  const dMsg = isTamil ? tamil.fertilizer.dossier : en.fertilizer.dossier;
+
   const phaseRowsHtml = currentPhases
     .map((phase) => {
       const pMeta = getPhaseMeta(phase);
       const pTot = phaseTotals[phase.id]?.total || 0;
       const pct = phase.isProfitPhase
         ? revenueTotal > 0
-          ? isTamil ? '100.0% (வருவாய்)' : '100.0% (Revenue)'
-          : isTamil ? '0.0% (வருவாய்)' : '0.0% (Revenue)'
+          ? dMsg.revenuePct
+          : dMsg.zeroRevenuePct
         : grandTotal > 0
           ? `${((pTot / grandTotal) * 100).toFixed(1)}%`
           : '0.0%';
@@ -499,13 +503,13 @@ export function buildSimplePhaseSummaryHtml(params: PrintDossierParams): string 
     })
     .join('');
 
-  const tableTitle = isTamil ? 'கட்ட வாரியான செலவு & வருவாய் சுருக்கம்' : 'PHASE-WISE COST & REVENUE SUMMARY';
-  const colPhase = isTamil ? 'கட்டம்' : 'PHASE';
-  const colDesc = isTamil ? 'செயல்முறை விளக்கம்' : 'STAGE DESCRIPTION';
-  const colDays = isTamil ? 'நாட்கள்' : 'DAY SPAN';
-  const colShare = isTamil ? 'செலவுப் பங்கு (%)' : 'OUTLAY SHARE (%)';
-  const colTotal = isTamil ? 'கட்டத்தின் மொத்தம் (₹)' : 'PHASE TOTAL (₹)';
-  const totalRowLabel = isTamil ? 'மொத்த சாகுபடி செலவு (கட்டம் 1 – 4)' : 'Total Cultivation Expenses (Phases 1 – 4)';
+  const tableTitle = dMsg.summaryTitle;
+  const colPhase = dMsg.colPhase;
+  const colDesc = dMsg.colDesc;
+  const colDays = dMsg.colDays;
+  const colShare = dMsg.colShare;
+  const colTotal = dMsg.colTotal;
+  const totalRowLabel = dMsg.totalCultivationExpenses;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -515,7 +519,7 @@ export function buildSimplePhaseSummaryHtml(params: PrintDossierParams): string 
   <style>
     @page {
       size: A4 portrait;
-      margin: 12mm 15mm;
+      margin: 0;
     }
     * {
       box-sizing: border-box;
@@ -526,7 +530,8 @@ export function buildSimplePhaseSummaryHtml(params: PrintDossierParams): string 
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       color: #0f172a;
       background: #ffffff;
-      padding: 10mm 12mm;
+      padding: 12mm 15mm;
+      margin: 0;
       line-height: 1.5;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
@@ -584,10 +589,11 @@ export function buildSimplePhaseSummaryHtml(params: PrintDossierParams): string 
     }
     table.cost-table {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
       margin-bottom: 20px;
       border: 1px solid #cbd5e1;
-      border-radius: 6px;
+      border-radius: 8px;
       overflow: hidden;
     }
     table.cost-table th {
@@ -598,15 +604,23 @@ export function buildSimplePhaseSummaryHtml(params: PrintDossierParams): string 
       text-transform: uppercase;
       letter-spacing: 0.03em;
       padding: 10px 12px;
-      border: 1px solid #cbd5e1;
+      border-bottom: 1px solid #cbd5e1;
+      border-right: 1px solid #cbd5e1;
       text-align: left;
     }
+    table.cost-table th:last-child {
+      border-right: none;
+    }
     table.cost-table td {
-      border: 1px solid #cbd5e1;
+      border-bottom: 1px solid #cbd5e1;
+      border-right: 1px solid #cbd5e1;
       padding: 10px 12px;
       font-size: 12px;
       color: #0f172a;
       vertical-align: middle;
+    }
+    table.cost-table td:last-child {
+      border-right: none;
     }
     table.cost-table td.phase-col {
       font-weight: 800;
@@ -640,6 +654,7 @@ export function buildSimplePhaseSummaryHtml(params: PrintDossierParams): string 
       font-weight: 800;
       font-size: 12.5px;
       border-top: 2px solid #059669;
+      border-bottom: none;
     }
     .metrics-summary {
       display: grid;
@@ -684,14 +699,6 @@ export function buildSimplePhaseSummaryHtml(params: PrintDossierParams): string 
       color: #64748b;
       font-weight: 600;
     }
-    .footer-note {
-      margin-top: 24px;
-      text-align: center;
-      font-size: 10px;
-      color: #94a3b8;
-      border-top: 1px dashed #cbd5e1;
-      padding-top: 8px;
-    }
   </style>
 </head>
 <body>
@@ -702,19 +709,19 @@ export function buildSimplePhaseSummaryHtml(params: PrintDossierParams): string 
     </div>
     <div class="meta-grid">
       <div class="meta-item">
-        <span class="lbl">${isTamil ? 'விவசாயி பெயர்' : 'Farmer Name'}</span>
+        <span class="lbl">${dMsg.farmerName}</span>
         <span class="val">${escapeHtml(userDetails.name || 'Farmer')}</span>
       </div>
       <div class="meta-item">
-        <span class="lbl">${isTamil ? 'நிலப்பரப்பு' : 'Land Area'}</span>
-        <span class="val">${escapeHtml(userDetails.landSize)} ${isTamil ? 'சென்ட்' : 'Cents'}</span>
+        <span class="lbl">${dMsg.landArea}</span>
+        <span class="val">${escapeHtml(userDetails.landSize)} ${dMsg.cents}</span>
       </div>
       <div class="meta-item">
-        <span class="lbl">${isTamil ? 'பயிர் முறை' : 'Crop Package'}</span>
-        <span class="val" style="text-transform: capitalize;">${escapeHtml(cultivation)} (${escapeHtml(totalCropDays)} ${isTamil ? 'நாட்கள்' : 'Days'})</span>
+        <span class="lbl">${dMsg.cropPackage}</span>
+        <span class="val" style="text-transform: capitalize;">${escapeHtml(cultivation)} (${escapeHtml(totalCropDays)} ${dMsg.days})</span>
       </div>
       <div class="meta-item">
-        <span class="lbl">${isTamil ? 'இடம் / வட்டம்' : 'Zone / Location'}</span>
+        <span class="lbl">${dMsg.zoneLocation}</span>
         <span class="val">${escapeHtml(userDetails.location || [userDetails.village, userDetails.district, userDetails.state].filter(Boolean).join(', ') || '-')}</span>
       </div>
     </div>
@@ -742,24 +749,20 @@ export function buildSimplePhaseSummaryHtml(params: PrintDossierParams): string 
 
   <div class="metrics-summary">
     <div class="metric-card outlay">
-      <div class="title">${isTamil ? 'மொத்த சாகுபடி செலவு' : 'Total Cultivation Outlay (Ph 1–4)'}</div>
+      <div class="title">${dMsg.totalOutlayTitle}</div>
       <div class="value">₹${escapeHtml(fmt(grandTotal))}</div>
-      <div class="subtitle">₹${escapeHtml(fmt(costPerCent))} / ${isTamil ? 'சென்ட்' : 'cent'}</div>
+      <div class="subtitle">₹${escapeHtml(fmt(costPerCent))} / ${dMsg.cent}</div>
     </div>
     <div class="metric-card revenue">
-      <div class="title">${isTamil ? 'மொத்த விளைச்சல் வருவாய்' : 'Gross Revenue Realization (Ph 5)'}</div>
+      <div class="title">${dMsg.grossRevenueTitle}</div>
       <div class="value">₹${escapeHtml(fmt(revenueTotal))}</div>
-      <div class="subtitle">₹${escapeHtml(fmt(revenuePerCent))} / ${isTamil ? 'சென்ட்' : 'cent'}</div>
+      <div class="subtitle">₹${escapeHtml(fmt(revenuePerCent))} / ${dMsg.cent}</div>
     </div>
     <div class="metric-card profit">
-      <div class="title">${isTamil ? 'நிகர பண்ணை லாபம்' : 'Net Farm Profit &amp; ROI'}</div>
+      <div class="title">${dMsg.netProfitTitle}</div>
       <div class="value">₹${escapeHtml(fmt(netProfit))}</div>
       <div class="subtitle">${roiPercentage > 0 ? `+${roiPercentage}% ROI` : `${roiPercentage}% ROI`}</div>
     </div>
-  </div>
-
-  <div class="footer-note">
-    Tamil Nadu Agricultural Advisory &amp; Farm Planning Platform • Generated on ${new Date().toLocaleString('en-IN')}
   </div>
 </body>
 </html>`;
@@ -830,9 +833,8 @@ export function downloadSimplePhaseSummaryCsv(params: PrintDossierParams): void 
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
   const { currentPhases, phaseTotals, grandTotal, revenueTotal, getPhaseMeta, userDetails, isTamil } = params;
-  const headerCols = isTamil
-    ? ['கட்டம்', 'செயல்முறை விளக்கம்', 'நாட்கள்', 'செலவுப் பங்கு (%)', 'கட்டத்தின் மொத்தம் (ரூ.)']
-    : ['PHASE', 'STAGE DESCRIPTION', 'DAY SPAN', 'OUTLAY SHARE (%)', 'PHASE TOTAL (INR)'];
+  const dMsg = isTamil ? tamil.fertilizer.dossier : en.fertilizer.dossier;
+  const headerCols = [dMsg.colPhase, dMsg.colDesc, dMsg.colDays, dMsg.colShare, dMsg.colTotalCsv];
 
   const rows = [
     headerCols,
@@ -841,7 +843,7 @@ export function downloadSimplePhaseSummaryCsv(params: PrintDossierParams): void 
       const pTot = phaseTotals[phase.id]?.total || 0;
       const pct = phase.isProfitPhase
         ? revenueTotal > 0
-          ? isTamil ? '100.0% (வருவாய்)' : '100.0% (Revenue)'
+          ? dMsg.revenuePct
           : '0.0%'
         : grandTotal > 0
           ? `${((pTot / grandTotal) * 100).toFixed(1)}%`
@@ -849,7 +851,7 @@ export function downloadSimplePhaseSummaryCsv(params: PrintDossierParams): void 
       return [pMeta.month, pMeta.name, pMeta.daySpan, pct, String(pTot)];
     }),
     [
-      isTamil ? 'மொத்த சாகுபடி செலவு (கட்டம் 1 - 4)' : 'Total Cultivation Expenses (Phases 1 - 4)',
+      dMsg.totalCultivationExpenses,
       '',
       '',
       '100.0%',

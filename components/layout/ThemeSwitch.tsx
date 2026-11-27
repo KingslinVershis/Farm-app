@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useTheme } from '@/components/providers/ThemeProvider';
-import { message } from 'antd';
+import { App } from 'antd';
 
 interface ThemeSwitchProps {
   id?: string;
@@ -12,6 +12,7 @@ interface ThemeSwitchProps {
 export const ThemeSwitch: React.FC<ThemeSwitchProps> = ({ id = 'theme-toggle-switch', className = '' }) => {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
+  const { message } = App.useApp();
 
   return (
     <button

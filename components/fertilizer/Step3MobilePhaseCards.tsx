@@ -2,12 +2,19 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Switch, Modal, message } from 'antd';
+import { Switch, Modal, App, Tooltip } from 'antd';
 import { AlertTriangle } from '@/components/icons/FlaticonIcons';
 import { ChevronLeftIcon, ChevronDownIcon } from '@/components/icons/Icons';
 import type { ExpenseEntry, ExpenseTask, PhaseGroup, UserDetails, CultivationType } from '@/lib/fertilizer/types';
-import { formatCurrency as fmt } from '@/lib/fertilizer/calc';
+import {
+  formatCurrency as fmt,
+  computeRecommendedPesticideLitres,
+  computeRecommendedFertilizerBagRange,
+  computeRecommendedFertilizerMix,
+  computeDailyLabourCost,
+} from '@/lib/fertilizer/calc';
 import { useLanguage } from '@/components/providers/LanguageProvider';
+import { isTaskEntryFilled } from '@/lib/fertilizer/useFertilizerPlanner';
 import { DayStepper } from './DayStepper';
 
 export interface Step3MobilePhaseCardsProps {
@@ -137,6 +144,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
   phase3HerbicideMaxDays,
 }) => {
   const router = useRouter();
+  const { message } = App.useApp();
   const { messages, locale } = useLanguage();
   const isTamil = locale === 'ta';
   const t = messages.fertilizer;
@@ -169,8 +177,10 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
   const isAlertTask = (task: ExpenseTask) => {
     return (
       task.id === 'p3_herbicide' ||
-      task.id === 'p3_pest1' ||
-      task.id === 'p3_pest2' ||
+      task.id === 'p1_fert' ||
+      task.id === 'p2_tillering' ||
+      task.id === 'p3_fert_dose3' ||
+      task.id === 'p3_potash_sulphide' ||
       task.id === 'p1_fuel' ||
       task.id === 'p1_nursery' ||
       task.id === 'p4_harvest' ||
@@ -205,6 +215,24 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
 
   const progressPercent = Math.round(((activePhaseIndex + 1) / currentPhases.length) * 100);
 
+  const isPhaseDone = (idx: number) =>
+    phaseCompletionMap ? Boolean(phaseCompletionMap[idx]) : true;
+
+  const showIncompletePhaseWarning = (phaseIdx: number) => {
+    const targetPhase = currentPhases[phaseIdx];
+    if (!targetPhase) return;
+    const pMeta = getPhaseMeta(targetPhase);
+    const missingTask = targetPhase.tasks.find(
+      (task) => !isTaskEntryFilled(task, expenseMap[task.id])
+    );
+    const missingLabel = missingTask ? getTaskMeta(missingTask).name : '';
+    message.warning(
+      isTamil
+        ? `${pMeta.month} விவரங்களை முழுமையாக நிரப்பவும்${missingLabel ? `: ${missingLabel}` : ''}`
+        : `Please fill values for all required tasks in ${pMeta.month} first${missingLabel ? ` (${missingLabel})` : ''}.`
+    );
+  };
+
   // Back button handler
   const handleBack = () => {
     if (activePhaseIndex > 0) {
@@ -218,6 +246,11 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
 
   // Next / Save button handler
   const handleSaveAndProceed = async () => {
+    if (!isPhaseDone(activePhaseIndex)) {
+      showIncompletePhaseWarning(activePhaseIndex);
+      return;
+    }
+
     if (isPhase5) {
       handleOpenCompleteConfirm();
       return;
@@ -263,10 +296,10 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
 
         <div className="flex flex-col items-center text-center">
           <span className="inline-block rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider">
-            {isTamil ? 'படி 3 / 3' : 'STEP 3 OF 3'}
+            {t.step3.step3Of3}
           </span>
           <h2 className="text-sm font-extrabold text-slate-900 dark:text-white mt-0.5 tracking-tight">
-            {isTamil ? 'பருவ வாரியான செலவுகள்' : 'Phase-Wise Expenses'}
+            {t.stepLabels.step3Subtitle}
           </h2>
         </div>
 
@@ -291,7 +324,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
         <div className="flex items-center justify-between gap-2">
           <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
             <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
-            {isTamil ? `பருவம் ${activePhaseIndex + 1} / ${currentPhases.length}` : `PHASE ${activePhaseIndex + 1} OF ${currentPhases.length}`}
+            {t.step3.phaseOfPhases.replace('{current}', String(activePhaseIndex + 1)).replace('{total}', String(currentPhases.length))}
           </span>
           <span className="rounded-full glass-surface text-slate-600 dark:text-slate-300 text-[11px] font-semibold px-2.5 py-0.5 border border-white/10">
             {activePhaseMeta.daySpan}
@@ -308,6 +341,42 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
             className="h-full bg-emerald-500 rounded-full transition-all duration-300"
             style={{ width: `${progressPercent}%` }}
           />
+        </div>
+
+        {/* Phase Quick Switcher Pills */}
+        <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between gap-1 overflow-x-auto scrollbar-none">
+          {currentPhases.map((phase, pIdx) => {
+            const isCurrent = pIdx === activePhaseIndex;
+            const isLocked = pIdx > (highestUnlockedPhaseIndex ?? 0);
+            const isDone = phaseCompletionMap ? Boolean(phaseCompletionMap[pIdx]) : false;
+            const pMeta = getPhaseMeta(phase);
+            return (
+              <button
+                key={phase.id}
+                type="button"
+                onClick={() => {
+                  if (isLocked) {
+                    showIncompletePhaseWarning(Math.max(0, highestUnlockedPhaseIndex ?? 0));
+                    return;
+                  }
+                  setActivePhaseIndex(pIdx);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`flex-1 py-1 px-1 rounded-lg text-[10px] font-bold transition-all text-center flex items-center justify-center gap-0.5 cursor-pointer ${
+                  isCurrent
+                    ? 'bg-emerald-500 text-white keep-white shadow-xs'
+                    : isLocked
+                    ? 'opacity-40 cursor-not-allowed glass-surface text-slate-400'
+                    : isDone
+                    ? 'glass-surface text-emerald-400 border border-emerald-500/30'
+                    : 'glass-surface text-slate-300'
+                }`}
+              >
+                <span>{pMeta.month || `P${pIdx + 1}`}</span>
+                {isLocked ? <span className="text-[9px]">🔒</span> : isDone ? <span className="text-[9px]">✓</span> : null}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -331,7 +400,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
 
           <div className="pl-3 text-right">
             <div className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">
-              {activePhase.isProfitPhase ? (isTamil ? 'பருவ மொத்த வரவு' : 'Gross Revenue Realization') : isTamil ? 'பருவ மொத்த செலவு' : 'Current Phase Total'}
+              {activePhase.isProfitPhase ? t.step3.grossRevenueRealization : t.step3.currentPhaseTotal}
             </div>
             <div className="text-xl font-black text-emerald-300 mt-1">
               ₹{fmt(phaseTotals[activePhase.id]?.total || 0)}
@@ -353,7 +422,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
               : 'glass-surface text-slate-800 dark:text-slate-100 border border-white/10 hover:border-emerald-500/40'
           }`}
         >
-          {isTamil ? `அனைத்து பணிகள் (${activePhase.tasks.length})` : `All Tasks (${activePhase.tasks.length})`}
+          {t.step3.allTasksFilter.replace('{count}', String(activePhase.tasks.length))}
         </button>
 
         <button
@@ -365,7 +434,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
               : 'glass-surface text-slate-800 dark:text-slate-100 border border-white/10 hover:border-emerald-500/40'
           }`}
         >
-          {isTamil ? `திட்டமிடப்பட்டவை (${scheduledCount})` : `Scheduled (${scheduledCount})`}
+          {t.step3.scheduledFilter.replace('{count}', String(scheduledCount))}
         </button>
 
         <button
@@ -378,7 +447,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
           }`}
         >
           <span className="h-2 w-2 rounded-full bg-amber-400 inline-block" />
-          <span>{isTamil ? `எச்சரிக்கைகள் (${alertsCount})` : `Alerts (${alertsCount})`}</span>
+          <span>{t.step3.alertsFilter.replace('{count}', String(alertsCount))}</span>
         </button>
       </div>
 
@@ -388,7 +457,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
       <div className="space-y-3">
         {filteredTasks.length === 0 ? (
           <div className="rounded-2xl glass-card border border-white/10 p-8 text-center text-slate-600 dark:text-slate-200 text-xs font-semibold">
-            {isTamil ? 'பணிகள் எதுவும் கிடைக்கவில்லை' : 'No tasks match the selected filter.'}
+            {t.step3.noTasksMatch}
           </div>
         ) : (
           filteredTasks.map((task) => {
@@ -492,55 +561,48 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                 ? (entry as any).total_yieldKg
                 : entry.yieldTons
                 ? entry.yieldTons * 1000
-                : task.defaultYieldTons
-                ? task.defaultYieldTons * 1000
                 : '';
 
             const rawBagWeight =
               entry.bagWeightKg !== undefined && entry.bagWeightKg !== 0
                 ? entry.bagWeightKg
-                : task.defaultBagWeightKg || '';
+                : '';
 
             const rawBagPrice =
               entry.grainBagPrice !== undefined && entry.grainBagPrice !== 0
                 ? entry.grainBagPrice
                 : (entry as any).pricePerBag !== undefined && (entry as any).pricePerBag !== 0
                 ? (entry as any).pricePerBag
-                : task.defaultBagPrice || '';
+                : '';
 
-            const rawGrainBags =
-              entry.grainBagCount !== undefined && entry.grainBagCount !== 0
-                ? entry.grainBagCount
-                : Number(rawBagWeight) > 0 && Number(rawYieldKg) > 0
-                ? Number((Number(rawYieldKg) / Number(rawBagWeight)).toFixed(1))
-                : task.defaultGrainBags || 0;
+            const rawGrainBags = entry.grainBagCount ?? 0;
 
             const rawStrawSacks =
               entry.strawSackCount !== undefined && entry.strawSackCount !== 0
                 ? entry.strawSackCount
                 : (entry as any).SackCount !== undefined && (entry as any).SackCount !== 0
                 ? (entry as any).SackCount
-                : task.defaultStrawSacks || '';
+                : '';
 
             const rawStrawPrice =
               entry.strawPrice !== undefined && entry.strawPrice !== 0
                 ? entry.strawPrice
                 : (entry as any).SackPrice !== undefined && (entry as any).SackPrice !== 0
                 ? (entry as any).SackPrice
-                : task.defaultStrawPrice || '';
+                : '';
 
             // Compute total task cost / realization correctly
             const computedTaskTotal = (() => {
-              if (entry.totalCost && entry.totalCost > 0) return entry.totalCost;
-              if (task.isGrainYield) {
-                const bCount = Number(rawGrainBags) || 0;
-                const bPrice = Number(rawBagPrice) || 0;
-                return Math.round(bCount * bPrice);
+              if (isSkipped) return 0;
+              if (task.id === 'p1_nursery') {
+                const seed = entry.ratePerCent || 0;
+                const travel = entry.hasTravelCost !== false ? (entry.travelCost || 0) : 0;
+                return seed + travel;
               }
-              if (task.isStrawYield) {
-                const sCount = Number(rawStrawSacks) || 0;
-                const sPrice = Number(rawStrawPrice) || 0;
-                return Math.round(sCount * sPrice);
+              if (task.id === 'p1_fuel') {
+                const fuel = entry.ratePerCent || 0;
+                const repair = entry.hasRepairCost ? (entry.repairCost || 0) : 0;
+                return fuel + repair;
               }
               return entry.totalCost || 0;
             })();
@@ -554,6 +616,41 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                   </span>
                 );
               }
+              if (task.id === 'p1_nursery') {
+                return (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="px-2 py-0.5 rounded-md glass-surface text-slate-700 dark:text-slate-100 border border-white/10 text-[11px] font-semibold">
+                      {t.step3.seed}: ₹{entry.ratePerCent || 0}
+                    </span>
+                    {entry.hasTravelCost !== false && (entry.travelCost || 0) > 0 && (
+                      <span className="px-2 py-0.5 rounded-md glass-surface text-amber-600 dark:text-amber-300 border border-amber-500/30 text-[11px] font-semibold">
+                        +{t.step3.tableHeaders.travelCost}: ₹{entry.travelCost}
+                      </span>
+                    )}
+                  </div>
+                );
+              }
+              if (task.id === 'p1_fuel') {
+                return (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="px-2 py-0.5 rounded-md glass-surface text-slate-700 dark:text-slate-100 border border-white/10 text-[11px] font-semibold">
+                      {t.step3.fuel}: ₹{entry.ratePerCent || 0}
+                    </span>
+                    {entry.hasRepairCost && (entry.repairCost || 0) > 0 && (
+                      <span className="px-2 py-0.5 rounded-md glass-surface text-amber-600 dark:text-amber-300 border border-amber-500/30 text-[11px] font-semibold">
+                        +{t.step3.repairCost}: ₹{entry.repairCost}
+                      </span>
+                    )}
+                  </div>
+                );
+              }
+              if (task.id === 'p1_tractor' || task.id === 'p2_tractor') {
+                return (
+                  <span className="px-2 py-0.5 rounded-md glass-surface text-slate-700 dark:text-slate-100 border border-white/10 text-[11px] font-semibold">
+                    {t.step3.rent}: ₹{entry.ratePerCent || task.defaultRate || 0} / cent
+                  </span>
+                );
+              }
               if (task.id === 'p4_harvest') {
                 const hCost = currentDayEntry.ratePerCent || entry.ratePerCent || 0;
                 return (
@@ -562,7 +659,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                   </span>
                 );
               }
-              if (task.isMultiDayLabour) {
+              if (task.isMultiDayLabour && task.isLabour) {
                 const filledDays = filledMultiDays.length;
                 return (
                   <>
@@ -578,10 +675,17 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                 );
               }
               if (task.isFertilizerWithLabour) {
+                const fertUnit = task.id === 'p1_fert' || task.id === 'p2_tillering' ? 'L' : task.id === 'p3_fert_dose3' || task.id === 'p2_fert_labour' ? 'Bags' : 'kg';
+                const isBagTask = task.id === 'p3_fert_dose3' || task.id === 'p2_fert_labour';
+                const effectiveQty = (entry.fertQty !== undefined && entry.fertQty !== 0)
+                  ? entry.fertQty
+                  : isBagTask && computeRecommendedFertilizerBagRange(userDetails.landSize || 0).minBags > 0
+                  ? computeRecommendedFertilizerBagRange(userDetails.landSize || 0).minBags
+                  : (entry.fertQty || 0);
                 return (
                   <>
                     <span className="px-2 py-0.5 rounded-md glass-surface text-slate-700 dark:text-slate-100 border border-white/10 text-[11px] font-semibold">
-                      Qty: {entry.fertQty || 0} kg
+                      Qty: {effectiveQty} {fertUnit}
                     </span>
                     {(entry.fertPrice ?? 0) > 0 && (
                       <span className="px-2 py-0.5 rounded-md glass-surface text-slate-700 dark:text-slate-100 border border-white/10 text-[11px] font-semibold">
@@ -648,17 +752,39 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                   </span>
                 );
               }
+              if (task.isLabour) {
+                return (
+                  <>
+                    <span className="px-2 py-0.5 rounded-md glass-surface text-slate-700 dark:text-slate-100 border border-white/10 text-[11px] font-semibold">
+                      {entry.labourCount || 0} Labourers
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md glass-surface text-slate-700 dark:text-slate-100 border border-white/10 text-[11px] font-semibold">
+                      Wage ₹{entry.labourWage || 0}
+                    </span>
+                  </>
+                );
+              }
               return (
-                <>
-                  <span className="px-2 py-0.5 rounded-md glass-surface text-slate-700 dark:text-slate-100 border border-white/10 text-[11px] font-semibold">
-                    {entry.labourCount || 0} Labourers
-                  </span>
-                  <span className="px-2 py-0.5 rounded-md glass-surface text-slate-700 dark:text-slate-100 border border-white/10 text-[11px] font-semibold">
-                    Wage ₹{entry.labourWage || 0}
-                  </span>
-                </>
+                <span className="px-2 py-0.5 rounded-md glass-surface text-slate-700 dark:text-slate-100 border border-white/10 text-[11px] font-semibold">
+                  {t.step3.rate}: ₹{entry.ratePerCent || task.defaultRate || 0} / cent
+                </span>
               );
             };
+
+            const cents = userDetails.landSize > 0 ? userDetails.landSize : 0;
+            const isPesticideDose = task.id === 'p1_fert' || task.id === 'p2_tillering';
+            const isBagCountDose = task.id === 'p3_fert_dose3' || task.id === 'p2_fert_labour';
+            const bagRange = computeRecommendedFertilizerBagRange(cents);
+            const fertMix = computeRecommendedFertilizerMix(cents);
+            const activePesticideMl = entry.pesticideMl ?? (
+              cents > 0 && entry.fertQty
+                ? Math.round((Number(entry.fertQty) * 1000) / (cents / 2))
+                : 80
+            );
+
+            const taskDisplayName = task.id === 'p1_nursery'
+              ? t.step3.seedCostAndTravelCostTitle
+              : meta.name.replace(/Nursery\s*Bed\s*&?\s*/gi, '');
 
             // ─────────────────────────────────────────────────────────
             // CARD VARIANT A: COLLAPSED CARD
@@ -683,7 +809,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                   <div className="flex items-center justify-between gap-3 mt-1.5">
                     <div className="flex-1 min-w-0">
                       <h4 className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
-                        {meta.name}
+                        {taskDisplayName}
                       </h4>
                       <div className="flex flex-wrap items-center gap-1.5 mt-2">
                         {renderCollapsedBadges()}
@@ -757,7 +883,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
 
                 {/* Title & Description */}
                 <h4 className="font-extrabold text-base text-slate-900 dark:text-white mt-2 leading-snug">
-                  {meta.name}
+                  {taskDisplayName}
                 </h4>
                 <p className="text-xs text-slate-700 dark:text-slate-200 mt-1 leading-relaxed font-medium">
                   {meta.description || meta.dayRange}
@@ -765,15 +891,15 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
 
                 {/* ── ALERTS / ADVISORIES BANNER (If Applicable) ── */}
                 {task.id === 'p3_herbicide' && (
-                  <div className="mt-3 rounded-xl bg-amber-500/15 dark:bg-amber-500/10 border border-amber-400/30 dark:border-amber-500/30 p-3 flex items-center justify-between gap-3 shadow-xs backdrop-blur-sm">
+                  <div className="mt-3 rounded-xl bg-purple-500/15 dark:bg-purple-500/10 border border-purple-400/30 dark:border-purple-500/30 p-3 flex items-center justify-between gap-3 shadow-xs backdrop-blur-sm">
                     <div className="flex items-start gap-2.5">
-                      <AlertTriangle size={18} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <AlertTriangle size={18} className="text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
                       <div>
-                        <div className="text-xs font-extrabold text-amber-900 dark:text-amber-300">
-                          {isTamil ? 'களைக்கொல்லி எச்சரிக்கை' : 'Herbicide Alert Active'}
+                        <div className="text-xs font-extrabold text-purple-900 dark:text-purple-300">
+                          {t.step3.herbicideAlertActive}
                         </div>
-                        <div className="text-[11px] text-amber-800 dark:text-amber-400 font-medium">
-                          {isTamil ? 'நிலையான நீர் நிலையை பராமரிக்கவும்' : 'Ensure standing water condition'}
+                        <div className="text-[11px] text-purple-800 dark:text-purple-400 font-medium">
+                          {t.step3.ensureStandingWater}
                         </div>
                       </div>
                     </div>
@@ -781,7 +907,55 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                       size="small"
                       checked={entry.herbicideNotify !== false}
                       onChange={(checked) => handleToggleNotify?.(task.id, 'Herbicide_notify', checked)}
+                      className="bg-purple-400"
+                    />
+                  </div>
+                )}
+
+                {(task.id === 'p1_fert' || task.id === 'p2_tillering') && (
+                  <div className="mt-3 rounded-xl bg-amber-500/15 dark:bg-amber-500/10 border border-amber-400/30 dark:border-amber-500/30 p-3 flex items-center justify-between gap-3 shadow-xs backdrop-blur-sm">
+                    <div className="flex items-start gap-2.5">
+                      <AlertTriangle size={18} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="text-xs font-extrabold text-amber-900 dark:text-amber-300">
+                          {t.step3.pesticideSprayAlert}
+                        </div>
+                        <div className="text-[11px] text-amber-800 dark:text-amber-400 font-medium">
+                          {task.id === 'p1_fert'
+                            ? t.step3.schedule15DaysAfterTransplanting
+                            : t.step3.protectiveSprayTillering}
+                        </div>
+                      </div>
+                    </div>
+                    <Switch
+                      size="small"
+                      checked={entry.pesticideNotify !== false}
+                      onChange={(checked) => handleToggleNotify?.(task.id, 'pesticide_notify', checked)}
                       className="bg-amber-400"
+                    />
+                  </div>
+                )}
+
+                {(task.id === 'p3_fert_dose3' || task.id === 'p3_potash_sulphide') && (
+                  <div className="mt-3 rounded-xl bg-teal-500/15 dark:bg-teal-500/10 border border-teal-400/30 dark:border-teal-500/30 p-3 flex items-center justify-between gap-3 shadow-xs backdrop-blur-sm">
+                    <div className="flex items-start gap-2.5">
+                      <span className="text-teal-600 dark:text-teal-400 text-sm mt-0.5">🔔</span>
+                      <div>
+                        <div className="text-xs font-extrabold text-teal-900 dark:text-teal-300">
+                          {t.step3.fertilizerTimingAlert}
+                        </div>
+                        <div className="text-[11px] text-teal-800 dark:text-teal-400 font-medium">
+                          {task.id === 'p3_fert_dose3'
+                            ? t.step3.schedule3DaysAfterPesticide
+                            : t.step3.applyPotashSulphide}
+                        </div>
+                      </div>
+                    </div>
+                    <Switch
+                      size="small"
+                      checked={entry.fertilizerNotify !== false}
+                      onChange={(checked) => handleToggleNotify?.(task.id, 'fertilizer_notify', checked)}
+                      className="bg-teal-400"
                     />
                   </div>
                 )}
@@ -790,10 +964,10 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                   <div className="mt-3 rounded-xl glass-surface border border-white/10 p-3 flex items-center justify-between gap-3 shadow-xs">
                     <div>
                       <div className="text-xs font-bold text-slate-800 dark:text-slate-100">
-                        {isTamil ? 'டிராக்டர் பழுது செலவு' : 'Tractor Repair & Maintenance'}
+                        {t.step3.motorRepairBill}
                       </div>
                       <div className="text-[11px] text-slate-600 dark:text-slate-200">
-                        {isTamil ? 'பழுது பார்த்தல் உள்ளதா?' : 'Include mechanic repair bill?'}
+                        {t.step3.includeMechanicRepair}
                       </div>
                     </div>
                     <Switch
@@ -811,19 +985,44 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                   </div>
                 )}
 
+                {task.id === 'p1_nursery' && (
+                  <div className="mt-3 rounded-xl glass-surface border border-white/10 p-3 flex items-center justify-between gap-3 shadow-xs">
+                    <div>
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                        {t.step3.seedTravelCost}
+                      </div>
+                      <div className="text-[11px] text-slate-600 dark:text-slate-200">
+                        {t.step3.includeSeedTravel}
+                      </div>
+                    </div>
+                    <Switch
+                      size="small"
+                      checked={entry.hasTravelCost !== false}
+                      onChange={(checked) =>
+                        handleRateChange(
+                          task.id,
+                          entry.ratePerCent ?? 0,
+                          entry.travelCost ?? 0,
+                          checked
+                        )
+                      }
+                    />
+                  </div>
+                )}
+
                 {/* ── MACHINE MODE / MANUAL TOGGLE (If Supported) ── */}
                 {task.allowMachineToggle && (
-                  <div className="mt-3 flex items-center justify-between gap-2 p-2 rounded-xl glass-surface border border-white/10">
+                  <div className="mt-3 flex items-center justify-between gap-2 p-2.5 rounded-xl glass-surface border border-white/10">
                     <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
-                      {isTamil ? 'இயக்க முறை' : 'Operation Method'}:
+                      {t.step3.operationMethod}:
                     </span>
                     <button
                       type="button"
-                      onClick={() => handleToggleMachineMode(task.id, task.defaultMachineRate)}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-extrabold border transition-all cursor-pointer shadow-xs ${
+                      onClick={() => handleToggleMachineMode(task.id, task.defaultMachineRate ?? 25)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-extrabold border transition-all cursor-pointer shadow-xs ${
                         entry.isMachineMode
-                          ? 'border-emerald-400 bg-emerald-50 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300'
-                          : 'border-slate-300 bg-white text-slate-700 dark:bg-white/10 dark:text-slate-200'
+                          ? 'border-cyan-400 bg-cyan-50 text-cyan-900 dark:bg-cyan-500/20 dark:text-cyan-300'
+                          : 'border-amber-300 bg-amber-50 text-amber-900 dark:bg-amber-500/20 dark:text-amber-300'
                       }`}
                     >
                       <span>{entry.isMachineMode ? '🚜' : '👥'}</span>
@@ -836,6 +1035,158 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                   </div>
                 )}
 
+                {/* ── GUNNY BAG TYPE TOGGLE (Plastic vs Traditional Jute) ── */}
+                {task.isGunnyBags && (
+                  <div className="mt-3 flex items-center justify-between gap-2 p-2.5 rounded-xl glass-surface border border-white/10">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                      {t.step3.bagType}:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleBagType(task.id, task.defaultPlasticPrice ?? 20, task.defaultTraditionalPrice ?? 45)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-extrabold border transition-all cursor-pointer shadow-xs ${
+                        entry.isPlasticBag !== false
+                          ? 'border-emerald-400 bg-emerald-50 text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-300'
+                          : 'border-amber-400 bg-amber-50 text-amber-900 dark:bg-amber-500/20 dark:text-amber-300'
+                      }`}
+                    >
+                      <span>{entry.isPlasticBag !== false ? '🛍️' : '🌾'}</span>
+                      <span>
+                        {entry.isPlasticBag !== false
+                          ? (t.step3.modernPlasticBags || 'Modern Plastic Bags')
+                          : (t.step3.traditionalJuteBags || 'Traditional Gunny Bags')}
+                      </span>
+                    </button>
+                  </div>
+                )}
+
+                {/* ── PESTICIDE DOSAGE PRESETS (If Applicable) ── */}
+                {(task.id === 'p1_fert' || task.id === 'p2_tillering') && (
+                  <div className={`mt-3 p-2.5 rounded-xl glass-surface border border-white/10 ${isSkipped ? 'pointer-events-none opacity-50' : ''}`}>
+                    <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+                      <span className="text-slate-800 dark:text-slate-100">
+                        {t.step3.pesticideDosagePerCan}:
+                      </span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">
+                        {activePesticideMl} ml
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {[50, 60, 70, 80, 90, 100].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => {
+                            const calculatedLitres = computeRecommendedPesticideLitres(cents, preset);
+                            handleFertilizerWithLabourChange(
+                              task.id,
+                              calculatedLitres,
+                              entry.fertPrice ?? 0,
+                              entry.labourCount ?? 0,
+                              entry.labourWage ?? 0,
+                              entry.snackCost ?? 0,
+                              entry.travelCost ?? 0,
+                              preset
+                            );
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            activePesticideMl === preset
+                              ? 'bg-emerald-500 text-white shadow-xs'
+                              : 'glass-surface text-slate-700 dark:text-slate-200 border border-white/10 hover:border-emerald-400/40'
+                          }`}
+                        >
+                          {preset}ml
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── FERTILIZER BAG RECOMMENDATION & PRESETS (For Task 8 & Task 13) ── */}
+                {isBagCountDose && cents > 0 && (
+                  <div className={`mt-3 p-3 rounded-xl glass-surface border border-emerald-500/25 bg-emerald-950/20 shadow-xs ${isSkipped ? 'pointer-events-none opacity-50' : ''}`}>
+                    <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+                      <span className="text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                        <span>📦</span>
+                        <span>{t.step3.recommendedBags}:</span>
+                      </span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">
+                        {bagRange.minBags} – {bagRange.maxBags} {t.step3.bagsUnit} ({cents} {messages.common.cents})
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 mb-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleFertilizerWithLabourChange(
+                            task.id,
+                            bagRange.minBags,
+                            entry.fertPrice ?? 0,
+                            task.isMultiDayLabour ? (currentDayEntry.labourCount ?? 0) : (entry.labourCount ?? 0),
+                            task.isMultiDayLabour ? (currentDayEntry.labourWage ?? 0) : (entry.labourWage ?? 0),
+                            task.isMultiDayLabour ? (currentDayEntry.snackCost ?? 0) : (entry.snackCost ?? 0),
+                            task.isMultiDayLabour ? (currentDayEntry.travelCost ?? 0) : (entry.travelCost ?? 0),
+                            entry.pesticideMl
+                          );
+                        }}
+                        className={`px-2 py-0.5 rounded text-[11px] font-bold border transition-all cursor-pointer ${
+                          (entry.fertQty || bagRange.minBags) === bagRange.minBags
+                            ? 'bg-emerald-500 text-white keep-white border-emerald-500'
+                            : 'glass-surface text-emerald-400 border-emerald-500/30 hover:border-emerald-400'
+                        }`}
+                      >
+                        {t.step3.minBagsLabel ? t.step3.minBagsLabel.replace('{count}', String(bagRange.minBags)) : `Min: ${bagRange.minBags} bags`}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleFertilizerWithLabourChange(
+                            task.id,
+                            bagRange.maxBags,
+                            entry.fertPrice ?? 0,
+                            task.isMultiDayLabour ? (currentDayEntry.labourCount ?? 0) : (entry.labourCount ?? 0),
+                            task.isMultiDayLabour ? (currentDayEntry.labourWage ?? 0) : (entry.labourWage ?? 0),
+                            task.isMultiDayLabour ? (currentDayEntry.snackCost ?? 0) : (entry.snackCost ?? 0),
+                            task.isMultiDayLabour ? (currentDayEntry.travelCost ?? 0) : (entry.travelCost ?? 0),
+                            entry.pesticideMl
+                          );
+                        }}
+                        className={`px-2 py-0.5 rounded text-[11px] font-bold border transition-all cursor-pointer ${
+                          entry.fertQty === bagRange.maxBags
+                            ? 'bg-emerald-500 text-white keep-white border-emerald-500'
+                            : 'glass-surface text-emerald-400 border-emerald-500/30 hover:border-emerald-400'
+                        }`}
+                      >
+                        {t.step3.maxBagsLabel ? t.step3.maxBagsLabel.replace('{count}', String(bagRange.maxBags)) : `Max: ${bagRange.maxBags} bags`}
+                      </button>
+                    </div>
+
+                    {/* Suggested Fertilizer Mix breakdown */}
+                    <div className="pt-2 border-t border-white/10 grid grid-cols-2 gap-1 text-[10px] text-slate-700 dark:text-slate-300">
+                      <div>{t.step3.ureaKgLabel ? t.step3.ureaKgLabel.replace('{kg}', String(fertMix.ureaKg)) : `Urea: ${fertMix.ureaKg} kg`}</div>
+                      <div>{t.step3.complexKgLabel ? t.step3.complexKgLabel.replace('{kg}', String(fertMix.complexKg)) : `Complex: ${fertMix.complexKg} kg`}</div>
+                      <div>{t.step3.potashKgLabel ? t.step3.potashKgLabel.replace('{kg}', String(fertMix.potashKg)) : `Potash: ${fertMix.potashKg} kg`}</div>
+                      <div>{t.step3.dapKgLabel ? t.step3.dapKgLabel.replace('{kg}', String(fertMix.dapKg)) : `DAP: ${fertMix.dapKg} kg`}</div>
+                      <div className="col-span-2 text-emerald-500 font-semibold">{t.step3.vembuPowderKgLabel ? t.step3.vembuPowderKgLabel.replace('{kg}', String(fertMix.vembuPowderKg)) : `Vembu Powder: ${fertMix.vembuPowderKg} kg`}</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── POTASH & SULPHIDE BOOSTER SPLIT (Task 14) ── */}
+                {task.id === 'p3_potash_sulphide' && (
+                  <div className={`mt-3 p-2.5 rounded-xl glass-surface border border-teal-500/25 bg-teal-950/20 text-[10px] ${isSkipped ? 'pointer-events-none opacity-50' : ''}`}>
+                    <div className="font-bold text-teal-400 mb-1">
+                      {t.step3.split5050}
+                    </div>
+                    <div className="flex items-center gap-3 text-slate-300">
+                      <span>{t.step3.potashKgLabel ? t.step3.potashKgLabel.replace('{kg}', String(Number(((entry.fertQty || 0) / 2).toFixed(2)))) : `Potash: ${Number(((entry.fertQty || 0) / 2).toFixed(2))} kg`}</span>
+                      <span>•</span>
+                      <span>{t.step3.sulphideKgLabel ? t.step3.sulphideKgLabel.replace('{kg}', String(Number(((entry.fertQty || 0) / 2).toFixed(2)))) : `Sulphide: ${Number(((entry.fertQty || 0) / 2).toFixed(2))} kg`}</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* ── MULTI-DAY STEPPER (If Applicable) ── */}
                 {task.isMultiDayLabour && !entry.isMachineMode && (
                   <div
@@ -845,47 +1196,43 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                   >
                     <div className="flex items-center justify-between text-xs font-bold mb-2">
                       <span className="text-slate-800 dark:text-slate-100">
-                        {isTamil ? 'பணி நாள் தேர்வு' : 'Active Work Day'}:
+                        {t.step3.activeWorkDay}:
                       </span>
                       <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">
-                        {isTamil ? `நாள் ${activeDay} / ${totalDynamicDays}` : `Day ${activeDay} of ${totalDynamicDays}`}
+                        {t.step3.dayOf ? t.step3.dayOf.replace('{active}', String(activeDay)).replace('{total}', String(totalDynamicDays)) : `Day ${activeDay} of ${totalDynamicDays}`}
                       </span>
                     </div>
                     <DayStepper
                       value={activeDay}
                       min={1}
                       max={stepperMax}
-                      dayLabel={isTamil ? 'நாள்' : 'Day'}
-                      maxLabel={
-                        isTamil
-                          ? `(${filledMultiDays.length}/${totalDynamicDays} ${totalDynamicDays === 1 ? 'நாள்' : 'நாட்கள்'})`
-                          : `(${filledMultiDays.length}/${totalDynamicDays} ${totalDynamicDays === 1 ? 'day' : 'days'})`
-                      }
+                      dayLabel={t.step3.dayLabel}
+                      maxLabel={`(${filledMultiDays.length}/${totalDynamicDays} ${totalDynamicDays === 1 ? t.step3.dayLabel : (t.step3.daysUnit || 'days')})`}
                       disableNext={!canGoNext}
                       nextDisabledReason={
-                        isTamil
-                          ? `அடுத்த நாளுக்குச் செல்ல நாள் ${activeDay}-ன் கட்டாய விவரங்களை நிரப்பவும்`
+                        t.step3.dayFillRequired
+                          ? t.step3.dayFillRequired.replace('{day}', String(activeDay)).replace('{nextDay}', String(activeDay + 1))
                           : `Fill required fields for Day ${activeDay} to unlock Day ${activeDay + 1}`
                       }
                       onNextBlocked={() => {
-                        let msg = isTamil
-                          ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான ஆட்கள் எண்ணிக்கை மற்றும் கூலியை நிரப்பவும்.`
+                        let msg = t.step3.warnFillLabourAndWage
+                          ? t.step3.warnFillLabourAndWage.replace('{day}', String(activeDay))
                           : `Please fill Labour Count and Wage for Day ${activeDay} before moving to the next day.`;
                         if (task.id === 'p4_harvest') {
-                          msg = isTamil
-                            ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான இயந்திர அறுவடை செலவை நிரப்பவும்.`
+                          msg = t.step3.warnFillMachineHarvest
+                            ? t.step3.warnFillMachineHarvest.replace('{day}', String(activeDay))
                             : `Please fill Machine Harvest Cost for Day ${activeDay} before moving to the next day.`;
                         } else if (task.isGunnyBags) {
-                          msg = isTamil
-                            ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான சாக்கு எண்ணிக்கை மற்றும் விலையை நிரப்பவும்.`
+                          msg = t.step3.warnFillGunnyBags
+                            ? t.step3.warnFillGunnyBags.replace('{day}', String(activeDay))
                             : `Please fill Gunny Bag Count and Price for Day ${activeDay} before moving to the next day.`;
                         } else if (task.id === 'p4_sack_stitcher') {
-                          msg = isTamil
-                            ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான தையல் சாக்கு எண்ணிக்கை மற்றும் ஒரு சாக்கு கூலியை நிரப்பவும்.`
+                          msg = t.step3.warnFillStitcher
+                            ? t.step3.warnFillStitcher.replace('{day}', String(activeDay))
                             : `Please fill Stitched Bag Count and Cost per Bag for Day ${activeDay} before moving to the next day.`;
                         } else if (task.isTransportLoading) {
-                          msg = isTamil
-                            ? `அடுத்த நாளுக்குச் செல்லும் முன் நாள் ${activeDay}-க்கான சாக்கு எண்ணிக்கை மற்றும் ஒரு சாக்கு ஏற்றுக் கூலியை நிரப்பவும்.`
+                          msg = t.step3.warnFillTransportLoading
+                            ? t.step3.warnFillTransportLoading.replace('{day}', String(activeDay))
                             : `Please fill Bag Count and Per Bag Lifting Cost for Day ${activeDay} before moving to the next day.`;
                         }
                         message.warning(msg);
@@ -900,36 +1247,20 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                   <div className="flex items-center justify-between text-xs mb-2.5">
                     <span className="font-extrabold text-slate-800 dark:text-slate-100">
                       {task.isFertilizerWithLabour
-                        ? isTamil
-                          ? 'உர & ஊட்டச்சத்து உள்ளீடுகள்'
-                          : 'Fertilizer & Application Inputs'
+                        ? t.step3.fertilizerNutritionInputs
                         : entry.isMachineMode || task.id === 'p4_harvest'
-                        ? isTamil
-                          ? 'இயந்திர வாடகை உள்ளீடுகள்'
-                          : 'Machine Rent Inputs'
+                        ? t.step3.machineRentInputs
                         : task.isGunnyBags
-                        ? isTamil
-                          ? 'சாக்கு உள்ளீடுகள்'
-                          : 'Gunny Bag Inputs'
+                        ? t.step3.gunnyBagInputs
                         : task.isTransportLoading
-                        ? isTamil
-                          ? 'ஏற்றுக்கூலி & போக்குவரத்து'
-                          : 'Loading & Transport Inputs'
+                        ? t.step3.loadingTransportInputs
                         : task.isGrainYield
-                        ? isTamil
-                          ? 'தானிய மகசூல் உள்ளீடுகள்'
-                          : 'Grain Yield Inputs'
+                        ? t.step3.grainYieldInputs
                         : task.isStrawYield
-                        ? isTamil
-                          ? 'வைக்கோல் மகசூல் உள்ளீடுகள்'
-                          : 'Straw Yield Inputs'
+                        ? t.step3.strawYieldInputs
                         : task.isMandiTrip
-                        ? isTamil
-                          ? 'மண்டி போக்குவரத்து உள்ளீடுகள்'
-                          : 'Mandi Logistics Inputs'
-                        : isTamil
-                        ? 'ஆட்கள் & ஊதிய உள்ளீடுகள்'
-                        : 'Labour & Operation Rate Inputs'}
+                        ? t.step3.mandiLogisticsInputs
+                        : t.step3.labourWageInputs}
                     </span>
                     {meta.costEstimateHint && (
                       <span className="text-[11px] font-bold text-slate-700 dark:text-emerald-300 glass-surface border border-white/10 px-2 py-0.5 rounded-md truncate max-w-[140px]">
@@ -944,7 +1275,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'வாடகை / சென்ட்' : 'RATE / CENT'}
+                          {t.step3.ratePerCent}
                         </label>
                         <div className="flex items-center gap-1">
                           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
@@ -963,7 +1294,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
 
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'மொத்த பரப்பு' : 'TOTAL AREA'}
+                          {t.step3.totalArea}
                         </label>
                         <div className="text-sm font-extrabold text-slate-900 dark:text-white pt-0.5">
                           {userDetails.landSize} Cents
@@ -975,7 +1306,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? `நாள் ${activeDay} இயந்திர வாடகை` : `Day ${activeDay} Machine Cost`}
+                          {t.step3.dayMachineCost ? t.step3.dayMachineCost.replace('{day}', String(activeDay)) : `Day ${activeDay} Machine Cost`}
                         </label>
                         <div className="flex items-center gap-1">
                           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
@@ -1003,48 +1334,263 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
 
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'பயிரிடும் பரப்பு' : 'TOTAL AREA'}
+                          {t.step3.seedTotalArea}
                         </label>
                         <div className="text-sm font-extrabold text-slate-900 dark:text-white pt-0.5">
                           {userDetails.landSize} Cents
                         </div>
                       </div>
                     </div>
+                  ) : task.id === 'p1_nursery' ? (
+                    /* Task 2: Certified Seeds & Travel Expenses */
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                        <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                          {t.step3.seedCostTitle}
+                        </label>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            disabled={isSkipped}
+                            value={entry.ratePerCent !== undefined && entry.ratePerCent !== 0 ? entry.ratePerCent : ''}
+                            onChange={(e) =>
+                              handleRateChange(
+                                task.id,
+                                parseFloat(e.target.value) || 0,
+                                entry.travelCost ?? 0,
+                                entry.hasTravelCost !== false
+                              )
+                            }
+                            data-mobile-input="true" className={inputStyleClass}
+                            style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+
+                      {entry.hasTravelCost !== false && (
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.travelCostTitle}
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={isSkipped}
+                              value={entry.travelCost !== undefined && entry.travelCost !== 0 ? entry.travelCost : ''}
+                              onChange={(e) =>
+                                handleRateChange(
+                                  task.id,
+                                  entry.ratePerCent ?? 0,
+                                  parseFloat(e.target.value) || 0,
+                                  true
+                                )
+                              }
+                              data-mobile-input="true" className={inputStyleClass}
+                              style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : task.id === 'p1_fuel' ? (
+                    /* Task 3: Water Motor & Irrigation Pump Fuel & Repair */
+                    entry.hasRepairCost ? (
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.fuelCostTitle}
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={isSkipped}
+                              value={entry.ratePerCent !== undefined && entry.ratePerCent !== 0 ? entry.ratePerCent : ''}
+                              onChange={(e) => handleRateChange(task.id, parseFloat(e.target.value) || 0)}
+                              data-mobile-input="true" className={inputStyleClass}
+                              style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.repairBillTitle}
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={isSkipped}
+                              value={entry.repairCost !== undefined && entry.repairCost !== 0 ? entry.repairCost : ''}
+                              onChange={(e) =>
+                                handleRepairCostChange?.(task.id, {
+                                  hasRepairCost: true,
+                                  repairCost: parseFloat(e.target.value) || 0,
+                                  mechanicName: entry.mechanicName || '',
+                                  mechanicNumber: entry.mechanicNumber || '',
+                                })
+                              }
+                              data-mobile-input="true" className={inputStyleClass}
+                              style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.mechanicPhoneHeader}
+                          </label>
+                          <input
+                            type="tel"
+                            maxLength={10}
+                            placeholder="9876543210"
+                            disabled={isSkipped}
+                            value={entry.mechanicNumber || ''}
+                            onChange={(e) => {
+                              const cleaned = e.target.value.replace(/\D/g, '').slice(0, 10);
+                              handleRepairCostChange?.(task.id, {
+                                hasRepairCost: true,
+                                mechanicNumber: cleaned,
+                                mechanicName: entry.mechanicName || '',
+                                repairCost: entry.repairCost || 0,
+                              });
+                            }}
+                            data-mobile-input="true" className={inputStyleClass}
+                            style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                          />
+                        </div>
+
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.mechanicNameHeader}
+                          </label>
+                          <input
+                            type="text"
+                            placeholder={t.step3.namePlaceholder}
+                            disabled={isSkipped}
+                            value={entry.mechanicName || ''}
+                            onChange={(e) =>
+                              handleRepairCostChange?.(task.id, {
+                                hasRepairCost: true,
+                                mechanicName: e.target.value,
+                                mechanicNumber: entry.mechanicNumber || '',
+                                repairCost: entry.repairCost || 0,
+                              })
+                            }
+                            data-mobile-input="true" className={inputStyleClass}
+                            style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.fuelCostTitle}
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={isSkipped}
+                              value={entry.ratePerCent !== undefined && entry.ratePerCent !== 0 ? entry.ratePerCent : ''}
+                              onChange={(e) => handleRateChange(task.id, parseFloat(e.target.value) || 0)}
+                              data-mobile-input="true" className={inputStyleClass}
+                              style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.totalArea}
+                          </label>
+                          <div className="text-sm font-extrabold text-slate-900 dark:text-white pt-0.5">
+                            {userDetails.landSize} {messages.common.cents}
+                          </div>
+                        </div>
+                      </div>
+                    )
                   ) : task.isFertilizerWithLabour ? (
                     /* Fertilizer + Labour Inputs */
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'உர அளவு' : 'FERTILIZER QTY'}
+                          {isPesticideDose
+                            ? t.step3.tableHeaders.pesticideQty
+                            : (task.id === 'p3_fert_dose3' || task.id === 'p2_fert_labour')
+                            ? t.step3.tableHeaders.fertilizerBagCount
+                            : t.step3.tableHeaders.fertQty}
                         </label>
                         <div className="flex items-center gap-1">
                           <input
                             type="number"
                             min="0"
+                            step="any"
                             disabled={isSkipped}
-                            value={entry.fertQty || ''}
-                            onChange={(e) =>
-                              handleFertilizerWithLabourChange(
-                                task.id,
-                                Number(e.target.value) || 0,
-                                entry.fertPrice ?? 0,
-                                entry.labourCount ?? 0,
-                                entry.labourWage ?? 0,
-                                entry.snackCost ?? 0,
-                                entry.travelCost ?? 0
-                              )
+                            value={
+                              entry.fertQty !== undefined && entry.fertQty !== 0
+                                ? entry.fertQty
+                                : isBagCountDose && bagRange.minBags > 0
+                                ? bagRange.minBags
+                                : ''
                             }
+                            onChange={(e) => {
+                              const qty = parseFloat(e.target.value) || 0;
+                              if (task.isMultiDayLabour) {
+                                handleFertilizerWithLabourChange(
+                                  task.id,
+                                  qty,
+                                  entry.fertPrice ?? 0,
+                                  currentDayEntry.labourCount ?? 0,
+                                  currentDayEntry.labourWage ?? 0,
+                                  currentDayEntry.snackCost ?? 0,
+                                  currentDayEntry.travelCost ?? 0,
+                                  entry.pesticideMl
+                                );
+                              } else {
+                                handleFertilizerWithLabourChange(
+                                  task.id,
+                                  qty,
+                                  entry.fertPrice ?? 0,
+                                  entry.labourCount ?? 0,
+                                  entry.labourWage ?? 0,
+                                  entry.snackCost ?? 0,
+                                  entry.travelCost ?? 0,
+                                  entry.pesticideMl
+                                );
+                              }
+                            }}
                             data-mobile-input="true" className={inputStyleClass}
                             style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
                             placeholder="0"
                           />
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">kg</span>
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                            {isPesticideDose
+                              ? t.step3.litreUnit
+                              : (task.id === 'p3_fert_dose3' || task.id === 'p2_fert_labour')
+                              ? t.step3.bagsUnit
+                              : 'kg'}
+                          </span>
                         </div>
                       </div>
 
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'உர விலை' : 'FERT PRICE'}
+                          {t.step3.tableHeaders.fertPrice}
                         </label>
                         <div className="flex items-center gap-1">
                           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
@@ -1052,18 +1598,33 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                             type="number"
                             min="0"
                             disabled={isSkipped}
-                            value={entry.fertPrice || ''}
-                            onChange={(e) =>
-                              handleFertilizerWithLabourChange(
-                                task.id,
-                                entry.fertQty ?? 0,
-                                Number(e.target.value) || 0,
-                                entry.labourCount ?? 0,
-                                entry.labourWage ?? 0,
-                                entry.snackCost ?? 0,
-                                entry.travelCost ?? 0
-                              )
-                            }
+                            value={entry.fertPrice !== undefined && entry.fertPrice !== 0 ? entry.fertPrice : ''}
+                            onChange={(e) => {
+                              const price = parseFloat(e.target.value) || 0;
+                              if (task.isMultiDayLabour) {
+                                handleFertilizerWithLabourChange(
+                                  task.id,
+                                  entry.fertQty ?? 0,
+                                  price,
+                                  currentDayEntry.labourCount ?? 0,
+                                  currentDayEntry.labourWage ?? 0,
+                                  currentDayEntry.snackCost ?? 0,
+                                  currentDayEntry.travelCost ?? 0,
+                                  entry.pesticideMl
+                                );
+                              } else {
+                                handleFertilizerWithLabourChange(
+                                  task.id,
+                                  entry.fertQty ?? 0,
+                                  price,
+                                  entry.labourCount ?? 0,
+                                  entry.labourWage ?? 0,
+                                  entry.snackCost ?? 0,
+                                  entry.travelCost ?? 0,
+                                  entry.pesticideMl
+                                );
+                              }
+                            }}
                             data-mobile-input="true" className={inputStyleClass}
                             style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
                             placeholder="0"
@@ -1073,36 +1634,58 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
 
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'ஆட்கள் எண்ணிக்கை' : 'LABOUR COUNT'}
+                          {t.step3.tableHeaders.labourCount}
                         </label>
                         <div className="flex items-center gap-1">
                           <input
                             type="number"
                             min="0"
                             disabled={isSkipped}
-                            value={entry.labourCount || ''}
-                            onChange={(e) =>
-                              handleFertilizerWithLabourChange(
-                                task.id,
-                                entry.fertQty ?? 0,
-                                entry.fertPrice ?? 0,
-                                Number(e.target.value) || 0,
-                                entry.labourWage ?? 0,
-                                entry.snackCost ?? 0,
-                                entry.travelCost ?? 0
-                              )
+                            value={
+                              task.isMultiDayLabour
+                                ? currentDayEntry.labourCount !== 0
+                                  ? currentDayEntry.labourCount
+                                  : ''
+                                : entry.labourCount !== undefined && entry.labourCount !== 0
+                                ? entry.labourCount
+                                : ''
                             }
+                            onChange={(e) => {
+                              const num = parseFloat(e.target.value) || 0;
+                              if (task.isMultiDayLabour) {
+                                handleMultiDayLabourChange?.(
+                                  task.id,
+                                  activeDay,
+                                  num,
+                                  currentDayEntry.labourWage,
+                                  currentDayEntry.snackCost,
+                                  currentDayEntry.travelCost,
+                                  maxDays
+                                );
+                              } else {
+                                handleFertilizerWithLabourChange(
+                                  task.id,
+                                  entry.fertQty ?? 0,
+                                  entry.fertPrice ?? 0,
+                                  num,
+                                  entry.labourWage ?? 0,
+                                  entry.snackCost ?? 0,
+                                  entry.travelCost ?? 0,
+                                  entry.pesticideMl
+                                );
+                              }
+                            }}
                             data-mobile-input="true" className={inputStyleClass}
                             style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
                             placeholder="0"
                           />
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Persons</span>
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{t.step3.personsUnit}</span>
                         </div>
                       </div>
 
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'தினக்கூலி' : 'WAGE / PERSON'}
+                          {t.step3.tableHeaders.labourWage}
                         </label>
                         <div className="flex items-center gap-1">
                           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
@@ -1110,23 +1693,149 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                             type="number"
                             min="0"
                             disabled={isSkipped}
-                            value={entry.labourWage || ''}
-                            onChange={(e) =>
-                              handleFertilizerWithLabourChange(
-                                task.id,
-                                entry.fertQty ?? 0,
-                                entry.fertPrice ?? 0,
-                                entry.labourCount ?? 0,
-                                Number(e.target.value) || 0,
-                                entry.snackCost ?? 0,
-                                entry.travelCost ?? 0
-                              )
+                            value={
+                              task.isMultiDayLabour
+                                ? currentDayEntry.labourWage !== 0
+                                  ? currentDayEntry.labourWage
+                                  : ''
+                                : entry.labourWage !== undefined && entry.labourWage !== 0
+                                ? entry.labourWage
+                                : ''
                             }
+                            onChange={(e) => {
+                              const num = parseFloat(e.target.value) || 0;
+                              if (task.isMultiDayLabour) {
+                                handleMultiDayLabourChange?.(
+                                  task.id,
+                                  activeDay,
+                                  currentDayEntry.labourCount,
+                                  num,
+                                  currentDayEntry.snackCost,
+                                  currentDayEntry.travelCost,
+                                  maxDays
+                                );
+                              } else {
+                                handleFertilizerWithLabourChange(
+                                  task.id,
+                                  entry.fertQty ?? 0,
+                                  entry.fertPrice ?? 0,
+                                  entry.labourCount ?? 0,
+                                  num,
+                                  entry.snackCost ?? 0,
+                                  entry.travelCost ?? 0,
+                                  entry.pesticideMl
+                                );
+                              }
+                            }}
                             data-mobile-input="true" className={inputStyleClass}
                             style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
                             placeholder="0"
                           />
                           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">/day</span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                        <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                          {t.step3.tableHeaders.snackCost}
+                        </label>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            disabled={isSkipped}
+                            value={
+                              task.isMultiDayLabour
+                                ? currentDayEntry.snackCost !== 0
+                                  ? currentDayEntry.snackCost
+                                  : ''
+                                : entry.snackCost !== undefined && entry.snackCost !== 0
+                                ? entry.snackCost
+                                : ''
+                            }
+                            onChange={(e) => {
+                              const num = parseFloat(e.target.value) || 0;
+                              if (task.isMultiDayLabour) {
+                                handleMultiDayLabourChange?.(
+                                  task.id,
+                                  activeDay,
+                                  currentDayEntry.labourCount,
+                                  currentDayEntry.labourWage,
+                                  num,
+                                  currentDayEntry.travelCost,
+                                  maxDays
+                                );
+                              } else {
+                                handleFertilizerWithLabourChange(
+                                  task.id,
+                                  entry.fertQty ?? 0,
+                                  entry.fertPrice ?? 0,
+                                  entry.labourCount ?? 0,
+                                  entry.labourWage ?? 0,
+                                  num,
+                                  entry.travelCost ?? 0,
+                                  entry.pesticideMl
+                                );
+                              }
+                            }}
+                            data-mobile-input="true" className={inputStyleClass}
+                            style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                            placeholder="0"
+                          />
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Total</span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                        <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                          {t.step3.tableHeaders.travelCost}
+                        </label>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            disabled={isSkipped}
+                            value={
+                              task.isMultiDayLabour
+                                ? currentDayEntry.travelCost !== 0
+                                  ? currentDayEntry.travelCost
+                                  : ''
+                                : entry.travelCost !== undefined && entry.travelCost !== 0
+                                ? entry.travelCost
+                                : ''
+                            }
+                            onChange={(e) => {
+                              const num = parseFloat(e.target.value) || 0;
+                              if (task.isMultiDayLabour) {
+                                handleMultiDayLabourChange?.(
+                                  task.id,
+                                  activeDay,
+                                  currentDayEntry.labourCount,
+                                  currentDayEntry.labourWage,
+                                  currentDayEntry.snackCost,
+                                  num,
+                                  maxDays
+                                );
+                              } else {
+                                handleFertilizerWithLabourChange(
+                                  task.id,
+                                  entry.fertQty ?? 0,
+                                  entry.fertPrice ?? 0,
+                                  entry.labourCount ?? 0,
+                                  entry.labourWage ?? 0,
+                                  entry.snackCost ?? 0,
+                                  num,
+                                  entry.pesticideMl
+                                );
+                              }
+                            }}
+                            data-mobile-input="true" className={inputStyleClass}
+                            style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                            placeholder="0"
+                          />
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Total</span>
                         </div>
                       </div>
                     </div>
@@ -1135,7 +1844,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {t.step3.tableHeaders.bagCount || (isTamil ? 'சாக்கு எண்ணிக்கை' : 'BAG COUNT')}
+                          {t.step3.tableHeaders.bagCount}
                         </label>
                         <div className="flex items-center gap-1">
                           <input
@@ -1169,7 +1878,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
 
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {t.step3.tableHeaders.bagPrice || (isTamil ? 'சாக்கு விலை' : 'PRICE / BAG')}
+                          {t.step3.tableHeaders.bagPrice}
                         </label>
                         <div className="flex items-center gap-1">
                           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
@@ -1206,7 +1915,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {t.step3.tableHeaders.transportBagCount || (isTamil ? 'சாக்கு எண்ணிக்கை' : 'BAG COUNT')}
+                          {t.step3.tableHeaders.transportBagCount}
                         </label>
                         <div className="flex items-center gap-1">
                           <input
@@ -1239,7 +1948,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
 
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {t.step3.tableHeaders.perBagLiftingCost || (isTamil ? 'ஏற்றுக்கூலி / சாக்கு' : 'LIFTING / BAG')}
+                          {t.step3.tableHeaders.perBagLiftingCost}
                         </label>
                         <div className="flex items-center gap-1">
                           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
@@ -1269,65 +1978,10 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                           />
                         </div>
                       </div>
-                    </div>
-                  ) : task.isGrainYield ? (
-                    /* Grain Yield Sale (Task 23 - Phase 5) */
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
-                        <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {t.step3.tableHeaders.yieldKg || (isTamil ? 'மொத்த மகசூல் (KG)' : 'TOTAL YIELD (KG)')}
-                        </label>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            min="0"
-                            disabled={isSkipped}
-                            value={rawYieldKg}
-                            onChange={(e) => {
-                              const kg = parseFloat(e.target.value) || 0;
-                              handleGrainYieldChange(task.id, {
-                                yieldKg: kg,
-                                bagWeightKg: Number(rawBagWeight) || 0,
-                                bagPrice: Number(rawBagPrice) || 0,
-                              });
-                            }}
-                            data-mobile-input="true" className={inputStyleClass}
-                            style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
-                            placeholder="0"
-                          />
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">kg</span>
-                        </div>
-                      </div>
 
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {t.step3.tableHeaders.bagWeightKg || (isTamil ? 'சாக்கு எடை (KG)' : 'BAG WEIGHT (KG)')}
-                        </label>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            min="0"
-                            disabled={isSkipped}
-                            value={rawBagWeight}
-                            onChange={(e) => {
-                              const bw = parseFloat(e.target.value) || 0;
-                              handleGrainYieldChange(task.id, {
-                                yieldKg: Number(rawYieldKg) || 0,
-                                bagWeightKg: bw,
-                                bagPrice: Number(rawBagPrice) || 0,
-                              });
-                            }}
-                            data-mobile-input="true" className={inputStyleClass}
-                            style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
-                            placeholder="0"
-                          />
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">kg</span>
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
-                        <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {t.step3.tableHeaders.grainPrice || (isTamil ? 'சாக்கு விலை (₹)' : 'PRICE / BAG (₹)')}
+                          {t.step3.tableHeaders.snackCost}
                         </label>
                         <div className="flex items-center gap-1">
                           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
@@ -1335,81 +1989,217 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                             type="number"
                             min="0"
                             disabled={isSkipped}
-                            value={rawBagPrice}
+                            value={
+                              currentDayEntry.loadingSnacks !== undefined && currentDayEntry.loadingSnacks !== 0
+                                ? currentDayEntry.loadingSnacks
+                                : activeDay === 1 && entry.loadingSnacks !== undefined && entry.loadingSnacks !== 0
+                                ? entry.loadingSnacks
+                                : ''
+                            }
                             onChange={(e) => {
-                              const price = parseFloat(e.target.value) || 0;
-                              handleGrainYieldChange(task.id, {
-                                yieldKg: Number(rawYieldKg) || 0,
-                                bagWeightKg: Number(rawBagWeight) || 0,
-                                bagPrice: price,
-                              });
+                              const snacks = parseFloat(e.target.value) || 0;
+                              handleMultiDayTransportChange?.(task.id, activeDay, { loadingSnacks: snacks });
                             }}
                             data-mobile-input="true" className={inputStyleClass}
                             style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
                             placeholder="0"
                           />
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Total</span>
                         </div>
                       </div>
+                    </div>
+                  ) : task.isGrainYield ? (
+                    /* Grain Yield Sale (Task 23 - Phase 5) */
+                    <div>
+                      {/* ⚡ RECOMMENDED YIELD QUICK PRESET */}
+                      <div className="mb-2.5">
+                        <button
+                          type="button"
+                          disabled={isSkipped}
+                          onClick={() => {
+                            handleGrainYieldChange(task.id, {
+                              yieldKg: 10500,
+                              bagWeightKg: 75,
+                              bagPrice: 1650,
+                            });
+                          }}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/15 active:scale-[0.99] transition-all text-left cursor-pointer"
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-emerald-500 font-black text-xs shrink-0">⚡</span>
+                            <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 truncate">
+                              {t.step3.recPaddyYield}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 shrink-0 ml-2">
+                            {messages.common.apply}
+                          </span>
+                        </button>
+                      </div>
 
-                      <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
-                        <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {t.step3.tableHeaders.bagCount || (isTamil ? 'மதிப்பீடு சாக்குகள்' : 'TOTAL BAGS')}
-                        </label>
-                        <div className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 pt-0.5">
-                          {rawGrainBags} {t.step3.bagsUnit || 'Bags'}
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.tableHeaders.yieldKg}
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={isSkipped}
+                              value={rawYieldKg}
+                              onChange={(e) => {
+                                const kg = parseFloat(e.target.value) || 0;
+                                handleGrainYieldChange(task.id, {
+                                  yieldKg: kg,
+                                  bagWeightKg: entry.bagWeightKg ?? 0,
+                                  bagPrice: entry.grainBagPrice ?? 0,
+                                });
+                              }}
+                              data-mobile-input="true" className={inputStyleClass}
+                              style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                              placeholder="0"
+                            />
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">kg</span>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.tableHeaders.bagWeightKg}
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={isSkipped}
+                              value={rawBagWeight}
+                              onChange={(e) => {
+                                const bw = parseFloat(e.target.value) || 0;
+                                handleGrainYieldChange(task.id, {
+                                  yieldKg: entry.yieldKg ?? ((entry.yieldTons ?? 0) * 1000),
+                                  bagWeightKg: bw,
+                                  bagPrice: entry.grainBagPrice ?? 0,
+                                });
+                              }}
+                              data-mobile-input="true" className={inputStyleClass}
+                              style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                              placeholder="0"
+                            />
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">kg</span>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.tableHeaders.grainPrice}
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={isSkipped}
+                              value={rawBagPrice}
+                              onChange={(e) => {
+                                const price = parseFloat(e.target.value) || 0;
+                                handleGrainYieldChange(task.id, {
+                                  yieldKg: entry.yieldKg ?? ((entry.yieldTons ?? 0) * 1000),
+                                  bagWeightKg: entry.bagWeightKg ?? 0,
+                                  bagPrice: price,
+                                });
+                              }}
+                              data-mobile-input="true" className={inputStyleClass}
+                              style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.tableHeaders.bagCount}
+                          </label>
+                          <div className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 pt-0.5">
+                            {rawGrainBags} {t.step3.bagsUnit || 'Bags'}
+                          </div>
                         </div>
                       </div>
                     </div>
                   ) : task.isStrawYield ? (
                     /* Straw & Fodder Biomass (Task 24 - Phase 5) */
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
-                        <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {t.step3.tableHeaders.strawSacks || (isTamil ? 'வைக்கோல் கட்டுகள்' : 'STRAW SACKS')}
-                        </label>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            min="0"
-                            disabled={isSkipped}
-                            value={rawStrawSacks}
-                            onChange={(e) =>
-                              handleStrawYieldChange(
-                                task.id,
-                                parseFloat(e.target.value) || 0,
-                                Number(rawStrawPrice) || 0
-                              )
-                            }
-                            data-mobile-input="true" className={inputStyleClass}
-                            style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
-                            placeholder="0"
-                          />
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Sacks</span>
-                        </div>
+                    <div>
+                      {/* ⚡ RECOMMENDED STRAW QUICK PRESET */}
+                      <div className="mb-2.5">
+                        <button
+                          type="button"
+                          disabled={isSkipped}
+                          onClick={() => {
+                            handleStrawYieldChange(task.id, 100, 150);
+                          }}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/15 active:scale-[0.99] transition-all text-left cursor-pointer"
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-emerald-500 font-black text-xs shrink-0">⚡</span>
+                            <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 truncate">
+                              {t.step3.recStrawSacksVal}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 shrink-0 ml-2">
+                            {t.step3.applyBtn}
+                          </span>
+                        </button>
                       </div>
 
-                      <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
-                        <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {t.step3.tableHeaders.strawPrice || (isTamil ? 'விலை / கட்டு (₹)' : 'PRICE / SACK (₹)')}
-                        </label>
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
-                          <input
-                            type="number"
-                            min="0"
-                            disabled={isSkipped}
-                            value={rawStrawPrice}
-                            onChange={(e) =>
-                              handleStrawYieldChange(
-                                task.id,
-                                Number(rawStrawSacks) || 0,
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            data-mobile-input="true" className={inputStyleClass}
-                            style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
-                            placeholder="0"
-                          />
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.tableHeaders.strawSacks}
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={isSkipped}
+                              value={rawStrawSacks}
+                              onChange={(e) =>
+                                handleStrawYieldChange(
+                                  task.id,
+                                  parseFloat(e.target.value) || 0,
+                                  entry.strawPrice ?? 0
+                                )
+                              }
+                              data-mobile-input="true" className={inputStyleClass}
+                              style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                              placeholder="0"
+                            />
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Sacks</span>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.tableHeaders.strawPrice}
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={isSkipped}
+                              value={rawStrawPrice}
+                              onChange={(e) =>
+                                handleStrawYieldChange(
+                                  task.id,
+                                  entry.strawSackCount ?? 0,
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              data-mobile-input="true" className={inputStyleClass}
+                              style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                              placeholder="0"
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1418,7 +2208,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {t.step3.tableHeaders.mandiLoads || (isTamil ? 'மண்டி நடைகள்' : 'MANDI TRIPS')}
+                          {t.step3.tableHeaders.mandiLoads}
                         </label>
                         <div className="flex items-center gap-1">
                           <input
@@ -1443,7 +2233,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
 
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'கட்டணம் / நடை (₹)' : 'RATE / TRIP (₹)'}
+                          {t.step3.rateTrip}
                         </label>
                         <div className="flex items-center gap-1">
                           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
@@ -1471,7 +2261,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {t.step3.tableHeaders.stitchedBagCount || (isTamil ? 'தையல் சாக்கு எண்ணிக்கை' : 'STITCHED BAGS')}
+                          {t.step3.tableHeaders.stitchedBagCount}
                         </label>
                         <div className="flex items-center gap-1">
                           <input
@@ -1500,7 +2290,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
 
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {t.step3.tableHeaders.stitchingCostPerBag || (isTamil ? 'தையல் கூலி / சாக்கு (₹)' : 'COST / BAG (₹)')}
+                          {t.step3.tableHeaders.stitchingCostPerBag}
                         </label>
                         <div className="flex items-center gap-1">
                           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
@@ -1527,72 +2317,76 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                         </div>
                       </div>
 
-                      <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
-                        <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'சிற்றுண்டி செலவு' : 'SNACK COST'}
-                        </label>
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
-                          <input
-                            type="number"
-                            min="0"
-                            disabled={isSkipped}
-                            value={currentDayEntry.snackCost || ''}
-                            onChange={(e) =>
-                              handleMultiDayLabourChange?.(
-                                task.id,
-                                activeDay,
-                                currentDayEntry.labourCount ?? 0,
-                                currentDayEntry.labourWage ?? 0,
-                                Number(e.target.value) || 0,
-                                currentDayEntry.travelCost ?? 0,
-                                maxDays
-                              )
-                            }
-                            data-mobile-input="true" className={inputStyleClass}
-                            style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
-                            placeholder="0"
-                          />
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Total</span>
+                      {task.hasSnacks && (
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.tableHeaders.snackCost}
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={isSkipped}
+                              value={currentDayEntry.snackCost || ''}
+                              onChange={(e) =>
+                                handleMultiDayLabourChange?.(
+                                  task.id,
+                                  activeDay,
+                                  currentDayEntry.labourCount ?? 0,
+                                  currentDayEntry.labourWage ?? 0,
+                                  Number(e.target.value) || 0,
+                                  currentDayEntry.travelCost ?? 0,
+                                  maxDays
+                                )
+                              }
+                              data-mobile-input="true" className={inputStyleClass}
+                              style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                              placeholder="0"
+                            />
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Total</span>
+                          </div>
                         </div>
-                      </div>
+                      )}
 
-                      <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
-                        <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'பயணச் செலவு' : 'TRAVEL COST'}
-                        </label>
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
-                          <input
-                            type="number"
-                            min="0"
-                            disabled={isSkipped}
-                            value={currentDayEntry.travelCost || ''}
-                            onChange={(e) =>
-                              handleMultiDayLabourChange?.(
-                                task.id,
-                                activeDay,
-                                currentDayEntry.labourCount ?? 0,
-                                currentDayEntry.labourWage ?? 0,
-                                currentDayEntry.snackCost ?? 0,
-                                Number(e.target.value) || 0,
-                                maxDays
-                              )
-                            }
-                            data-mobile-input="true" className={inputStyleClass}
-                            style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
-                            placeholder="0"
-                          />
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Total</span>
+                      {task.hasTravel && (
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.tableHeaders.travelCost}
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={isSkipped}
+                              value={currentDayEntry.travelCost || ''}
+                              onChange={(e) =>
+                                handleMultiDayLabourChange?.(
+                                  task.id,
+                                  activeDay,
+                                  currentDayEntry.labourCount ?? 0,
+                                  currentDayEntry.labourWage ?? 0,
+                                  currentDayEntry.snackCost ?? 0,
+                                  Number(e.target.value) || 0,
+                                  maxDays
+                                )
+                              }
+                              data-mobile-input="true" className={inputStyleClass}
+                              style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                              placeholder="0"
+                            />
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Total</span>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
-                  ) : task.isMultiDayLabour ? (
+                  ) : task.isMultiDayLabour && task.isLabour ? (
                     /* Multi-Day Labour Grid */
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'ஆட்கள் எண்ணிக்கை' : 'LABOUR COUNT'}
+                          {t.step3.tableHeaders.labourCount}
                         </label>
                         <div className="flex items-center gap-1">
                           <input
@@ -1621,7 +2415,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
 
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'தினக்கூலி' : 'WAGE / PERSON'}
+                          {t.step3.tableHeaders.labourWage}
                         </label>
                         <div className="flex items-center gap-1">
                           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
@@ -1649,72 +2443,76 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                         </div>
                       </div>
 
-                      <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
-                        <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'சிற்றுண்டி செலவு' : 'SNACK COST'}
-                        </label>
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
-                          <input
-                            type="number"
-                            min="0"
-                            disabled={isSkipped}
-                            value={currentDayEntry.snackCost || ''}
-                            onChange={(e) =>
-                              handleMultiDayLabourChange?.(
-                                task.id,
-                                activeDay,
-                                currentDayEntry.labourCount ?? 0,
-                                currentDayEntry.labourWage ?? 0,
-                                Number(e.target.value) || 0,
-                                currentDayEntry.travelCost ?? 0,
-                                maxDays
-                              )
-                            }
-                            data-mobile-input="true" className={inputStyleClass}
-                            style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
-                            placeholder="0"
-                          />
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Total</span>
+                      {task.hasSnacks && (
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.tableHeaders.snackCost}
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={isSkipped}
+                              value={currentDayEntry.snackCost || ''}
+                              onChange={(e) =>
+                                handleMultiDayLabourChange?.(
+                                  task.id,
+                                  activeDay,
+                                  currentDayEntry.labourCount ?? 0,
+                                  currentDayEntry.labourWage ?? 0,
+                                  Number(e.target.value) || 0,
+                                  currentDayEntry.travelCost ?? 0,
+                                  maxDays
+                                )
+                              }
+                              data-mobile-input="true" className={inputStyleClass}
+                              style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                              placeholder="0"
+                            />
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Total</span>
+                          </div>
                         </div>
-                      </div>
+                      )}
 
-                      <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
-                        <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'பயணச் செலவு' : 'TRAVEL COST'}
-                        </label>
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
-                          <input
-                            type="number"
-                            min="0"
-                            disabled={isSkipped}
-                            value={currentDayEntry.travelCost || ''}
-                            onChange={(e) =>
-                              handleMultiDayLabourChange?.(
-                                task.id,
-                                activeDay,
-                                currentDayEntry.labourCount ?? 0,
-                                currentDayEntry.labourWage ?? 0,
-                                currentDayEntry.snackCost ?? 0,
-                                Number(e.target.value) || 0,
-                                maxDays
-                              )
-                            }
-                            data-mobile-input="true" className={inputStyleClass}
-                            style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
-                            placeholder="0"
-                          />
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Total</span>
+                      {task.hasTravel && (
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.tableHeaders.travelCost}
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={isSkipped}
+                              value={currentDayEntry.travelCost || ''}
+                              onChange={(e) =>
+                                handleMultiDayLabourChange?.(
+                                  task.id,
+                                  activeDay,
+                                  currentDayEntry.labourCount ?? 0,
+                                  currentDayEntry.labourWage ?? 0,
+                                  currentDayEntry.snackCost ?? 0,
+                                  Number(e.target.value) || 0,
+                                  maxDays
+                                )
+                              }
+                              data-mobile-input="true" className={inputStyleClass}
+                              style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                              placeholder="0"
+                            />
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Total</span>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
-                  ) : (
-                    /* Default Labour Grid */
+                  ) : task.isLabour && !entry.isMachineMode ? (
+                    /* Default Single-Day Labour Grid */
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'ஆட்கள் எண்ணிக்கை' : 'LABOUR COUNT'}
+                          {t.step3.tableHeaders.labourCount}
                         </label>
                         <div className="flex items-center gap-1">
                           <input
@@ -1741,7 +2539,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
 
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'தினக்கூலி' : 'WAGE / PERSON'}
+                          {t.step3.tableHeaders.labourWage}
                         </label>
                         <div className="flex items-center gap-1">
                           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
@@ -1767,9 +2565,72 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                         </div>
                       </div>
 
+                      {task.hasSnacks && (
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.tableHeaders.snackCost}
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={isSkipped}
+                              value={entry.snackCost || ''}
+                              onChange={(e) =>
+                                handleLabourChange(
+                                  task.id,
+                                  entry.labourCount ?? 0,
+                                  entry.labourWage ?? 0,
+                                  Number(e.target.value) || 0,
+                                  entry.travelCost ?? 0
+                                )
+                              }
+                              data-mobile-input="true" className={inputStyleClass}
+                              style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                              placeholder="0"
+                            />
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Total</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {task.hasTravel && (
+                        <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
+                          <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
+                            {t.step3.tableHeaders.travelCost}
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={isSkipped}
+                              value={entry.travelCost || ''}
+                              onChange={(e) =>
+                                handleLabourChange(
+                                  task.id,
+                                  entry.labourCount ?? 0,
+                                  entry.labourWage ?? 0,
+                                  entry.snackCost ?? 0,
+                                  Number(e.target.value) || 0
+                                )
+                              }
+                              data-mobile-input="true" className={inputStyleClass}
+                              style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
+                              placeholder="0"
+                            />
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Total</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Standard Rate per Cent Input (e.g. Tractor, Water cycling) */
+                    <div className="grid grid-cols-2 gap-2.5">
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'சிற்றுண்டி செலவு' : 'SNACK COST'}
+                          {t.step3.rateCent}
                         </label>
                         <div className="flex items-center gap-1">
                           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
@@ -1777,49 +2638,21 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                             type="number"
                             min="0"
                             disabled={isSkipped}
-                            value={entry.snackCost || ''}
-                            onChange={(e) =>
-                              handleLabourChange(
-                                task.id,
-                                entry.labourCount ?? 0,
-                                entry.labourWage ?? 0,
-                                Number(e.target.value) || 0,
-                                entry.travelCost ?? 0
-                              )
-                            }
+                            value={entry.ratePerCent !== undefined && entry.ratePerCent !== 0 ? entry.ratePerCent : ''}
+                            onChange={(e) => handleRateChange(task.id, parseFloat(e.target.value) || 0)}
                             data-mobile-input="true" className={inputStyleClass}
                             style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
                             placeholder="0"
                           />
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Total</span>
                         </div>
                       </div>
 
                       <div className="rounded-xl glass-surface border border-white/10 dark:border-white/15 p-2.5 transition-all focus-within:border-emerald-500/70 focus-within:ring-1 focus-within:ring-emerald-500/20">
                         <label className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-1">
-                          {isTamil ? 'பயணச் செலவு' : 'TRAVEL COST'}
+                          {t.step3.totalAreaUpper}
                         </label>
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">₹</span>
-                          <input
-                            type="number"
-                            min="0"
-                            disabled={isSkipped}
-                            value={entry.travelCost || ''}
-                            onChange={(e) =>
-                              handleLabourChange(
-                                task.id,
-                                entry.labourCount ?? 0,
-                                entry.labourWage ?? 0,
-                                entry.snackCost ?? 0,
-                                Number(e.target.value) || 0
-                              )
-                            }
-                            data-mobile-input="true" className={inputStyleClass}
-                            style={{ border: 'none', borderWidth: 0, outline: 'none', boxShadow: 'none', background: 'transparent' }}
-                            placeholder="0"
-                          />
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Total</span>
+                        <div className="text-sm font-extrabold text-slate-900 dark:text-white pt-0.5">
+                          {userDetails.landSize} Cents
                         </div>
                       </div>
                     </div>
@@ -1828,7 +2661,7 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
                   {/* Card Subtotal / Realization Footer */}
                   <div className="mt-3.5 pt-2.5 border-t border-slate-200/80 dark:border-white/10 flex items-center justify-between">
                     <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
-                      TASK {globalTaskNum} {activePhase.isProfitPhase ? (isTamil ? 'வருவாய் வரவு' : 'Realization') : isTamil ? 'துணை மொத்தம்' : 'Subtotal'}
+                      TASK {globalTaskNum} {activePhase.isProfitPhase ? t.step3.realization : t.step3.subtotal}
                     </span>
                     <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">
                       ₹{fmt(computedTaskTotal)}
@@ -1852,26 +2685,26 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
         >
           {activePhaseIndex > 0
             ? getPhaseMeta(currentPhases[activePhaseIndex - 1]).month
-            : isTamil
-            ? 'படி 2'
-            : 'Phase 0 / Step 2'}
+            : t.step3.step2Short}
         </button>
 
         <button
           type="button"
           disabled={savingNext}
           onClick={handleSaveAndProceed}
-          className="flex-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 active:scale-98 text-white keep-white px-4 py-3 text-xs font-black shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+          className={`flex-1 rounded-xl px-4 py-3 text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
+            isPhaseDone(activePhaseIndex)
+              ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 active:scale-98 text-white keep-white cursor-pointer shadow-lg shadow-emerald-500/25'
+              : 'bg-slate-700/60 dark:bg-slate-800 text-slate-400 opacity-65 cursor-not-allowed border border-white/5'
+          } disabled:opacity-60`}
         >
           {savingNext ? (
-            <span>{isTamil ? 'சேமிக்கிறது...' : 'Saving...'}</span>
+            <span>{messages.common.saving}</span>
           ) : isPhase5 ? (
-            <span>{isTamil ? 'திட்டம் முடிந்தது (சுருக்கம் காண்க) →' : 'Complete & Review Plan →'}</span>
+            <span>{t.step3.completeAndReviewPlan}</span>
           ) : (
             <span>
-              {isTamil
-                ? `சேமித்து ${getPhaseMeta(currentPhases[activePhaseIndex + 1]).month} செல்க →`
-                : `Save & Go to ${getPhaseMeta(currentPhases[activePhaseIndex + 1]).month} →`}
+              {t.step3.saveAndGoTo.replace('{phase}', getPhaseMeta(currentPhases[activePhaseIndex + 1]).month)}
             </span>
           )}
         </button>
@@ -1900,13 +2733,13 @@ export const Step3MobilePhaseCards: React.FC<Step3MobilePhaseCardsProps> = ({
       >
         <div className="py-2 space-y-3 text-xs text-slate-600 dark:text-slate-300">
           <p className="leading-relaxed">
-            {isTamil
-              ? `இந்த பருவத்தில் ${activePhase.tasks.length} விவசாய பணிகள் உள்ளன. தேவையான மதிப்பீடுகளை நிரப்பி 'சேமித்து செல்க' பொத்தானை கிளிக் செய்யவும்.`
-              : `This cultivation phase contains ${activePhase.tasks.length} operational tasks spanning ${activePhaseMeta.daySpan}. Fill required inputs and proceed to calculate your nutrient budget.`}
+            {t.step3.phaseInfoDesc
+              .replace('{count}', String(activePhase.tasks.length))
+              .replace('{daySpan}', activePhaseMeta.daySpan)}
           </p>
           <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
             <div className="font-bold text-emerald-800 dark:text-emerald-300 mb-1">
-              {isTamil ? 'பயிரிடும் பரப்பு' : 'Cultivation Parameters'}:
+              {t.step3.cultivationParameters}:
             </div>
             <div>
               {typeof cultivation === 'object' && cultivation?.name ? cultivation.name : 'Paddy'} •{' '}

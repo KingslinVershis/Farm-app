@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Select, Table, Pagination } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence, useMotionValue, animate } from 'motion/react';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { ShinyText } from '@/components/reactbits/ShinyText';
 import { AnimatedCounter } from '@/components/reactbits/AnimatedCounter';
+import ReflectiveCard from '@/components/reactbits/ReflectiveCard';
+import AnimatedContent from '@/components/reactbits/AnimatedContent';
 import {
   Store,
   Boxes,
@@ -21,10 +23,298 @@ import type {
   FertDistrictItem,
   FertSubdistrictItem,
   FertDealerRecord,
+  FertDealerStockItem,
   FertPriceProductItem,
   FertPriceDetailRow,
   FertStockApiResponse,
 } from '@/app/api/fertilizer-stock/route';
+
+interface DealerStocksAutoScrollProps {
+  stocks: FertDealerStockItem[];
+  noStockText: string;
+}
+
+/**
+ * Available Fertilizers Auto-Glide Scroll:
+ * Replicates the continuous smooth auto-glide horizontal scroll from the Weather Data Cards.
+ * Shows exactly 2 fertilizers per row in the viewport, while auto-gliding remaining fertilizers.
+ */
+function DealerStocksAutoScroll({ stocks, noStockText }: DealerStocksAutoScrollProps) {
+  const { messages } = useLanguage();
+  const fs = messages.fertilizerStockPage;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  const [itemWidth, setItemWidth] = useState<number>(135);
+  const [maxDrag, setMaxDrag] = useState<number>(0);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const isHoveredRef = useRef(false);
+  const isInteractingRef = useRef(false);
+  const isResettingRef = useRef(false);
+  const lastFrameTimeRef = useRef(0);
+  const userInteractingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const x = useMotionValue(0);
+  const targetXRef = useRef<number>(0);
+
+  const pauseAutoScrollTemporarily = useCallback((durationMs = 4500) => {
+    isInteractingRef.current = true;
+    if (userInteractingTimeoutRef.current) {
+      clearTimeout(userInteractingTimeoutRef.current);
+    }
+    userInteractingTimeoutRef.current = setTimeout(() => {
+      isInteractingRef.current = false;
+    }, durationMs);
+  }, []);
+
+  const updateConstraints = useCallback(() => {
+    if (!containerRef.current || !trackRef.current) return;
+    const containerWidth = containerRef.current.clientWidth;
+    if (containerWidth > 0) {
+      // Exactly 2 fertilizers per row: width = (containerWidth - gap) / 2
+      const calcWidth = Math.floor((containerWidth - 6) / 2);
+      setItemWidth(calcWidth);
+    }
+    const trackWidth = trackRef.current.scrollWidth;
+    const max = Math.max(0, trackWidth - containerWidth);
+    setMaxDrag(max);
+
+    const currentX = x.get();
+    if (currentX < -max) {
+      targetXRef.current = -max;
+      animate(x, -max, { duration: 0.2, ease: 'easeOut' });
+    } else if (currentX > 0) {
+      targetXRef.current = 0;
+      animate(x, 0, { duration: 0.2, ease: 'easeOut' });
+    } else {
+      targetXRef.current = currentX;
+    }
+  }, [x]);
+
+  useEffect(() => {
+    updateConstraints();
+    const handleResize = () => updateConstraints();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [updateConstraints, stocks]);
+
+  useEffect(() => {
+    const unsubscribe = x.on('change', (latest) => {
+      setCanScrollLeft(latest < -4);
+      setCanScrollRight(latest > -(maxDrag - 4));
+    });
+    return () => unsubscribe();
+  }, [x, maxDrag]);
+
+  useEffect(() => {
+    setCanScrollRight(maxDrag > 4);
+  }, [maxDrag]);
+
+  // Continuous smooth auto-glide motion loop (matching the weather card scroll)
+  useEffect(() => {
+    if (maxDrag <= 4) return;
+
+    let rafId: number;
+    lastFrameTimeRef.current = performance.now();
+    const autoScrollSpeed = 24; // silky, readable auto-glide speed in px/sec
+
+    const glideFrame = (now: number) => {
+      const dt = Math.min((now - lastFrameTimeRef.current) / 1000, 0.08);
+      lastFrameTimeRef.current = now;
+
+      if (
+        !isHoveredRef.current &&
+        !isDragging &&
+        !isInteractingRef.current &&
+        !isResettingRef.current
+      ) {
+        const currentX = x.get();
+        const newX = currentX - autoScrollSpeed * dt;
+
+        if (newX <= -maxDrag + 1) {
+          // Reached the end: smoothly glide back to start (matching weather carousel)
+          isResettingRef.current = true;
+          targetXRef.current = 0;
+          animate(x, 0, {
+            duration: 1.6,
+            ease: [0.25, 1, 0.5, 1],
+            onComplete: () => {
+              // Pause at start for 1.4s so the user can easily see the first 2 items
+              setTimeout(() => {
+                isResettingRef.current = false;
+                lastFrameTimeRef.current = performance.now();
+              }, 1400);
+            },
+          });
+        } else {
+          x.set(newX);
+          targetXRef.current = newX;
+        }
+      }
+
+      rafId = requestAnimationFrame(glideFrame);
+    };
+
+    rafId = requestAnimationFrame(glideFrame);
+    return () => {
+      cancelAnimationFrame(rafId);
+    };
+  }, [maxDrag, isDragging, x]);
+
+  if (!stocks || stocks.length === 0) {
+    return (
+      <div className="p-3 rounded-xl glass-surface border border-border-subtle text-center">
+        <span className="text-xs text-text-muted italic block">
+          {noStockText}
+        </span>
+      </div>
+    );
+  }
+
+  // If only 1 item: full width
+  if (stocks.length === 1) {
+    const item = stocks[0];
+    return (
+      <div className="space-y-1.5 flex-1 flex flex-col justify-start">
+        <span className="text-[10px] font-extrabold uppercase tracking-wider text-text-muted block">
+          {fs.availableFertilizers}
+        </span>
+        <div className="flex flex-col p-2 rounded-xl glass-surface border border-border-subtle">
+          <span className="text-[10px] font-bold text-text-secondary truncate" title={item.fertilizer}>
+            {item.fertilizer}
+          </span>
+          <span className="font-mono font-black text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
+            {item.quantityMt.toFixed(2)} <span className="text-[9px] font-normal text-text-muted">{fs.mt}</span>
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // If exactly 2 items: static 2 items side-by-side (2 per row)
+  if (stocks.length === 2) {
+    return (
+      <div className="space-y-1.5 flex-1 flex flex-col justify-start">
+        <span className="text-[10px] font-extrabold uppercase tracking-wider text-text-muted block">
+          {fs.availableFertilizers}
+        </span>
+        <div className="grid grid-cols-2 gap-1.5">
+          {stocks.map((item) => (
+            <div
+              key={item.fertilizer}
+              className="flex flex-col p-2 rounded-xl glass-surface border border-border-subtle hover:border-emerald-500/30 transition-colors"
+            >
+              <span className="text-[10px] font-bold text-text-secondary truncate" title={item.fertilizer}>
+                {item.fertilizer}
+              </span>
+              <span className="font-mono font-black text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
+                {item.quantityMt.toFixed(2)} <span className="text-[9px] font-normal text-text-muted">{fs.mt}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // If > 2 items: Auto-glide carousel with exactly 2 items per row in view!
+  return (
+    <div
+      className="space-y-1.5 flex-1 flex flex-col justify-start select-none"
+      onMouseEnter={() => {
+        isHoveredRef.current = true;
+      }}
+      onMouseLeave={() => {
+        isHoveredRef.current = false;
+      }}
+    >
+      {/* Header: Title + Auto-glide status indicator */}
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-extrabold uppercase tracking-wider text-text-muted">
+          {fs.availableFertilizers}
+        </span>
+        <span className="text-[9px] font-mono font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span>{stocks.length} {fs.items}</span>
+        </span>
+      </div>
+
+      {/* Free Scroll Carousel Viewport with edge-fade mask (like Weather Card) */}
+      <div
+        ref={containerRef}
+        className="relative w-full overflow-hidden py-0.5"
+        style={{
+          maskImage:
+            maxDrag > 4
+              ? `linear-gradient(to right, ${
+                  canScrollLeft ? 'transparent 0%, black 16px' : 'black 0%'
+                }, black calc(100% - ${canScrollRight ? '16px' : '0%'}), ${
+                  canScrollRight ? 'transparent 100%' : 'black 100%'
+                })`
+              : 'none',
+          WebkitMaskImage:
+            maxDrag > 4
+              ? `linear-gradient(to right, ${
+                  canScrollLeft ? 'transparent 0%, black 16px' : 'black 0%'
+                }, black calc(100% - ${canScrollRight ? '16px' : '0%'}), ${
+                  canScrollRight ? 'transparent 100%' : 'black 100%'
+                })`
+              : 'none',
+        }}
+      >
+        <motion.div
+          ref={trackRef}
+          style={{ x }}
+          drag="x"
+          dragConstraints={{ left: -maxDrag, right: 0 }}
+          dragElastic={0.08}
+          dragTransition={{
+            power: 0.25,
+            timeConstant: 250,
+            bounceStiffness: 350,
+            bounceDamping: 35,
+          }}
+          onDragStart={() => {
+            setIsDragging(true);
+            pauseAutoScrollTemporarily(5000);
+            targetXRef.current = x.get();
+          }}
+          onDrag={() => {
+            targetXRef.current = x.get();
+          }}
+          onDragEnd={() => {
+            targetXRef.current = x.get();
+            setTimeout(() => setIsDragging(false), 50);
+          }}
+          className={`flex items-stretch gap-1.5 cursor-grab active:cursor-grabbing will-change-transform ${
+            isDragging ? 'pointer-events-none' : ''
+          }`}
+        >
+          {stocks.map((item) => (
+            <div
+              key={item.fertilizer}
+              style={{ width: `${itemWidth}px` }}
+              className="flex flex-col p-2 rounded-xl glass-surface border border-border-subtle hover:border-emerald-500/30 transition-colors shrink-0"
+            >
+              <span className="text-[10px] font-bold text-text-secondary truncate" title={item.fertilizer}>
+                {item.fertilizer}
+              </span>
+              <span className="font-mono font-black text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
+                {item.quantityMt.toFixed(2)}{' '}
+                <span className="text-[9px] font-normal text-text-muted">
+                  {fs.mt}
+                </span>
+              </span>
+            </div>
+          ))}
+        </motion.div>
+      </div>
+    </div>
+  );
+}
 
 export default function FertilizerStockPage() {
   const { messages, locale } = useLanguage();
@@ -72,7 +362,7 @@ export default function FertilizerStockPage() {
     setLoadingProducts(true);
     setPriceError(null);
     try {
-      const res = await fetch('/api/fertilizer-stock?mode=price-products');
+      const res = await fetch(`/api/fertilizer-stock?mode=price-products&lang=${locale}`);
       if (!res.ok) throw new Error(`Failed to fetch products (${res.status})`);
       const json: FertStockApiResponse = await res.json();
       if (!json.success) throw new Error(json.error || 'Failed to load products.');
@@ -82,7 +372,7 @@ export default function FertilizerStockPage() {
     } finally {
       setLoadingProducts(false);
     }
-  }, []);
+  }, [locale]);
 
   const fetchPricesForProduct = useCallback(async (productId: string) => {
     if (!productId) return;
@@ -105,10 +395,10 @@ export default function FertilizerStockPage() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'price' && priceProducts.length === 0 && !loadingProducts) {
+    if (activeTab === 'price') {
       fetchPriceProducts();
     }
-  }, [activeTab, priceProducts.length, loadingProducts, fetchPriceProducts]);
+  }, [activeTab, locale, fetchPriceProducts]);
 
   const handleProductChange = (productId: string) => {
     setSelectedProductId(productId);
@@ -129,44 +419,30 @@ export default function FertilizerStockPage() {
     );
   }, [priceRows, companySearchText]);
 
-  const priceColumns: ColumnsType<FertPriceDetailRow> = useMemo(
-    () => [
-      {
-        title: fs.colSlNo,
-        dataIndex: 'slNo',
-        key: 'slNo',
-        width: '12%',
-        align: 'center',
-        render: (slNo: number) => (
-          <span className="font-mono text-xs font-bold text-text-muted">{slNo}</span>
-        ),
-      },
-      {
-        title: fs.colCompany,
-        dataIndex: 'company',
-        key: 'company',
-        width: '58%',
-        render: (_: string, row) => (
-          <span className="font-extrabold text-xs sm:text-sm text-text-main">
-            {locale === 'ta' && row.companyTamil ? row.companyTamil : row.company}
-          </span>
-        ),
-      },
-      {
-        title: `${fs.colPrice} (${priceUnitLabel})`,
-        dataIndex: 'price',
-        key: 'price',
-        width: '30%',
-        align: 'right',
-        render: (price: string) => (
-          <span className="inline-flex items-center px-3 py-1 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30 font-mono text-xs sm:text-sm font-black whitespace-nowrap">
-            ₹{price}
-          </span>
-        ),
-      },
-    ],
-    [fs, locale, priceUnitLabel]
+  const selectedProductItem = useMemo(
+    () => priceProducts.find((p) => p.id === selectedProductId),
+    [priceProducts, selectedProductId]
   );
+
+  const [priceCardPage, setPriceCardPage] = useState<number>(1);
+  const PRICE_CARDS_PAGE_SIZE = 12;
+
+  const paginatedPriceRows = useMemo(() => {
+    const start = (priceCardPage - 1) * PRICE_CARDS_PAGE_SIZE;
+    return filteredPriceRows.slice(start, start + PRICE_CARDS_PAGE_SIZE);
+  }, [filteredPriceRows, priceCardPage]);
+
+  useEffect(() => {
+    setPriceCardPage(1);
+  }, [selectedProductId, companySearchText]);
+
+  const displayPriceUnit = useMemo(() => {
+    if (locale !== 'ta') return priceUnitLabel;
+    return priceUnitLabel
+      .replace(/Rs\.?/gi, 'ரூ.')
+      .replace(/kgs?/gi, 'கிலோ')
+      .replace(/bags?/gi, 'மூட்டை');
+  }, [priceUnitLabel, locale]);
 
   const fetchDistricts = useCallback(async () => {
     setLoadingDistricts(true);
@@ -270,6 +546,16 @@ export default function FertilizerStockPage() {
     fetchDealers(subdistrictId);
   };
 
+  const selectedDistrictItem = useMemo(
+    () => districts.find((d) => d.id === selectedDistrictId),
+    [districts, selectedDistrictId]
+  );
+
+  const selectedSubdistrictItem = useMemo(
+    () => subdistricts.find((s) => s.id === selectedSubdistrictId),
+    [subdistricts, selectedSubdistrictId]
+  );
+
   const filteredDealers = useMemo(() => {
     const query = shopSearchText.trim().toLowerCase();
     if (!query) return dealers;
@@ -306,8 +592,12 @@ export default function FertilizerStockPage() {
         width: '26%',
         render: (name: string) => (
           <div className="flex items-center gap-2.5 pr-2">
-            <span className="p-2 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 shrink-0">
-              <Store size={15} />
+            <span className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/25 shrink-0 flex items-center justify-center p-0.5">
+              <img
+                src="/icons/animated/fertilizer.gif"
+                alt="Fertilizer"
+                className="w-full h-full object-contain"
+              />
             </span>
             <span className="font-extrabold text-xs sm:text-sm text-text-main leading-snug">
               {name}
@@ -353,7 +643,7 @@ export default function FertilizerStockPage() {
                 >
                   <span className="text-text-secondary">{item.fertilizer}:</span>
                   <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400">
-                    {item.quantityMt.toFixed(2)} MT
+                    {item.quantityMt.toFixed(2)} {fs.mt}
                   </span>
                 </span>
               ))}
@@ -374,7 +664,7 @@ export default function FertilizerStockPage() {
         ),
       },
     ],
-    [fs]
+    [fs, locale]
   );
 
   return (
@@ -383,7 +673,7 @@ export default function FertilizerStockPage() {
       <div
         className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out scale-105"
         style={{
-          backgroundImage: `url(/images/farm.jpg)`,
+          backgroundImage: `url(https://res.cloudinary.com/chk0va7a/image/upload/v1795758908/farm.jpg)`,
         }}
       />
       <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
@@ -425,31 +715,33 @@ export default function FertilizerStockPage() {
         </motion.div>
 
         {/* Two-Tab Switcher: Fertilizer Shop | Fertilizer Price */}
-        <div className="flex items-center gap-2 p-1.5 rounded-2xl glass-panel border border-border-light shadow-md">
-          <button
-            type="button"
-            onClick={() => setActiveTab('shop')}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'shop'
-                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white keep-white shadow-md font-extrabold'
-                : 'text-text-secondary hover:text-text-main hover:bg-surface/60'
-            }`}
-          >
-            <Store size={16} />
-            <span>{fs.tabShop}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('price')}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'price'
-                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white keep-white shadow-md font-extrabold'
-                : 'text-text-secondary hover:text-text-main hover:bg-surface/60'
-            }`}
-          >
-            <Boxes size={16} />
-            <span>{fs.tabPrice}</span>
-          </button>
+        <div className="flex items-center justify-end w-full">
+          <div className="inline-flex items-center gap-2 p-1.5 rounded-2xl glass-panel border border-border-light shadow-md w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setActiveTab('shop')}
+              className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'shop'
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white keep-white shadow-md font-extrabold'
+                  : 'text-text-secondary hover:text-text-main hover:bg-surface/60'
+              }`}
+            >
+              <Store size={16} />
+              <span>{fs.tabShop}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('price')}
+              className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'price'
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white keep-white shadow-md font-extrabold'
+                  : 'text-text-secondary hover:text-text-main hover:bg-surface/60'
+              }`}
+            >
+              <Boxes size={16} />
+              <span>{fs.tabPrice}</span>
+            </button>
+          </div>
         </div>
 
         {activeTab === 'shop' ? (
@@ -486,7 +778,7 @@ export default function FertilizerStockPage() {
                   setDistrictSearchText('');
                   setDistrictSearching(false);
                 }}
-                onDropdownVisibleChange={(open) => {
+                onOpenChange={(open) => {
                   if (!open) {
                     setDistrictSearchText('');
                     setDistrictSearching(false);
@@ -534,7 +826,7 @@ export default function FertilizerStockPage() {
                   setSubdistrictSearchText('');
                   setSubdistrictSearching(false);
                 }}
-                onDropdownVisibleChange={(open) => {
+                onOpenChange={(open) => {
                   if (!open) {
                     setSubdistrictSearchText('');
                     setSubdistrictSearching(false);
@@ -610,7 +902,7 @@ export default function FertilizerStockPage() {
                   {fs.totalStockLabel}
                 </span>
                 <span className="text-2xl font-black text-cyan-600 dark:text-cyan-400 font-mono mt-1 block">
-                  <AnimatedCounter value={totalStockMt} decimals={2} /> MT
+                  <AnimatedCounter value={totalStockMt} decimals={2} /> {fs.mt}
                 </span>
               </div>
             </div>
@@ -627,7 +919,7 @@ export default function FertilizerStockPage() {
                 }`}
               >
                 <LayoutGrid size={13} />
-                <span>{fs.cardsView || (locale === 'ta' ? 'கார்டுகள்' : 'Cards')}</span>
+                <span>{fs.cardsView}</span>
               </button>
               <button
                 type="button"
@@ -639,7 +931,7 @@ export default function FertilizerStockPage() {
                 }`}
               >
                 <TableList size={13} />
-                <span>{fs.tableView || (locale === 'ta' ? 'அட்டவணை' : 'Table')}</span>
+                <span>{fs.tableView}</span>
               </button>
             </div>
           </div>
@@ -652,12 +944,12 @@ export default function FertilizerStockPage() {
               <AlertCircle size={18} />
             </span>
             <div className="text-xs sm:text-sm text-text-secondary leading-relaxed">
-              <span className="font-bold text-amber-600 dark:text-amber-400 mr-1.5">
-                {fs.phoneWarningTitle || (locale === 'ta' ? 'முக்கிய அறிவிப்பு:' : 'Notice:')}
-              </span>
-              {fs.phoneWarningDesc || (locale === 'ta'
-                ? 'கீழே குறிப்பிடப்பட்டுள்ள சில தொலைபேசி எண்கள் பயன்பாட்டில் இல்லாமல் அல்லது தொடர்பு கொள்ள முடியாமல் இருக்கலாம். அழைப்பு செல்லவில்லை எனில், உங்கள் அருகிலுள்ள மாற்று அங்கீகரிக்கப்பட்ட உர விற்பனையாளர்களை தொடர்பு கொள்ளவும் அல்லது நேரடி தொடக்க வேளாண்மை கூட்டுறவு சங்கங்களை (PACS) அணுகவும்.'
-                : 'Some of the contact phone numbers listed below may be temporarily unavailable or out of service. If a dealer cannot be reached, please contact an alternative authorized fertilizer store from your nearby location or visit your local Primary Agricultural Cooperative Society (PACS).')}
+              {fs.phoneWarningTitle ? (
+                <span className="font-bold text-amber-600 dark:text-amber-400 mr-1.5">
+                  {fs.phoneWarningTitle}
+                </span>
+              ) : null}
+              {fs.phoneWarningDesc}
             </div>
           </div>
         )}
@@ -695,8 +987,12 @@ export default function FertilizerStockPage() {
             </div>
           ) : !selectedDistrictId || !selectedSubdistrictId ? (
             <div className="flex flex-col items-center justify-center p-14 text-center gap-3">
-              <span className="p-4 rounded-2xl bg-emerald-500/15 text-emerald-500 border border-emerald-500/25">
-                <Store size={28} />
+              <span className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 shadow-md flex items-center justify-center p-2">
+                <img
+                  src="/icons/animated/fertilizer.gif"
+                  alt="Fertilizer"
+                  className="w-full h-full object-contain"
+                />
               </span>
               <h3 className="text-base font-bold text-text-main m-0">
                 {fs.selectPromptTitle}
@@ -713,89 +1009,131 @@ export default function FertilizerStockPage() {
           ) : viewMode === 'cards' ? (
             /* Cards View */
             <div className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {paginatedDealers.map((dealer, idx) => (
-                  <div
-                    key={dealer.id}
-                    className="rounded-2xl glass-panel p-5 border border-border-light hover:border-emerald-500/40 hover:shadow-xl transition-all flex flex-col justify-between gap-4 group"
-                  >
-                    <div>
-                      {/* Shop Name & ID */}
-                      <div className="flex items-start justify-between gap-2.5 mb-2.5">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="p-2.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 shrink-0 group-hover:scale-105 transition-transform">
-                            <Store size={18} />
+              <AnimatedContent
+                key={`dealers-grid-${selectedDistrictId}-${selectedSubdistrictId}-${cardPage}-${shopSearchText}`}
+                distance={60}
+                direction="vertical"
+                duration={0.7}
+                ease="power3.out"
+                stagger={0.05}
+                trigger="mount"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+              >
+                {paginatedDealers.map((dealer, idx) => {
+                  const isSurplus = dealer.totalStockMt >= 15;
+                  const isAdequate = dealer.totalStockMt > 0 && dealer.totalStockMt < 15;
+
+                  const statusColor = isSurplus ? '#10b981' : isAdequate ? '#06b6d4' : '#f43f5e';
+                  const statusBadgeClass = isSurplus
+                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30'
+                    : isAdequate
+                    ? 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/30'
+                    : 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-500/30';
+                  const statusText = isSurplus
+                    ? fs.surplus
+                    : isAdequate
+                    ? fs.inStock
+                    : fs.outOfStock;
+
+                  return (
+                    <ReflectiveCard
+                      key={dealer.id}
+                      tiltStrength={9}
+                      radius={24}
+                      intro
+                      className="h-full group"
+                    >
+                      <div className="flex flex-col h-full justify-between gap-4">
+                        {/* Card Top Header: Status Pill + Dealer Index */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${statusBadgeClass}`}
+                          >
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: statusColor }}
+                            />
+                            <span>{statusText}</span>
                           </span>
-                          <div className="min-w-0">
-                            <h3 className="font-extrabold text-sm text-text-main leading-snug line-clamp-2" title={dealer.shopName}>
-                              {dealer.shopName}
-                            </h3>
-                            <span className="text-[10px] font-mono font-bold text-text-muted">
-                              #{(cardPage - 1) * CARDS_PAGE_SIZE + idx + 1}
+                          <span className="font-mono text-xs font-black text-cyan-600 dark:text-cyan-400">
+                            #{(cardPage - 1) * CARDS_PAGE_SIZE + idx + 1}
+                          </span>
+                        </div>
+
+                        {/* Identity: Animated Fertilizer Sack Icon + Dealer Shop Name */}
+                        <div>
+                          <div className="flex items-start gap-3">
+                            <span className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/25 shrink-0 flex items-center justify-center p-1 group-hover:scale-105 transition-transform overflow-hidden shadow-sm">
+                              <img
+                                src="/icons/animated/fertilizer.gif"
+                                alt="Fertilizer"
+                                className="w-full h-full object-contain"
+                              />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <h3 className="font-black text-sm sm:text-base text-text-main tracking-tight line-clamp-2 leading-snug m-0" title={dealer.shopName}>
+                                {dealer.shopName}
+                              </h3>
+                              <p className="text-[11px] text-text-muted font-medium mt-0.5 truncate m-0">
+                                {selectedDistrictItem?.name ? `${selectedDistrictItem.name} • ` : ''}{selectedSubdistrictItem?.name || fs.fertilizerDealer}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Total Stock Metric Box (matching Reservoirs Storage Progress Meter) */}
+                        <div className="flex items-center justify-between p-3 rounded-2xl glass-surface border border-border-subtle/70">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                              <Boxes size={15} />
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block">
+                                {fs.totalStock}
+                              </span>
+                              <span className="font-mono text-sm sm:text-base font-black text-cyan-600 dark:text-cyan-400 truncate block">
+                                {dealer.totalStockMt.toFixed(2)} <span className="text-[10px] font-semibold text-text-muted">{fs.mt}</span>
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block">
+                              {fs.varieties}
+                            </span>
+                            <span className="font-mono text-xs font-black text-text-main">
+                              {dealer.stocks?.length || 0}
                             </span>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Total Stock MT Badge */}
-                      <div className="flex items-center justify-between py-1.5 px-3 rounded-xl bg-surface/60 border border-border-subtle my-2">
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-text-muted">
-                          {locale === 'ta' ? 'மொத்த இருப்பு' : 'Total Stock'}
-                        </span>
-                        <span className="font-mono text-xs font-black text-cyan-600 dark:text-cyan-400">
-                          {dealer.totalStockMt.toFixed(2)} MT
-                        </span>
-                      </div>
+                        {/* Telemetry Breakdown: Available Fertilizers Auto-Glide Scroll (2 per row, like Weather Data Cards) */}
+                        <DealerStocksAutoScroll
+                          stocks={dealer.stocks}
+                          noStockText={fs.noStockRecorded}
+                        />
 
-                      {/* Phone Number */}
-                      <div className="pt-1">
-                        {dealer.phone && dealer.phone !== '-' ? (
-                          <a
-                            href={`tel:${dealer.phone}`}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/25 font-mono text-xs font-bold transition-colors w-full justify-center"
-                          >
-                            <Phone size={13} className="text-rose-500" />
-                            <span>{dealer.phone}</span>
-                          </a>
-                        ) : (
-                          <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface/40 text-text-muted border border-border-subtle text-xs font-mono w-full italic">
-                            <Phone size={12} className="opacity-50" />
-                            <span>{locale === 'ta' ? 'எண் இல்லை' : 'No phone listed'}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Stock items */}
-                    <div className="pt-3 border-t border-border-subtle/80 space-y-2">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-text-muted block">
-                        {locale === 'ta' ? 'கிடைக்கும் உரங்கள்' : 'Available Fertilizers'}
-                      </span>
-                      {dealer.stocks && dealer.stocks.length > 0 ? (
-                        <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto scrollbar-thin pr-0.5">
-                          {dealer.stocks.map((item) => (
-                            <div
-                              key={item.fertilizer}
-                              className="flex flex-col p-2 rounded-xl glass-surface border border-border-subtle"
+                        {/* Footer: Phone Call Button */}
+                        <div className="pt-2 border-t border-border-subtle">
+                          {dealer.phone && dealer.phone !== '-' ? (
+                            <a
+                              href={`tel:${dealer.phone}`}
+                              className="inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/25 font-mono text-xs font-bold transition-all w-full group/phone shadow-sm"
                             >
-                              <span className="text-[10px] font-bold text-text-secondary truncate" title={item.fertilizer}>
-                                {item.fertilizer}
-                              </span>
-                              <span className="font-mono font-black text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
-                                {item.quantityMt.toFixed(2)} MT
-                              </span>
-                            </div>
-                          ))}
+                              <Phone size={13} className="text-rose-500 group-hover/phone:scale-110 transition-transform" />
+                              <span>{dealer.phone}</span>
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface/40 text-text-muted border border-border-subtle text-xs font-mono w-full italic">
+                              <Phone size={12} className="opacity-50" />
+                              <span>{fs.noPhoneListed}</span>
+                            </span>
+                          )}
                         </div>
-                      ) : (
-                        <span className="text-xs text-text-muted italic block py-1">
-                          {fs.noStockRecorded}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                      </div>
+                    </ReflectiveCard>
+                  );
+                })}
+              </AnimatedContent>
 
               {/* Cards Pagination */}
               {filteredDealers.length > CARDS_PAGE_SIZE && (
@@ -861,7 +1199,7 @@ export default function FertilizerStockPage() {
                       setProductSearchText('');
                       setProductSearching(false);
                     }}
-                    onDropdownVisibleChange={(open) => {
+                    onOpenChange={(open) => {
                       if (!open) {
                         setProductSearchText('');
                         setProductSearching(false);
@@ -917,26 +1255,28 @@ export default function FertilizerStockPage() {
               <span>{fs.priceAdvisoryNote}</span>
             </div>
 
-            {/* Fertilizer Price Table Container */}
+            {/* Fertilizer Price Cards Container */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, ease: 'easeOut' }}
-              className="overflow-hidden rounded-2xl glass-panel border border-border-light shadow-xl"
+              className={
+                loadingPrices || priceError || !selectedProductId || filteredPriceRows.length === 0
+                  ? 'overflow-hidden rounded-2xl glass-panel border border-border-light shadow-xl'
+                  : 'space-y-6'
+              }
             >
               {loadingPrices ? (
-                <div className="p-6 space-y-4 animate-pulse">
+                <div className="p-6 space-y-4">
                   <div className="flex items-center gap-2 pb-3 border-b border-border-light/60">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                     <span className="text-xs font-semibold text-text-muted">{fs.loadingPrices}</span>
                   </div>
-                  {[1, 2, 3, 4, 5].map((row) => (
-                    <div key={row} className="grid grid-cols-3 gap-4 items-center py-2.5">
-                      <div className="skeleton-box h-4 w-12 rounded" />
-                      <div className="skeleton-box h-4 w-2/3 rounded" />
-                      <div className="skeleton-box h-5 w-24 rounded justify-self-end" />
-                    </div>
-                  ))}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((sk) => (
+                      <div key={sk} className="skeleton-box h-56 rounded-3xl" />
+                    ))}
+                  </div>
                 </div>
               ) : priceError ? (
                 <div className="flex flex-col items-center justify-center p-12 text-center gap-3">
@@ -945,8 +1285,12 @@ export default function FertilizerStockPage() {
                 </div>
               ) : !selectedProductId ? (
                 <div className="flex flex-col items-center justify-center p-14 text-center gap-3">
-                  <span className="p-4 rounded-2xl bg-emerald-500/15 text-emerald-500 border border-emerald-500/25">
-                    <Boxes size={28} />
+                  <span className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 shadow-md flex items-center justify-center p-2">
+                    <img
+                      src="/icons/animated/fertilizer.gif"
+                      alt="Fertilizer"
+                      className="w-full h-full object-contain"
+                    />
                   </span>
                   <h3 className="text-base font-bold text-text-main m-0">
                     {fs.selectPricePromptTitle}
@@ -961,32 +1305,146 @@ export default function FertilizerStockPage() {
                   <p className="text-xs text-text-muted max-w-md">{fs.noPricesFound}</p>
                 </div>
               ) : (
-                <div className="w-full overflow-x-auto scrollbar-thin">
-                  <Table<FertPriceDetailRow>
-                    columns={priceColumns}
-                    dataSource={filteredPriceRows}
-                    rowKey={(row) => `${row.slNo}-${row.company}`}
-                    pagination={false}
-                    className="reservoirs-table"
-                    onRow={() => ({
-                      className: 'hover:bg-surface/50 transition-colors',
-                    })}
-                  />
+                /* Cards View */
+                <div className="space-y-6">
+                  {/* Summary & Product Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/25 shrink-0 flex items-center justify-center p-1">
+                        <img
+                          src="/icons/animated/fertilizer.gif"
+                          alt="Fertilizer"
+                          className="w-full h-full object-contain"
+                        />
+                      </span>
+                      <div>
+                        <h3 className="font-extrabold text-sm sm:text-base text-text-main m-0 leading-tight">
+                          {selectedProductItem?.name || ''}
+                        </h3>
+                        <p className="text-[11px] text-text-muted font-medium m-0 mt-0.5">
+                          {fs.priceAdvisoryNote}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 self-start sm:self-auto">
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+                        {filteredPriceRows.length} {fs.companies}
+                      </span>
+                      <span className="px-3 py-1 rounded-full text-xs font-mono font-bold glass-surface border border-border-subtle text-text-secondary">
+                        {displayPriceUnit}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Price Cards Grid with AnimatedContent */}
+                  <AnimatedContent
+                    key={`price-cards-grid-${selectedProductId}-${priceCardPage}-${companySearchText}`}
+                    distance={60}
+                    direction="vertical"
+                    duration={0.7}
+                    ease="power3.out"
+                    stagger={0.05}
+                    trigger="mount"
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+                  >
+                    {paginatedPriceRows.map((row) => (
+                      <ReflectiveCard
+                        key={`${row.slNo}-${row.company}`}
+                        tiltStrength={9}
+                        radius={24}
+                        intro
+                        className="h-full group"
+                      >
+                        <div className="flex flex-col h-full justify-between gap-4">
+                          {/* Top Header: Tag + Serial Index */}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30">
+                              <span className="w-2 h-2 rounded-full shrink-0 bg-emerald-500" />
+                              <span className="truncate max-w-[140px] sm:max-w-[170px]" title={selectedProductItem?.name}>
+                                {selectedProductItem?.name || fs.fertilizer}
+                              </span>
+                            </span>
+                            <span className="font-mono text-xs font-black text-cyan-600 dark:text-cyan-400">
+                              #{row.slNo}
+                            </span>
+                          </div>
+
+                          {/* Identity: Icon + Company Name */}
+                          <div>
+                            <div className="flex items-start gap-3">
+                              <span className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/25 shrink-0 flex items-center justify-center p-1 group-hover:scale-105 transition-transform overflow-hidden shadow-sm">
+                                <img
+                                  src="/icons/animated/fertilizer.gif"
+                                  alt="Fertilizer"
+                                  className="w-full h-full object-contain"
+                                />
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <h3 className="font-black text-sm sm:text-base text-text-main tracking-tight line-clamp-2 leading-snug m-0" title={row.company}>
+                                  {locale === 'ta' && row.companyTamil ? row.companyTamil : row.company}
+                                </h3>
+                                {locale === 'ta' && row.companyTamil && row.companyTamil !== row.company && (
+                                  <p className="text-[11px] text-text-muted font-medium mt-0.5 truncate m-0">
+                                    {row.company}
+                                  </p>
+                                )}
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-text-muted block mt-1">
+                                  {fs.manufacturer}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Price Metric Box */}
+                          <div className="p-3.5 rounded-2xl glass-surface border border-border-subtle/70 flex items-center justify-between">
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block mb-0.5">
+                                {fs.officialMrp || fs.colPrice}
+                              </span>
+                              <div className="flex items-baseline gap-1.5 flex-wrap">
+                                <span className="font-mono text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                                  {row.price.startsWith('₹') || row.price.startsWith('Rs') ? row.price : `₹${row.price}`}
+                                </span>
+                                <span className="text-[11px] font-bold text-text-muted">
+                                  / {displayPriceUnit.replace(/^(?:Rs\.?|ரூ\.?)\s*\/\s*/i, '')}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 text-sm">
+                              🏷️
+                            </div>
+                          </div>
+
+                          {/* Footer: Official Approval Notice */}
+                          <div className="pt-2 border-t border-border-subtle flex items-center justify-between text-[11px] text-text-muted font-medium">
+                            <span className="inline-flex items-center gap-1.5 text-text-secondary">
+                              <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 shrink-0" />
+                              <span>{fs.govtApprovedRate}</span>
+                            </span>
+                            <span className="font-mono text-[10px] text-text-muted truncate max-w-[110px]" title={selectedProductItem?.name}>
+                              {selectedProductItem?.name}
+                            </span>
+                          </div>
+                        </div>
+                      </ReflectiveCard>
+                    ))}
+                  </AnimatedContent>
+
+                  {/* Pagination if more than 12 companies */}
+                  {filteredPriceRows.length > PRICE_CARDS_PAGE_SIZE && (
+                    <div className="flex justify-center pt-2">
+                      <Pagination
+                        current={priceCardPage}
+                        pageSize={PRICE_CARDS_PAGE_SIZE}
+                        total={filteredPriceRows.length}
+                        showSizeChanger={false}
+                        onChange={(page) => setPriceCardPage(page)}
+                        className="custom-antd-pagination"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
-
-              {/* Footer Note */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-5 py-3.5 border-t border-border-light bg-surface/40 text-xs text-text-muted">
-                <div className="flex items-center gap-2">
-                  <span>🏷️</span>
-                  <span>{fs.priceSourceNote}</span>
-                </div>
-                {selectedProductId && (
-                  <span className="font-semibold text-text-secondary">
-                    {fs.colCompany}: <strong className="text-text-main">{filteredPriceRows.length}</strong> ({priceUnitLabel})
-                  </span>
-                )}
-              </div>
             </motion.div>
           </>
         )}

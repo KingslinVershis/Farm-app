@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Mail,
@@ -24,11 +24,12 @@ import CodeSlots, { type CodeSlotsStatus } from '@/components/auth/CodeSlots';
 
 type RecoveryStep = 'email' | 'otp' | 'reset';
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordContent() {
   const router = useRouter();
-  const { locale } = useLanguage();
+  const searchParams = useSearchParams();
+  const { locale, messages } = useLanguage();
   const { theme } = useTheme();
-  const isTamil = locale === 'ta';
+  const fp = messages.auth.forgotPasswordPage;
   const isDark = theme === 'dark';
 
   // 3-screen recovery flow:
@@ -49,6 +50,20 @@ export default function ForgotPasswordPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [emailPreviewUrl, setEmailPreviewUrl] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number>(0);
+
+  // Auto-populate from URL query params (e.g. from verification email)
+  useEffect(() => {
+    const paramEmail = searchParams.get('email')?.trim();
+    const paramCode = searchParams.get('code')?.replace(/\D/g, '').slice(0, 6);
+    if (paramEmail) {
+      setEmail(paramEmail);
+    }
+    if (paramCode && paramCode.length === 6) {
+      setCode(paramCode);
+      setStep('otp');
+      setSecondsLeft((prev) => (prev > 0 ? prev : 300));
+    }
+  }, [searchParams]);
 
   // Live 5-minute countdown timer active during OTP & Reset screens
   useEffect(() => {
@@ -73,9 +88,7 @@ export default function ForgotPasswordPage() {
 
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      const err = isTamil
-        ? 'சரியான மின்னஞ்சல் முகவரியை உள்ளிடவும்.'
-        : 'Please enter a valid email address.';
+      const err = fp.errors.validEmail;
       setErrorMsg(err);
       message.error(err);
       return;
@@ -91,11 +104,7 @@ export default function ForgotPasswordPage() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok || !data?.success) {
-        const err =
-          data?.error ||
-          (isTamil
-            ? 'இந்த மின்னஞ்சல் முகவரியுடன் கணக்கு எதுவும் இல்லை.'
-            : 'No account found with this email address.');
+        const err = data?.error || fp.errors.noAccount;
         setErrorMsg(err);
         message.error(err);
         return;
@@ -107,16 +116,12 @@ export default function ForgotPasswordPage() {
       setCodeStatus('idle');
       setStep('otp');
       const okMsg = data.previewUrl
-        ? isTamil
-          ? 'சோதனை மின்னஞ்சல் உருவாக்கப்பட்டது! கீழே உள்ள இன்பாக்ஸ் இணைப்பில் குறியீட்டைப் பார்க்கவும்.'
-          : 'Test email generated (configure SMTP_USER & SMTP_PASS in .env.local for Gmail delivery).'
-        : isTamil
-        ? '6 இலக்க சரிபார்ப்பு குறியீடு உங்கள் மின்னஞ்சலுக்கு அனுப்பப்பட்டது (5 நிமிடங்கள் செல்லுபடியாகும்).'
-        : '6-digit verification code sent to your email address (valid for 5 minutes).';
+        ? fp.success.testEmailGenerated
+        : fp.success.codeSent;
       setSuccessMsg(okMsg);
       message.success(okMsg);
     } catch {
-      const err = isTamil ? 'சேவையக பிழை ஏற்பட்டது.' : 'Server error while verifying email.';
+      const err = fp.errors.serverError;
       setErrorMsg(err);
       message.error(err);
     } finally {
@@ -130,9 +135,7 @@ export default function ForgotPasswordPage() {
     setSuccessMsg(null);
 
     if (secondsLeft <= 0) {
-      const err = isTamil
-        ? 'குறியீடு காலாவதியாகிவிட்டது (5 நிமிட வரம்பு). புதிய குறியீட்டைப் பெறவும்.'
-        : 'Verification code expired (5-minute limit). Please request a new code.';
+      const err = fp.errors.expiredCode;
       setCodeStatus('error');
       setErrorMsg(err);
       message.error(err);
@@ -140,9 +143,7 @@ export default function ForgotPasswordPage() {
     }
 
     if (!/^\d{6}$/.test(submittedCode.trim())) {
-      const err = isTamil
-        ? 'சரியான 6 இலக்க குறியீட்டை உள்ளிடவும்.'
-        : 'Please enter the valid 6-digit verification code.';
+      const err = fp.errors.valid6Digit;
       setCodeStatus('error');
       setErrorMsg(err);
       message.error(err);
@@ -162,9 +163,7 @@ export default function ForgotPasswordPage() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok || !data?.success) {
-        const err =
-          data?.error ||
-          (isTamil ? 'தவறான 6 இலக்க குறியீடு.' : 'Invalid 6-digit verification code.');
+        const err = data?.error || fp.errors.invalidCode;
         setCodeStatus('error');
         setErrorMsg(err);
         message.error(err);
@@ -172,9 +171,7 @@ export default function ForgotPasswordPage() {
       }
 
       setCodeStatus('success');
-      const okMsg = isTamil
-        ? 'குறியீடு சரிபார்க்கப்பட்டது! இப்போது புதிய கடவுச்சொல்லை உருவாக்கவும்.'
-        : 'Code verified! Now create your new password.';
+      const okMsg = fp.success.codeVerified;
       message.success(okMsg);
 
       // Allow the CodeSlots checkmark wash animation to play before advancing to Screen 3
@@ -184,7 +181,7 @@ export default function ForgotPasswordPage() {
         setStep('reset');
       }, 650);
     } catch {
-      const err = isTamil ? 'சேவையக பிழை ஏற்பட்டது.' : 'Server error while verifying code.';
+      const err = fp.errors.serverErrorCode;
       setCodeStatus('error');
       setErrorMsg(err);
       message.error(err);
@@ -205,27 +202,21 @@ export default function ForgotPasswordPage() {
     setSuccessMsg(null);
 
     if (secondsLeft <= 0) {
-      const err = isTamil
-        ? 'அமர்வு நேரம் முடிந்துவிட்டது (5 நிமிட வரம்பு). புதிய குறியீட்டைப் பெறவும்.'
-        : 'Verification session expired (5-minute limit). Please request a new code.';
+      const err = fp.errors.sessionExpired;
       setErrorMsg(err);
       message.error(err);
       return;
     }
 
     if (!newPassword || newPassword.length < 6) {
-      const err = isTamil
-        ? 'புதிய கடவுச்சொல் குறைந்தபட்சம் 6 எழுத்துகள் இருக்க வேண்டும்.'
-        : 'New password must be at least 6 characters long.';
+      const err = fp.errors.minChars;
       setErrorMsg(err);
       message.error(err);
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      const err = isTamil
-        ? 'புதிய கடவுச்சொல்லும் உறுதிப்படுத்தும் கடவுச்சொல்லும் பொருந்தவில்லை.'
-        : 'New password and confirm password do not match.';
+      const err = fp.errors.mismatch;
       setErrorMsg(err);
       message.error(err);
       return;
@@ -246,17 +237,13 @@ export default function ForgotPasswordPage() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok || !data?.success) {
-        const err =
-          data?.error ||
-          (isTamil ? 'கடவுச்சொல் மாற்றம் தோல்வியடைந்தது.' : 'Failed to reset password.');
+        const err = data?.error || fp.errors.failedReset;
         setErrorMsg(err);
         message.error(err);
         return;
       }
 
-      const okMsg = isTamil
-        ? 'கடவுச்சொல் வெற்றிகரமாக மாற்றப்பட்டது! உள்நுழைவு பக்கத்திற்கு செல்கிறது...'
-        : data.message || 'Password reset successfully! Redirecting to Sign In...';
+      const okMsg = data.message || fp.success.resetSuccess;
       setSuccessMsg(okMsg);
       message.success(okMsg);
 
@@ -264,7 +251,7 @@ export default function ForgotPasswordPage() {
         router.push('/signin');
       }, 1500);
     } catch {
-      const err = isTamil ? 'சேவையக பிழை ஏற்பட்டது.' : 'Server error while resetting password.';
+      const err = fp.errors.serverErrorReset;
       setErrorMsg(err);
       message.error(err);
     } finally {
@@ -275,25 +262,19 @@ export default function ForgotPasswordPage() {
   // Contextual Header Badge, Title, and Subtitle per Screen
   const screenCopy = {
     email: {
-      badge: isTamil ? 'கணக்கு மீட்பு • படி 1 / 3' : 'Account Recovery • Step 1 of 3',
-      title: isTamil ? 'கடவுச்சொல் மறந்துவிட்டதா?' : 'Forgot Password?',
-      subtitle: isTamil
-        ? 'உங்கள் பதிவுசெய்த மின்னஞ்சல் முகவரியை உள்ளிடவும். சரிபார்த்த பின் 5 நிமிட செல்லுபடியாகும் 6 இலக்க குறியீடு உருவாக்கப்படும்.'
-        : 'Enter your registered email address. We will validate your account and generate a 6-digit verification code valid for 5 minutes.',
+      badge: fp.step1Badge,
+      title: fp.step1Title,
+      subtitle: fp.step1Subtitle,
     },
     otp: {
-      badge: isTamil ? 'குறியீடு சரிபார்ப்பு • படி 2 / 3' : 'Verify Code • Step 2 of 3',
-      title: isTamil ? '6 இலக்க குறியீட்டை உள்ளிடவும்' : 'Enter Verification Code',
-      subtitle: isTamil
-        ? 'உங்கள் கணக்கிற்காக உருவாக்கப்பட்ட 6 இலக்க சரிபார்ப்பு குறியீட்டை 5 நிமிடங்களுக்குள் உள்ளிடவும்.'
-        : 'Enter the 6-digit verification code generated for your account within 5 minutes to unlock password reset.',
+      badge: fp.step2Badge,
+      title: fp.step2Title,
+      subtitle: fp.step2Subtitle,
     },
     reset: {
-      badge: isTamil ? 'புதிய கடவுச்சொல் • படி 3 / 3' : 'New Password • Step 3 of 3',
-      title: isTamil ? 'புதிய கடவுச்சொல் உருவாக்கவும்' : 'Create New Password',
-      subtitle: isTamil
-        ? 'உங்கள் கணக்கைப் புதுப்பிக்க குறைந்தது 6 எழுத்துகள் கொண்ட வலுவான புதிய கடவுச்சொல்லை அமைத்து உறுதிப்படுத்தவும்.'
-        : 'Set a strong new password (minimum 6 characters) and confirm it below to update your account.',
+      badge: fp.step3Badge,
+      title: fp.step3Title,
+      subtitle: fp.step3Subtitle,
     },
   }[step];
 
@@ -311,7 +292,7 @@ export default function ForgotPasswordPage() {
           className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors group"
         >
           <ArrowLeft size={15} className="group-hover:-translate-x-0.5 transition-transform" />
-          <span>{isTamil ? 'உள்நுழைவுக்குத் திரும்பு' : 'Back to Sign In'}</span>
+          <span>{fp.backToSignIn}</span>
         </Link>
       </div>
 
@@ -362,7 +343,7 @@ export default function ForgotPasswordPage() {
                 htmlFor="forgot-email"
                 className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80 mb-1.5"
               >
-                {isTamil ? 'பதிவுசெய்த மின்னஞ்சல் முகவரி' : 'Registered Email Address'} *
+                {fp.emailLabel} *
               </label>
               <div className="relative">
                 <input
@@ -371,7 +352,7 @@ export default function ForgotPasswordPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder={isTamil ? 'எ.கா. farmer@example.com' : 'e.g. farmer@example.com'}
+                  placeholder={fp.emailPlaceholder}
                   className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-4 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
                 />
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
@@ -386,13 +367,7 @@ export default function ForgotPasswordPage() {
               style={{ color: '#ffffff' }}
               className="keep-white w-full h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-white font-black text-sm shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60"
             >
-              {loading
-                ? isTamil
-                  ? 'சரிபார்க்கிறது...'
-                  : 'Verifying Email...'
-                : isTamil
-                ? 'மின்னஞ்சலை சரிபார்த்து 6-இலக்க குறியீட்டைப் பெறு'
-                : 'Verify Email & Get 6-Digit Code'}
+              {loading ? fp.verifyingEmail : fp.verifyEmailBtn}
             </button>
           </motion.form>
         )}
@@ -412,7 +387,7 @@ export default function ForgotPasswordPage() {
             <div className="p-3.5 rounded-xl bg-slate-100/80 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
               <div className="flex flex-col min-w-0">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-white/50">
-                  {isTamil ? 'சரிபார்க்கப்பட்ட மின்னஞ்சல்' : 'Verified Email'}
+                  {fp.verifiedEmail}
                 </span>
                 <span className="font-mono font-bold text-slate-900 dark:text-white truncate">
                   {email.trim().toLowerCase()}
@@ -430,7 +405,7 @@ export default function ForgotPasswordPage() {
                   }`}
                 >
                   <Clock size={13} />
-                  <span>{secondsLeft > 0 ? formatTimer(secondsLeft) : isTamil ? 'காலாவதியானது' : 'Expired'}</span>
+                  <span>{secondsLeft > 0 ? formatTimer(secondsLeft) : fp.expired}</span>
                 </span>
                 <button
                   type="button"
@@ -444,7 +419,7 @@ export default function ForgotPasswordPage() {
                   }}
                   className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
                 >
-                  {isTamil ? 'மாற்று' : 'Change'}
+                  {fp.change}
                 </button>
               </div>
             </div>
@@ -453,7 +428,7 @@ export default function ForgotPasswordPage() {
             <div>
               <div className="flex items-center justify-between mb-2.5">
                 <span className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80">
-                  {isTamil ? '6 இலக்க சரிபார்ப்பு குறியீடு' : '6-Digit Verification Code'} *
+                  {fp.codeLabel} *
                 </span>
                 <button
                   type="button"
@@ -462,7 +437,7 @@ export default function ForgotPasswordPage() {
                   className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer disabled:opacity-50"
                 >
                   <RefreshCw size={12} />
-                  <span>{isTamil ? 'மீண்டும் அனுப்பு' : 'Resend Code'}</span>
+                  <span>{fp.resendCode}</span>
                 </button>
               </div>
               <div className="flex justify-center py-2">
@@ -494,13 +469,11 @@ export default function ForgotPasswordPage() {
                   caret
                   autoFocus
                   disabled={loading}
-                  ariaLabel={isTamil ? '6 இலக்க சரிபார்ப்பு குறியீடு' : '6-digit verification code'}
+                  ariaLabel={fp.codeAriaLabel}
                 />
               </div>
               <p className="text-[11px] text-center text-slate-500 dark:text-white/55 mt-2 mb-0 font-medium">
-                {isTamil
-                  ? '5 நிமிடங்களுக்குள் 6 இலக்க குறியீட்டை உள்ளிட்டு சரிபார்க்கவும்.'
-                  : 'Enter all 6 digits above — valid for 5 minutes from generation.'}
+                {fp.enterDigitsNotice}
                 {emailPreviewUrl && (
                   <>
                     {' '}
@@ -510,7 +483,7 @@ export default function ForgotPasswordPage() {
                       rel="noopener noreferrer"
                       className="text-emerald-600 dark:text-emerald-400 font-bold underline"
                     >
-                      {isTamil ? 'சோதனை மின்னஞ்சலைத் திற →' : 'Open Test Email Inbox →'}
+                      {fp.openTestInbox}
                     </a>
                   </>
                 )}
@@ -523,13 +496,7 @@ export default function ForgotPasswordPage() {
               style={{ color: '#ffffff' }}
               className="keep-white w-full h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-white font-black text-sm shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading
-                ? isTamil
-                  ? 'குறியீட்டை சரிபார்க்கிறது...'
-                  : 'Verifying Code...'
-                : isTamil
-                ? 'குறியீட்டைச் சரிபார்'
-                : 'Verify 6-Digit Code'}
+              {loading ? fp.verifyingCode : fp.verifyCodeBtn}
             </button>
           </motion.form>
         )}
@@ -551,7 +518,7 @@ export default function ForgotPasswordPage() {
                 htmlFor="reset-new-password"
                 className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80 mb-1.5"
               >
-                {isTamil ? 'புதிய கடவுச்சொல்' : 'Create New Password'} *
+                {fp.newPasswordLabel} *
               </label>
               <div className="relative">
                 <input
@@ -560,7 +527,7 @@ export default function ForgotPasswordPage() {
                   required
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder={isTamil ? 'குறைந்தது 6 எழுத்துகள்' : 'Min 6 characters'}
+                  placeholder={fp.newPasswordPlaceholder}
                   className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-10 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
                 />
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
@@ -583,7 +550,7 @@ export default function ForgotPasswordPage() {
                 htmlFor="reset-confirm-password"
                 className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-emerald-200/80 mb-1.5"
               >
-                {isTamil ? 'புதிய கடவுச்சொல்லை உறுதிப்படுத்து' : 'Confirm New Password'} *
+                {fp.confirmPasswordLabel} *
               </label>
               <div className="relative">
                 <input
@@ -592,7 +559,7 @@ export default function ForgotPasswordPage() {
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder={isTamil ? 'கடவுச்சொல்லை மீண்டும் உள்ளிடவும்' : 'Repeat new password'}
+                  placeholder={fp.confirmPasswordPlaceholder}
                   className="w-full h-11 sm:h-12 rounded-xl bg-slate-50/90 dark:bg-black/60 border border-slate-200 dark:border-white/15 pl-10 pr-10 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
                 />
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-300/60 pointer-events-none">
@@ -615,17 +582,19 @@ export default function ForgotPasswordPage() {
               style={{ color: '#ffffff' }}
               className="keep-white w-full h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-white font-black text-sm shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading
-                ? isTamil
-                  ? 'கடவுச்சொல் மாற்றப்படுகிறது...'
-                  : 'Resetting Password...'
-                : isTamil
-                ? 'கடவுச்சொல்லை மாற்று'
-                : 'Reset Password'}
+              {loading ? fp.resettingPassword : fp.resetPasswordBtn}
             </button>
           </motion.form>
         )}
       </AnimatePresence>
     </motion.div>
+  );
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ForgotPasswordContent />
+    </Suspense>
   );
 }

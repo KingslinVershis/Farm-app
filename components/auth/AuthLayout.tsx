@@ -17,36 +17,51 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   const { theme } = useTheme();
   const isLight = theme === 'light';
   const logoSrc = '/images/logo.png';
+  const [isLoggingIn, setIsLoggingIn] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleLoginState = (e: Event) => {
+      const customEvent = e as CustomEvent<{ active: boolean }>;
+      setIsLoggingIn(Boolean(customEvent.detail?.active));
+    };
+
+    window.addEventListener('farm-login-loader-state', handleLoginState);
+    return () => {
+      window.removeEventListener('farm-login-loader-state', handleLoginState);
+    };
+  }, []);
 
   return (
     <div className="relative min-h-screen w-full flex flex-col justify-between items-center bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white selection:bg-emerald-500 selection:text-slate-950 overflow-x-hidden transition-colors">
-      {/* Galaxy Cosmic WebGL Starfield Background */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <Galaxy
-          focal={[0.5, 0.5]}
-          starSpeed={0.4}
-          density={1.1}
-          speed={0.9}
-          glowIntensity={0.35}
-          twinkleIntensity={0.45}
-          mouseInteraction={true}
-          mouseRepulsion={true}
-          repulsionStrength={2.5}
-          autoCenterRepulsion={0}
-          transparent={true}
-          lightMode={isLight}
-          backgroundColor={isLight ? '#f8fafc' : '#030712'}
-          starColors={
-            isLight
-              ? ['#059669', '#0284c7', '#2563eb', '#334155']
-              : ['#10b981', '#06b6d4', '#60a5fa', '#ffffff']
-          }
-          opacity={0.85}
-          clickWarp={true}
-        />
-        {/* Soft atmospheric overlay ensuring form fields and text stay crisp */}
-        <div className="absolute inset-0 bg-white/10 dark:bg-black/40 backdrop-blur-[0.5px] pointer-events-none" />
-      </div>
+      {/* Galaxy Cosmic WebGL Starfield Background - hidden while user is logging in to avoid page weight */}
+      {!isLoggingIn && (
+        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+          <Galaxy
+            focal={[0.5, 0.5]}
+            starSpeed={0.4}
+            density={1.1}
+            speed={0.9}
+            glowIntensity={0.35}
+            twinkleIntensity={0.45}
+            mouseInteraction={true}
+            mouseRepulsion={true}
+            repulsionStrength={2.5}
+            autoCenterRepulsion={0}
+            transparent={true}
+            lightMode={isLight}
+            backgroundColor={isLight ? '#f8fafc' : '#030712'}
+            starColors={
+              isLight
+                ? ['#059669', '#0284c7', '#2563eb', '#334155']
+                : ['#10b981', '#06b6d4', '#60a5fa', '#ffffff']
+            }
+            opacity={0.85}
+            clickWarp={true}
+          />
+          {/* Soft atmospheric overlay ensuring form fields and text stay crisp */}
+          <div className="absolute inset-0 bg-white/10 dark:bg-black/40 backdrop-blur-[0.5px] pointer-events-none" />
+        </div>
+      )}
 
       {/* 100% Width Edge-to-Edge Topbar */}
       <header className="w-full border-b border-slate-200/50 dark:border-white/10 bg-white/85 dark:bg-[#090f1b]/80 backdrop-blur-2xl sticky top-0 z-50 shadow-sm dark:shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)]">

@@ -316,7 +316,7 @@ export default function FertilizerCatchAllPage() {
       <div
         className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out scale-105"
         style={{
-          backgroundImage: `url(/images/farm.jpg)`,
+          backgroundImage: `url(https://res.cloudinary.com/chk0va7a/image/upload/v1795758908/farm.jpg)`,
         }}
       />
       <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
@@ -343,7 +343,7 @@ export default function FertilizerCatchAllPage() {
         {/* ========================================================================= */}
         {/* VIEW 1: SAVED RECORDS PORTFOLIO (/fertilizer)                            */}
         {/* ========================================================================= */}
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" initial={false}>
           {pageView === 'records' && (
             <motion.div
               key="records-view"
