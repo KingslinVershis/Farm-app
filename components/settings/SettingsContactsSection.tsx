@@ -27,8 +27,7 @@ import type {
 } from '@/app/api/contacts/route';
 
 export const SettingsContactsSection: React.FC = () => {
-  const { messages, locale } = useLanguage();
-  const isTamil = locale === 'ta';
+  const { messages } = useLanguage();
   const c = (messages as any).settingsContacts;
 
   // 1. Officials & Headquarters State
@@ -412,7 +411,7 @@ export const SettingsContactsSection: React.FC = () => {
             <Table<HeadquarterContact>
               columns={hqColumns}
               dataSource={filteredHeadquarters}
-              rowKey={(rec, idx) => `hq-${rec.slNo}-${idx}`}
+              rowKey={(rec) => `hq-${rec.slNo}-${rec.designation}-${rec.email || rec.name}`}
               pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
               className="reservoirs-table"
               loading={loadingHq}
@@ -475,8 +474,8 @@ export const SettingsContactsSection: React.FC = () => {
             <Table<DistrictBlockContact>
               columns={districtColumns}
               dataSource={districtContacts}
-              rowKey={(rec, idx) =>
-                `dist-${rec.District_Name}-${rec.Block_Name}-${rec.name}-${(districtPage - 1) * districtPageSize + (idx ?? 0)}`
+              rowKey={(rec) =>
+                `dist-${rec.District_Name}-${rec.Block_Name || 'district'}-${rec.name}-${rec.design}`
               }
               pagination={{
                 current: districtPage,

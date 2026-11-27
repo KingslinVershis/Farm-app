@@ -5,6 +5,7 @@ import { useLanguage } from '@/components/providers/LanguageProvider';
 import { useTheme, type Theme } from '@/components/providers/ThemeProvider';
 import { useLocationSelector } from '@/lib/hooks/useLocationSelector';
 import { LocationSelectorFields } from '@/components/common/LocationSelectorFields';
+import { fetchUserData, invalidateUserDataCache } from '@/lib/clientUser';
 import {
   User,
   Lock,
@@ -32,7 +33,7 @@ import {
   Camera,
   Upload,
 } from '@/components/icons/FlaticonIcons';
-import { Input, Modal, message } from 'antd';
+import { Input, Modal, App } from 'antd';
 import { OtpVerificationModal } from '@/components/auth/OtpVerificationModal';
 import type { CodeSlotsStatus } from '@/components/auth/CodeSlots';
 import { clearClientSessionStorage } from '@/components/layout/AppShell';
@@ -46,7 +47,7 @@ interface UserProfile {
   username: string;
   email: string;
   role: string;
-  isactive: boolean;
+  isactive?: boolean;
   theme?: string;
   language?: string;
   state?: string;
@@ -61,8 +62,10 @@ interface UserProfile {
 }
 
 export default function SettingsPage() {
-  const { locale, setLocale } = useLanguage();
+  const { message } = App.useApp();
+  const { locale, setLocale, messages } = useLanguage();
   const isTamil = locale === 'ta';
+  const sp = messages.settingsPage;
   const { theme, setTheme } = useTheme();
 
   // Active section tab: 'user-profile' | 'security-password' | 'language-theme'
@@ -198,17 +201,14 @@ export default function SettingsPage() {
     }
   }, []);
 
-  // 2. Fetch user profile from /api/user
-  const fetchUserProfile = async () => {
+  // 2. Fetch user profile from /api/user (deduplicated)
+  const fetchUserProfile = async (force = false) => {
     setLoadingUser(true);
     try {
-      const res = await fetch('/api/user', {
-        headers: { 'Cache-Control': 'no-cache' },
-      });
-      const data = await res.json().catch(() => null);
+      const data = await fetchUserData({ force });
 
-      if (!res.ok || !data?.success) {
-        throw new Error(data?.error || `Failed to fetch user details (${res.status})`);
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to fetch user details');
       }
 
       if (data?.user) {
@@ -239,17 +239,17 @@ export default function SettingsPage() {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      message.error(isTamil ? 'படக் கோப்புகளை மட்டுமே பதிவேற்ற முடியும்' : 'Only image files are allowed');
+      message.error(sp.messages.imageOnly);
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      message.error(isTamil ? 'படத்தின் அளவு 5MBக்கு குறைவாக இருக்க வேண்டும்' : 'Image size must be less than 5MB');
+      message.error(sp.messages.sizeLimit);
       return;
     }
 
     setUploadingAvatar(true);
-    const hideLoading = message.loading(isTamil ? 'படம் பதிவேற்றப்படுகிறது...' : 'Uploading avatar...', 0);
+    const hideLoading = message.loading(sp.messages.uploadingAvatar, 0);
 
     try {
       const formData = new FormData();
@@ -262,7 +262,7 @@ export default function SettingsPage() {
 
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) {
-        throw new Error(data?.error || 'Failed to upload avatar');
+        throw new Error(data?.error || sp.messages.avatarFailed);
       }
 
       const updatedAvatarUrl = data.avatar_url;
@@ -282,16 +282,13 @@ export default function SettingsPage() {
       try {
         localStorage.setItem('farmhub_user', JSON.stringify(updatedUser));
         window.dispatchEvent(new CustomEvent('farmhub_user_updated', { detail: updatedUser }));
+        invalidateUserDataCache();
       } catch { }
 
-      message.success(
-        isTamil
-          ? 'சுயவிவரப் படம் வெற்றிகரமாக புதுப்பிக்கப்பட்டது!'
-          : 'Profile picture updated successfully!'
-      );
+      message.success(sp.messages.avatarUpdated);
     } catch (err: any) {
       console.error('[Settings] Avatar upload error:', err);
-      message.error(err?.message || (isTamil ? 'படத்தை பதிவேற்ற முடியவில்லை' : 'Failed to upload avatar'));
+      message.error(err?.message || sp.messages.avatarFailed);
     } finally {
       hideLoading();
       setUploadingAvatar(false);
@@ -303,7 +300,7 @@ export default function SettingsPage() {
 
   const handleRemoveAvatar = async () => {
     setUploadingAvatar(true);
-    const hideLoading = message.loading(isTamil ? 'படம் நீக்கப்படுகிறது...' : 'Removing avatar...', 0);
+    const hideLoading = message.loading(sp.messages.removingAvatar, 0);
     try {
       const res = await fetch('/api/user/avatar', { method: 'DELETE' });
       const data = await res.json().catch(() => null);
@@ -326,9 +323,10 @@ export default function SettingsPage() {
       try {
         localStorage.setItem('farmhub_user', JSON.stringify(updatedUser));
         window.dispatchEvent(new CustomEvent('farmhub_user_updated', { detail: updatedUser }));
+        invalidateUserDataCache();
       } catch { }
 
-      message.success(isTamil ? 'சுயவிவரப் படம் நீக்கப்பட்டது' : 'Avatar removed successfully');
+      message.success(sp.messages.avatarRemoved);
     } catch (err: any) {
       message.error(err?.message || 'Failed to remove avatar');
     } finally {
@@ -396,7 +394,7 @@ export default function SettingsPage() {
     if (!usernameInput.trim()) {
       setProfileFeedback({
         type: 'error',
-        message: isTamil ? 'பயனர் பெயரை உள்ளிடவும்' : 'Please enter a valid username',
+        message: sp.messages.enterUsername,
       });
       return;
     }
@@ -404,9 +402,7 @@ export default function SettingsPage() {
     if (usernameInput.trim().length < 2) {
       setProfileFeedback({
         type: 'error',
-        message: isTamil
-          ? 'பயனர் பெயர் குறைந்தபட்சம் 2 எழுத்துகள் இருக்க வேண்டும்'
-          : 'Username must be at least 2 characters',
+        message: sp.messages.enterUsername,
       });
       return;
     }
@@ -415,9 +411,7 @@ export default function SettingsPage() {
     if (cleanPhone && cleanPhone.length !== 10) {
       setProfileFeedback({
         type: 'error',
-        message: isTamil
-          ? 'செல்லுபடியாகும் 10 இலக்க தொலைபேசி எண்ணை உள்ளிடவும்'
-          : 'Please enter a valid 10-digit phone number',
+        message: sp.profile.phoneHelp,
       });
       return;
     }
@@ -437,7 +431,7 @@ export default function SettingsPage() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok || !data?.success) {
-        throw new Error(data?.error || 'Failed to update user details');
+        throw new Error(data?.error || sp.messages.profileFailed);
       }
 
       const updatedUser: UserProfile = {
@@ -450,27 +444,22 @@ export default function SettingsPage() {
       try {
         localStorage.setItem('farmhub_user', JSON.stringify(updatedUser));
         window.dispatchEvent(new CustomEvent('farmhub_user_updated', { detail: updatedUser }));
+        invalidateUserDataCache();
       } catch { }
 
       setProfileFeedback({
         type: 'success',
-        message: isTamil
-          ? 'பயனர் விவரங்கள் வெற்றிகரமாக சேமிக்கப்பட்டன!'
-          : 'User details saved successfully!',
+        message: sp.messages.profileUpdated,
       });
-      message.success(
-        isTamil
-          ? 'பயனர் விவரங்கள் சேமிக்கப்பட்டன!'
-          : 'User details saved successfully!'
-      );
+      message.success(sp.messages.profileUpdated);
       setIsEditingUsername(false);
       setTimeout(() => setProfileFeedback(null), 4000);
     } catch (err: any) {
       setProfileFeedback({
         type: 'error',
-        message: err?.message || 'Error updating user details',
+        message: err?.message || sp.messages.profileFailed,
       });
-      message.error(err?.message || (isTamil ? 'சுயவிவரத்தை புதுப்பிக்க முடியவில்லை' : 'Failed to update profile'));
+      message.error(err?.message || sp.messages.profileFailed);
     } finally {
       setSavingProfile(false);
     }
@@ -503,7 +492,7 @@ export default function SettingsPage() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok || !data?.success) {
-        throw new Error(data?.error || 'Failed to update farm location');
+        throw new Error(data?.error || sp.messages.locationFailed);
       }
 
       const updatedUser: UserProfile = {
@@ -516,26 +505,21 @@ export default function SettingsPage() {
       try {
         localStorage.setItem('farmhub_user', JSON.stringify(updatedUser));
         window.dispatchEvent(new CustomEvent('farmhub_user_updated', { detail: updatedUser }));
+        invalidateUserDataCache();
       } catch { }
 
       setProfileFeedback({
         type: 'success',
-        message: isTamil
-          ? 'பண்ணை இருப்பிட விவரங்கள் வெற்றிகரமாக சேமிக்கப்பட்டன!'
-          : 'Farm location details saved successfully!',
+        message: sp.messages.locationUpdated,
       });
-      message.success(
-        isTamil
-          ? 'பண்ணை இருப்பிடம் சேமிக்கப்பட்டது!'
-          : 'Farm location saved successfully!'
-      );
+      message.success(sp.messages.locationUpdated);
       setTimeout(() => setProfileFeedback(null), 4000);
     } catch (err: any) {
       setProfileFeedback({
         type: 'error',
-        message: err?.message || 'Error updating farm location',
+        message: err?.message || sp.messages.locationFailed,
       });
-      message.error(err?.message || (isTamil ? 'இருப்பிடத்தை புதுப்பிக்க முடியவில்லை' : 'Failed to update location'));
+      message.error(err?.message || sp.messages.locationFailed);
     } finally {
       setSavingProfile(false);
     }
@@ -549,33 +533,27 @@ export default function SettingsPage() {
     if (!currentPassword) {
       setPasswordFeedback({
         type: 'error',
-        message: isTamil ? 'தற்போதைய கடவுச்சொல்லை உள்ளிடவும்' : 'Please enter your current password',
+        message: sp.messages.enterCurrentPassword,
       });
-      message.error(isTamil ? 'தற்போதைய கடவுச்சொல்லை உள்ளிடவும்' : 'Please enter your current password');
+      message.error(sp.messages.enterCurrentPassword);
       return;
     }
 
     if (!newPassword || newPassword.length < 6) {
       setPasswordFeedback({
         type: 'error',
-        message: isTamil
-          ? 'புதிய கடவுச்சொல் குறைந்தபட்சம் 6 எழுத்துகள் இருக்க வேண்டும்'
-          : 'New password must be at least 6 characters',
+        message: sp.messages.enterNewPassword,
       });
-      message.error(
-        isTamil
-          ? 'புதிய கடவுச்சொல் குறைந்தபட்சம் 6 எழுத்துகள் இருக்க வேண்டும்'
-          : 'New password must be at least 6 characters'
-      );
+      message.error(sp.messages.enterNewPassword);
       return;
     }
 
     if (newPassword !== confirmPassword) {
       setPasswordFeedback({
         type: 'error',
-        message: isTamil ? 'புதிய கடவுச்சொற்கள் பொருந்தவில்லை' : 'New passwords do not match',
+        message: sp.messages.passwordMismatch,
       });
-      message.error(isTamil ? 'புதிய கடவுச்சொற்கள் பொருந்தவில்லை' : 'New passwords do not match');
+      message.error(sp.messages.passwordMismatch);
       return;
     }
 
@@ -593,7 +571,7 @@ export default function SettingsPage() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok || !data?.success) {
-        throw new Error(data?.error || 'Failed to update password');
+        throw new Error(data?.error || sp.messages.passwordFailed);
       }
 
       if (data?.otpRequired) {
@@ -603,11 +581,7 @@ export default function SettingsPage() {
         setPassOtpError(null);
         setPassOtpStatus('idle');
         setPassOtpOpen(true);
-        message.success(
-          isTamil
-            ? '6 இலக்க சரிபார்ப்பு குறியீடு உங்கள் மின்னஞ்சலுக்கு அனுப்பப்பட்டது!'
-            : '6-digit verification code sent to your registered email!'
-        );
+        message.success(sp.messages.otpSent);
         return;
       }
 
@@ -616,18 +590,16 @@ export default function SettingsPage() {
       setConfirmPassword('');
       setPasswordFeedback({
         type: 'success',
-        message: isTamil ? 'கடவுச்சொல் வெற்றிகரமாக மாற்றப்பட்டது!' : 'Password changed successfully!',
+        message: sp.messages.passwordUpdated,
       });
-      message.success(
-        isTamil ? 'கடவுச்சொல் வெற்றிகரமாக மாற்றப்பட்டது!' : 'Password changed successfully!'
-      );
+      message.success(sp.messages.passwordUpdated);
       setTimeout(() => setPasswordFeedback(null), 4000);
     } catch (err: any) {
       setPasswordFeedback({
         type: 'error',
-        message: err?.message || 'Error updating password',
+        message: err?.message || sp.messages.passwordFailed,
       });
-      message.error(err?.message || (isTamil ? 'கடவுச்சொல்லை மாற்ற முடியவில்லை' : 'Error updating password'));
+      message.error(err?.message || sp.messages.passwordFailed);
     } finally {
       setSavingPassword(false);
     }
@@ -652,11 +624,7 @@ export default function SettingsPage() {
       }
       setPassOtpSeconds(data.expiresInSeconds || 300);
       setPassOtpPreviewUrl(data.previewUrl || null);
-      message.success(
-        isTamil
-          ? 'புதிய 6 இலக்க குறியீடு உங்கள் மின்னஞ்சலுக்கு அனுப்பப்பட்டது!'
-          : 'A new 6-digit verification code was sent!'
-      );
+      message.success(sp.messages.otpSent);
     } catch {
       setPassOtpError('Server error while resending code.');
     } finally {
@@ -680,18 +648,12 @@ export default function SettingsPage() {
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) {
         setPassOtpStatus('error');
-        setPassOtpError(
-          data?.error ||
-          (isTamil ? 'தவறான சரிபார்ப்பு குறியீடு.' : 'Invalid verification code.')
-        );
+        setPassOtpError(data?.error || sp.messages.otpInvalid);
         return;
       }
 
       setPassOtpStatus('success');
-      const okMsg = isTamil
-        ? 'கடவுச்சொல் மாற்றப்பட்டது! பாதுகாப்பு காரணத்திற்காக அனைத்து சாதனங்களிலிருந்தும் வெளியேற்றப்பட்டீர்கள்.'
-        : 'Password updated! All logged-in sessions were signed out for security purposes.';
-      message.success(okMsg, 4);
+      message.success(sp.messages.otpSuccessRelog, 4);
 
       setTimeout(() => {
         setPassOtpOpen(false);
@@ -724,16 +686,11 @@ export default function SettingsPage() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) {
-        throw new Error(data?.error || 'Failed to delete account');
+        throw new Error(data?.error || sp.messages.accountDeleteFailed);
       }
 
       setDeleteModalOpen(false);
-      message.success(
-        isTamil
-          ? 'உங்கள் கணக்கு நிரந்தரமாக நீக்கப்பட்டது.'
-          : 'Your account has been permanently deleted.',
-        3
-      );
+      message.success(sp.messages.accountDeleted, 3);
       clearClientSessionStorage();
       setTimeout(() => {
         if (typeof window !== 'undefined') {
@@ -741,7 +698,7 @@ export default function SettingsPage() {
         }
       }, 900);
     } catch (err: any) {
-      message.error(err?.message || (isTamil ? 'கணக்கை நீக்க முடியவில்லை' : 'Failed to delete account'));
+      message.error(err?.message || sp.messages.accountDeleteFailed);
     } finally {
       setDeletingAccount(false);
     }
@@ -753,11 +710,7 @@ export default function SettingsPage() {
 
     setTheme(newTheme);
     setUser((prev) => (prev ? { ...prev, theme: newTheme } : null));
-    message.success(
-      isTamil
-        ? `${newTheme === 'dark' ? 'இருண்ட தீம் (Dark Theme)' : 'ஒளிர் தீம் (Light Theme)'} சேமிக்கப்பட்டது!`
-        : `${newTheme === 'dark' ? 'Dark Theme' : 'Light Theme'} applied & saved to account!`
-    );
+    message.success(newTheme === 'dark' ? sp.messages.themeAppliedDark : sp.messages.themeAppliedLight);
   };
 
   // 6. Handle Language update (persisted via LanguageProvider -> /api/user/language)
@@ -766,16 +719,12 @@ export default function SettingsPage() {
 
     setLocale(newLang);
     setUser((prev) => (prev ? { ...prev, language: newLang } : null));
-    message.success(
-      newLang === 'ta'
-        ? 'மொழி வெற்றிகரமாக தமிழாக மாற்றப்பட்டது!'
-        : 'Language successfully updated to English!'
-    );
+    message.success(newLang === 'ta' ? sp.messages.langUpdatedTa : sp.messages.langUpdatedEn);
   };
 
   // Format creation date
   const formatMemberDate = (dateStr?: string) => {
-    if (!dateStr) return isTamil ? 'பதிவு செய்யப்பட்டது' : 'Active Member';
+    if (!dateStr) return sp.profile.activeMember;
     try {
       const d = new Date(dateStr);
       return d.toLocaleDateString(isTamil ? 'ta-IN' : 'en-US', {
@@ -794,7 +743,7 @@ export default function SettingsPage() {
       <div
         className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out scale-105"
         style={{
-          backgroundImage: `url('/images/settings.png')`,
+          backgroundImage: `url('https://res.cloudinary.com/chk0va7a/image/upload/v1795763640/settings.png')`,
         }}
       />
       <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
@@ -806,15 +755,13 @@ export default function SettingsPage() {
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-bold mb-2.5 border border-emerald-500/30">
               <Sparkles size={14} />
-              <span>{isTamil ? 'பயனர் கணக்கு & பண்ணை மேலாண்மை' : 'User Account & Farm Preferences'}</span>
+              <span>{sp.badge}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-text-main tracking-tight m-0 mb-1.5">
-              {isTamil ? 'கணக்கு அமைப்புகள் & விருப்பத்தேர்வுகள்' : 'Account Settings & Preferences'}
+              {sp.title}
             </h1>
             <p className="text-text-secondary text-xs sm:text-sm m-0 max-w-2xl leading-relaxed font-medium">
-              {isTamil
-                ? 'உங்கள் சுயவிவர விவரங்களை நிர்வகிக்கவும், பண்ணை இருப்பிடத்தை அமைக்கவும், கடவுச்சொல்லை மாற்றவும் மற்றும் காட்சி தீமை அமைக்கவும்.'
-                : 'Manage your profile details, farm location, contact number, update password, and customize UI theme & language.'}
+              {sp.subtitle}
             </p>
           </div>
 
@@ -834,7 +781,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <div className="text-xs font-extrabold text-text-main truncate max-w-[170px]">
-                  {user.username || (isTamil ? 'விவசாயி' : 'Farmer')}
+                  {user.username || sp.defaultFarmer}
                 </div>
                 <div className="text-[11px] text-text-muted truncate max-w-[170px] font-mono">
                   {user.phone_nun || user.phone_number || user.email}
@@ -850,10 +797,10 @@ export default function SettingsPage() {
         {/* Navigation Tabs Bar with URL query synchronization (?user-profile, ?security-password, ?language-theme, ?contacts) */}
         <div className="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-thin">
           {[
-            { id: 'user-profile' as SettingsTab, label: isTamil ? 'சுயவிவரம் & இருப்பிடம்' : 'User Profile & Farm Location', icon: User },
-            { id: 'security-password' as SettingsTab, label: isTamil ? 'கடவுச்சொல் & பாதுகாப்பு' : 'Security & Password', icon: Lock },
-            { id: 'language-theme' as SettingsTab, label: isTamil ? 'மொழி மற்றும் தீம்' : 'Language and Theme', icon: Palette },
-            { id: 'contacts' as SettingsTab, label: isTamil ? 'அதிகாரப்பூர்வ தொடர்புகள்' : 'Official Contacts', icon: Phone },
+            { id: 'user-profile' as SettingsTab, label: sp.tabUserProfile, icon: User },
+            { id: 'security-password' as SettingsTab, label: sp.tabSecurity, icon: Lock },
+            { id: 'language-theme' as SettingsTab, label: sp.tabLanguageTheme, icon: Palette },
+            { id: 'contacts' as SettingsTab, label: sp.tabContacts, icon: Phone },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -897,7 +844,7 @@ export default function SettingsPage() {
                     onClick={() => !uploadingAvatar && avatarFileInputRef.current?.click()}
                     className={`w-20 h-20 rounded-full bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 p-1 shadow-2xl shadow-emerald-500/25 cursor-pointer relative overflow-hidden group-hover:ring-4 group-hover:ring-emerald-400/40 transition-all ${uploadingAvatar ? 'opacity-70 pointer-events-none' : ''
                       }`}
-                    title={isTamil ? 'சுயவிவரப் படத்தை மாற்ற கிளிக் செய்யவும்' : 'Click to upload or change profile picture'}
+                    title={sp.profile.changeAvatarTooltip}
                   >
                     <div className="w-full h-full rounded-full bg-slate-950/90 overflow-hidden flex items-center justify-center text-white text-2xl font-black relative">
                       {user?.avatar_url ? (
@@ -913,7 +860,7 @@ export default function SettingsPage() {
                       {/* Hover Overlay */}
                       <div className="absolute inset-0 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-[10px] text-white font-extrabold transition-opacity backdrop-blur-xs">
                         <Camera size={16} className="text-white mb-0.5" />
-                        <span>{isTamil ? 'மாற்று' : 'Upload'}</span>
+                        <span>{sp.profile.uploadBadge}</span>
                       </div>
 
                       {/* Loading Spinner */}
@@ -931,7 +878,7 @@ export default function SettingsPage() {
                     onClick={() => avatarFileInputRef.current?.click()}
                     disabled={uploadingAvatar}
                     className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-emerald-500 hover:bg-emerald-400 border-2 border-slate-950 flex items-center justify-center text-slate-950 shadow-md cursor-pointer transition-transform hover:scale-110 active:scale-95 disabled:opacity-50"
-                    title={isTamil ? 'படம் பதிவேற்று' : 'Upload photo'}
+                    title={sp.profile.uploadPhotoTooltip}
                   >
                     <Camera size={13} className="text-slate-950" />
                   </button>
@@ -944,7 +891,7 @@ export default function SettingsPage() {
                     disabled={uploadingAvatar}
                     className="text-[11px] font-bold text-rose-400 hover:text-rose-300 -mt-1 mb-2 hover:underline cursor-pointer disabled:opacity-50 transition-colors"
                   >
-                    {isTamil ? 'படத்தை நீக்கு' : 'Remove photo'}
+                    {sp.profile.removePhotoBtn}
                   </button>
                 )}
 
@@ -962,7 +909,7 @@ export default function SettingsPage() {
                   </span>
                   <span className="px-3 py-1 rounded-full text-xs font-bold glass-surface text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 flex items-center gap-1">
                     <Activity size={12} />
-                    <span>{user?.isactive !== false ? (isTamil ? 'செயலில் உள்ளது' : 'Active Account') : 'Inactive'}</span>
+                    <span>{user?.isactive !== false ? sp.profile.activeAccount : 'Inactive'}</span>
                   </span>
                 </div>
               </div>
@@ -972,7 +919,7 @@ export default function SettingsPage() {
                 {/* Username / Full Name */}
                 <div>
                   <label className="block text-[11px] font-bold text-text-secondary uppercase tracking-wider mb-1.5">
-                    {isTamil ? 'பயனர் பெயர் (Username)' : 'Username / Full Name'}
+                    {sp.profile.usernameLabel}
                   </label>
                   <div className="flex items-center gap-2">
                     <div className="relative flex-1">
@@ -980,7 +927,7 @@ export default function SettingsPage() {
                         type="text"
                         value={usernameInput}
                         onChange={(e) => setUsernameInput(e.target.value)}
-                        placeholder={isTamil ? 'எ.கா. Dr. M. Swaminathan' : 'e.g. Dr. M. Swaminathan'}
+                        placeholder="Dr. M. Swaminathan"
                         readOnly={!isEditingUsername}
                         className={`w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-inner pr-9 ${isEditingUsername
                           ? 'glass-input border-2 border-emerald-500 text-text-main focus:outline-none ring-2 ring-emerald-500/25'
@@ -998,7 +945,7 @@ export default function SettingsPage() {
                         onClick={() => setIsEditingUsername(true)}
                         className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white keep-white font-black text-xs transition-all cursor-pointer whitespace-nowrap active:scale-95 shadow-md"
                       >
-                        {isTamil ? 'மாற்று' : 'Change'}
+                        {sp.profile.change}
                       </button>
                     ) : (
                       <button
@@ -1009,7 +956,7 @@ export default function SettingsPage() {
                         }}
                         className="px-3 py-2 rounded-xl glass-surface border border-border-light text-text-secondary text-xs font-bold transition-all cursor-pointer active:scale-95 hover:text-text-main"
                       >
-                        {isTamil ? 'ரத்து' : 'Cancel'}
+                        {sp.profile.cancel}
                       </button>
                     )}
                   </div>
@@ -1018,7 +965,7 @@ export default function SettingsPage() {
                 {/* Registered Email Address */}
                 <div>
                   <label className="block text-[11px] font-bold text-text-secondary uppercase tracking-wider mb-1.5">
-                    {isTamil ? 'மின்னஞ்சல் முகவரி' : 'Registered Email Address'}
+                    {sp.profile.emailLabel}
                   </label>
                   <div className="relative">
                     <input
@@ -1027,7 +974,7 @@ export default function SettingsPage() {
                       readOnly
                       className="w-full px-3.5 py-2 rounded-xl glass-surface border border-border-subtle text-text-main text-xs sm:text-sm font-mono cursor-pointer hover:border-emerald-500/50 focus:outline-none focus:border-emerald-500 transition-colors shadow-inner pr-9"
                       onClick={(e) => (e.target as HTMLInputElement).select()}
-                      title={isTamil ? 'மின்னஞ்சலைத் தேர்ந்தெடுக்க கிளிக் செய்யவும்' : 'Click to select or copy email'}
+                      title={sp.profile.emailTooltip}
                     />
                     <Mail className="absolute right-3 top-2.5 text-text-secondary pointer-events-none" size={16} />
                   </div>
@@ -1036,7 +983,7 @@ export default function SettingsPage() {
                 {/* Mobile Phone Number */}
                 <div>
                   <label className="block text-[11px] font-bold text-text-secondary uppercase tracking-wider mb-1.5">
-                    {isTamil ? 'தொலைபேசி எண் (Mobile Number)' : 'Mobile Phone Number'}
+                    {sp.profile.phoneLabel}
                   </label>
                   <div className="relative">
                     <input
@@ -1044,16 +991,14 @@ export default function SettingsPage() {
                       maxLength={10}
                       value={phoneInput}
                       onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                      placeholder={isTamil ? 'எ.கா. 9876543210' : 'e.g. 9876543210'}
+                      placeholder="9876543210"
                       className="w-full px-3.5 py-2 rounded-xl glass-surface border border-border-light text-text-main text-xs sm:text-sm font-mono font-bold focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all shadow-inner pr-9"
                       disabled={savingProfile || loadingUser}
                     />
                     <Phone className="absolute right-3 top-2.5 text-text-secondary pointer-events-none" size={16} />
                   </div>
                   <span className="text-[11px] text-text-secondary font-medium mt-1 block">
-                    {isTamil
-                      ? '10 இலக்க மொபைல் எண் (SMS அறிவிப்புகளுக்கு).'
-                      : '10-digit mobile number for SMS advisory alerts.'}
+                    {sp.profile.phoneHelp}
                   </span>
                 </div>
 
@@ -1062,7 +1007,7 @@ export default function SettingsPage() {
                   <div className="flex justify-between items-center text-xs px-1">
                     <span className="text-text-secondary font-medium flex items-center gap-1.5">
                       <Calendar size={14} className="text-emerald-500 dark:text-emerald-400" />
-                      <span>{isTamil ? 'பதிவு செய்த நாள்' : 'Joined Date'}</span>
+                      <span>{sp.profile.joinedDate}</span>
                     </span>
                     <span className="font-extrabold text-text-main">
                       {formatMemberDate(user?.createdAt)}
@@ -1072,17 +1017,17 @@ export default function SettingsPage() {
                   <div className="flex justify-between items-center text-xs px-1">
                     <span className="text-text-secondary font-medium flex items-center gap-1.5">
                       <Shield size={14} className="text-emerald-500 dark:text-emerald-400" />
-                      <span>{isTamil ? 'கணக்கு நிலை' : 'Account Status'}</span>
+                      <span>{sp.profile.accountStatus}</span>
                     </span>
                     <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                      {isTamil ? 'சரிபார்க்கப்பட்டது' : 'Verified'}
+                      {sp.profile.verified}
                     </span>
                   </div>
 
                   <div className="flex justify-between items-center text-xs px-1">
                     <span className="text-text-secondary font-medium flex items-center gap-1.5">
                       <Globe size={14} className="text-emerald-500 dark:text-emerald-400" />
-                      <span>{isTamil ? 'இயல்பு மொழி' : 'Default Language'}</span>
+                      <span>{sp.profile.defaultLanguage}</span>
                     </span>
                     <span className="font-extrabold text-text-main uppercase">
                       {user?.language || locale}
@@ -1101,19 +1046,15 @@ export default function SettingsPage() {
                       }`}
                     title={
                       !isUserDetailsDirty
-                        ? (isTamil ? 'மாற்றங்கள் எதுவும் இல்லை' : 'No changes made')
+                        ? sp.profile.noChanges
                         : ''
                     }
                   >
                     <Save size={16} />
                     <span>
                       {savingProfile
-                        ? isTamil
-                          ? 'சேமிக்கப்படுகிறது...'
-                          : 'Saving...'
-                        : isTamil
-                          ? 'பயனர் விவரங்களைச் சேமி'
-                          : 'Save User Details'}
+                        ? sp.profile.savingProfileBtn
+                        : sp.profile.saveUserDetails}
                     </span>
                   </button>
                 </div>
@@ -1125,12 +1066,10 @@ export default function SettingsPage() {
               <div className="border-b border-border-subtle pb-4">
                 <h2 className="text-lg font-black text-text-main m-0 flex items-center gap-2">
                   <MapPin className="text-emerald-400" size={20} />
-                  <span>{isTamil ? 'பண்ணை இருப்பிட விவரங்கள்' : 'Farm Location Details'}</span>
+                  <span>{sp.location.headerTitle}</span>
                 </h2>
                 <p className="text-xs text-text-secondary font-medium mt-1 mb-0">
-                  {isTamil
-                    ? 'உங்கள் பண்ணையின் மாநிலம், மாவட்டம், கிராமம் மற்றும் தெரு முகவரியை அமைக்கவும்.'
-                    : 'Manage your official farm location (State, District, City / Village & Street Address).'}
+                  {sp.location.headerDesc}
                 </p>
               </div>
 
@@ -1159,7 +1098,7 @@ export default function SettingsPage() {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider">
-                        {isTamil ? 'பண்ணை முகவரி (Farm Address)' : 'Farm Street Address'}
+                        {sp.location.fieldAddressLabel}
                       </label>
                       <span className="text-[11px] text-text-muted font-mono font-bold">
                         {addressInput.length}/40
@@ -1171,19 +1110,13 @@ export default function SettingsPage() {
                         maxLength={40}
                         value={addressInput}
                         onChange={(e) => setAddressInput(e.target.value.slice(0, 40))}
-                        placeholder={
-                          isTamil
-                            ? 'எ.கா. 14, வடக்கு தெரு, கோவில்பட்டி'
-                            : 'e.g. 14, North Street, Kovilpatti'
-                        }
+                        placeholder={sp.location.fieldAddressPlaceholder}
                         className="w-full rounded-xl px-4 py-2.5 text-sm font-semibold glass-surface border border-border-light text-text-main focus:border-emerald-500"
                         disabled={savingProfile || loadingUser}
                       />
                     </div>
                     <span className="text-[11px] text-text-secondary font-medium mt-1.5 block">
-                      {isTamil
-                        ? 'அதிகபட்சம் 40 எழுத்துகள் (கள முகவரி).'
-                        : 'Maximum 40 characters for field location / mailing delivery.'}
+                      {sp.location.fieldAddressHelp}
                     </span>
                   </div>
 
@@ -1198,19 +1131,15 @@ export default function SettingsPage() {
                         }`}
                       title={
                         !isLocationDirty
-                          ? (isTamil ? 'மாற்றங்கள் எதுவும் இல்லை' : 'No changes made')
+                          ? sp.profile.noChanges
                           : ''
                       }
                     >
                       <Save size={17} />
                       <span>
                         {savingProfile
-                          ? isTamil
-                            ? 'சேமிக்கப்படுகிறது...'
-                            : 'Saving Location...'
-                          : isTamil
-                            ? 'இருப்பிடத்தைச் சேமி'
-                            : 'Save Farm Location'}
+                          ? sp.location.savingLocationBtn
+                          : sp.location.saveLocationBtn}
                       </span>
                     </button>
                   </div>
@@ -1223,12 +1152,10 @@ export default function SettingsPage() {
                       <AlertTriangle size={18} className="text-rose-500 shrink-0 mt-0.5" />
                       <div>
                         <div className="text-sm font-black text-rose-600 dark:text-rose-400">
-                          {isTamil ? 'கணக்கை நிரந்தரமாக நீக்கு (Delete Account)' : 'Delete Account'}
+                          {sp.dangerZone.title}
                         </div>
                         <p className="text-xs text-text-secondary font-medium mt-1 mb-0 leading-relaxed">
-                          {isTamil
-                            ? `உங்கள் கணக்கு மற்றும் சேமிக்கப்பட்ட சாகுபடி திட்டங்களை நிரந்தரமாக நீக்க, கீழே "${expectedDeletePhrase}" என தட்டச்சு செய்யவும்.`
-                            : `Once deleted, your account and all saved cultivation plans cannot be recovered. Type "${expectedDeletePhrase}" below to enable account deletion.`}
+                          {sp.dangerZone.descPrefix}{expectedDeletePhrase}{sp.dangerZone.descSuffix}
                         </p>
                       </div>
                     </div>
@@ -1251,7 +1178,7 @@ export default function SettingsPage() {
                         className="flex-1 px-4 py-2.5 rounded-xl glass-surface border border-rose-500/30 text-text-main text-xs sm:text-sm font-mono focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all"
                       />
                       <HoldButton
-                        doneLabel={isTamil ? 'நீக்கப்பட்டது' : 'Deleted'}
+                        doneLabel={sp.dangerZone.deleted}
                         icon={<Trash2 size={15} />}
                         backgroundColor="#b91c1c"
                         fillColor="#ef4444"
@@ -1273,16 +1200,10 @@ export default function SettingsPage() {
                           deleteConfirmInput.trim() !== expectedDeletePhrase
                         }
                         onHold={() => setDeleteModalOpen(true)}
-                        onTap={() =>
-                          message.info(
-                            isTamil
-                              ? 'கணக்கை நீக்க 2 வினாடிகள் அழுத்திப் பிடிக்கவும்.'
-                              : 'Press and hold for 2 seconds to delete your account.'
-                          )
-                        }
+                        onTap={() => message.info(sp.dangerZone.holdTapNotice)}
                         className="keep-white whitespace-nowrap shrink-0"
                       >
-                        {isTamil ? 'நீக்க அழுத்திப் பிடிக்கவும்' : 'Hold to delete'}
+                        {sp.dangerZone.holdToDelete}
                       </HoldButton>
                     </div>
                   </div>
@@ -1298,12 +1219,10 @@ export default function SettingsPage() {
             <div className="border-b border-border-subtle pb-4">
               <h2 className="text-lg font-black text-text-main m-0 flex items-center gap-2">
                 <KeyRound className="text-emerald-400" size={20} />
-                <span>{isTamil ? 'கடவுச்சொல்லை மாற்றவும்' : 'Change Password'}</span>
+                <span>{sp.security.changePasswordTitle}</span>
               </h2>
               <p className="text-xs text-text-secondary font-medium mt-1 mb-0">
-                {isTamil
-                  ? 'உங்கள் தற்போதைய கடவுச்சொல்லை உள்ளிட்ட பின் புதிய வலுவான கடவுச்சொல்லை அமைக்கவும்.'
-                  : 'Enter your current password followed by your new password to ensure maximum security.'}
+                {sp.security.changePasswordSubtitle}
               </p>
             </div>
 
@@ -1323,7 +1242,7 @@ export default function SettingsPage() {
               {/* Current Password Field */}
               <div>
                 <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">
-                  {isTamil ? 'தற்போதைய கடவுச்சொல்' : 'Current Password'}
+                  {sp.security.currentPassword}
                 </label>
                 <div className="relative max-w-md">
                   <input
@@ -1348,7 +1267,7 @@ export default function SettingsPage() {
               {/* New Password Field */}
               <div>
                 <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">
-                  {isTamil ? 'புதிய கடவுச்சொல் (குறைந்தபட்சம் 6 எழுத்துகள்)' : 'New Password (min 6 characters)'}
+                  {sp.security.newPassword}
                 </label>
                 <div className="relative max-w-md">
                   <input
@@ -1373,7 +1292,7 @@ export default function SettingsPage() {
               {/* Confirm New Password Field with Eye Icon */}
               <div>
                 <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">
-                  {isTamil ? 'புதிய கடவுச்சொல்லை மீண்டும் உள்ளிடவும்' : 'Confirm New Password'}
+                  {sp.security.confirmPassword}
                 </label>
                 <div className="relative max-w-md">
                   <input
@@ -1403,7 +1322,7 @@ export default function SettingsPage() {
                   className="px-7 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white keep-white font-black text-sm flex items-center gap-2.5 shadow-xl shadow-emerald-500/25 transition-all cursor-pointer active:scale-98"
                 >
                   <Lock size={17} />
-                  <span>{savingPassword ? (isTamil ? 'மாற்றப்படுகிறது...' : 'Updating...') : isTamil ? 'கடவுச்சொல்லை மாற்று' : 'Update Password'}</span>
+                  <span>{savingPassword ? sp.security.updatingPasswordBtn : sp.security.changePasswordBtn}</span>
                 </button>
               </div>
             </form>
@@ -1417,12 +1336,10 @@ export default function SettingsPage() {
             <div className="border-b border-border-subtle pb-4">
               <h2 className="text-lg font-black text-text-main m-0 flex items-center gap-2">
                 <Palette className="text-emerald-400" size={20} />
-                <span>{isTamil ? 'மொழி மற்றும் தீம்' : 'Language and Theme'}</span>
+                <span>{sp.preferences.themeAndLanguage}</span>
               </h2>
               <p className="text-xs text-text-secondary font-medium mt-1 mb-0">
-                {isTamil
-                  ? 'உங்கள் காட்சி தீம் மற்றும் மொழியைத் தேர்ந்தெடுக்கவும். இவை உங்கள் கணக்கில் நேரடியாக சேமிக்கப்படும்.'
-                  : 'Customize your visual theme and preferred system language. Preferences are instantly synced to your account.'}
+                {sp.preferences.themeAndLanguageDesc}
               </p>
             </div>
 
@@ -1431,10 +1348,10 @@ export default function SettingsPage() {
               <div className="mb-3.5">
                 <h3 className="text-sm font-bold text-text-main m-0 flex items-center gap-2">
                   <Sun className="text-emerald-400" size={16} />
-                  <span>{isTamil ? 'தீம் தேர்வு (Theme Preferences)' : 'Theme Selection'}</span>
+                  <span>{sp.preferences.themeTitle}</span>
                 </h3>
                 <span className="text-xs text-text-secondary font-medium">
-                  {isTamil ? 'இருண்ட அல்லது ஒளிர் இடைமுகத்தைத் தேர்ந்தெடுக்கவும்' : 'Switch between Dark Cosmos and Daylight crisp theme'}
+                  {sp.preferences.themeSubtitle}
                 </span>
               </div>
 
@@ -1462,10 +1379,10 @@ export default function SettingsPage() {
                         className={`text-base font-black m-0 ${theme === 'dark' ? 'text-white' : 'text-text-main'
                           }`}
                       >
-                        {isTamil ? 'இருண்ட தீம் (Dark Theme)' : 'Dark Cosmos Theme'}
+                        {sp.preferences.darkTheme}
                       </h4>
                       <span className="text-xs font-medium text-text-secondary">
-                        {isTamil ? 'குறைந்த ஒளி, ஒளிரும் பச்சை நிறங்கள்' : 'Deep obsidian slate & emerald accents'}
+                        {sp.preferences.darkThemeDesc}
                       </span>
                     </div>
                   </div>
@@ -1494,10 +1411,10 @@ export default function SettingsPage() {
                         className={`text-base font-black m-0 ${theme === 'light' ? 'text-slate-950' : 'text-text-main'
                           }`}
                       >
-                        {isTamil ? 'ஒளிர் தீம் (Light Theme)' : 'Daylight Emerald Theme'}
+                        {sp.preferences.lightTheme}
                       </h4>
                       <span className="text-xs font-medium text-text-secondary">
-                        {isTamil ? 'பகல் நேர தெளிவான பார்வை' : 'Clean daytime high-contrast clarity'}
+                        {sp.preferences.lightThemeDesc}
                       </span>
                     </div>
                   </div>
@@ -1510,12 +1427,10 @@ export default function SettingsPage() {
               <div className="mb-3.5">
                 <h3 className="text-sm font-bold text-text-main m-0 flex items-center gap-2">
                   <Globe className="text-emerald-400" size={16} />
-                  <span>{isTamil ? 'மொழி விருப்பத்தேர்வு (Language Selection)' : 'Language Selection'}</span>
+                  <span>{sp.preferences.langTitle}</span>
                 </h3>
                 <span className="text-xs text-text-secondary font-medium">
-                  {isTamil
-                    ? 'முழு அமைப்பின் மொழியைத் தேர்ந்தெடுக்கவும் (தமிழ் அல்லது ஆங்கிலம்)'
-                    : 'Choose your application language. All modules, reports, and alerts will reflect this language.'}
+                  {sp.preferences.langSubtitle}
                 </span>
               </div>
 
@@ -1540,10 +1455,10 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <h4 className="text-base font-black text-text-main m-0">
-                        English (Global)
+                        {sp.preferences.englishLabel}
                       </h4>
                       <span className="text-xs text-text-secondary font-medium">
-                        Default international agricultural & agronomic terminology
+                        {sp.preferences.englishDesc}
                       </span>
                     </div>
                   </div>
@@ -1569,10 +1484,10 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <h4 className="text-base font-black text-text-main m-0">
-                        தமிழ் (Tamil)
+                        {sp.preferences.tamilLabel}
                       </h4>
                       <span className="text-xs text-text-secondary font-medium">
-                        காவிரி டெல்டா மற்றும் தமிழ்நாடு விவசாயிகளுக்கான நேரடி தமிழ் பதிப்பு
+                        {sp.preferences.tamilDesc}
                       </span>
                     </div>
                   </div>
@@ -1592,13 +1507,9 @@ export default function SettingsPage() {
       <OtpVerificationModal
         open={passOtpOpen}
         email={passOtpEmail}
-        title={isTamil ? 'கடவுச்சொல் மாற்றத்தை உறுதிப்படுத்து' : 'Confirm Password Change'}
-        subtitle={
-          isTamil
-            ? 'பாதுகாப்பு உறுதிப்படுத்தலுக்கு, உங்கள் பதிவுசெய்த மின்னஞ்சலுக்கு அனுப்பப்பட்ட 6 இலக்க குறியீட்டை உள்ளிடவும்.'
-            : 'For your security, enter the 6-digit verification code sent to your email address to apply your new password.'
-        }
-        confirmLabel={isTamil ? 'சரிபார்த்து கடவுச்சொல்லை மாற்று' : 'Verify & Update Password'}
+        title={sp.security.otpModalTitle}
+        subtitle={sp.security.otpModalSubtitle}
+        confirmLabel={sp.security.otpModalConfirm}
         loading={passOtpLoading}
         resending={passOtpResending}
         errorMsg={passOtpError}
@@ -1628,19 +1539,17 @@ export default function SettingsPage() {
           <div className="flex items-center gap-2 text-rose-500 font-black">
             <AlertTriangle size={18} />
             <span>
-              {isTamil ? 'கணக்கை நிரந்தரமாக நீக்கவா?' : 'Confirm Permanent Account Deletion'}
+              {sp.dangerZone.modalTitle}
             </span>
           </div>
         }
-        okText={isTamil ? 'ஆம், கணக்கை நீக்கு' : 'Yes, Delete Permanently'}
-        cancelText={isTamil ? 'ரத்து' : 'Cancel'}
+        okText={sp.dangerZone.modalOk}
+        cancelText={sp.dangerZone.modalCancel}
         okButtonProps={{ danger: true, className: 'font-bold rounded-xl' }}
         cancelButtonProps={{ disabled: deletingAccount, className: 'font-bold rounded-xl' }}
       >
         <p className="text-sm text-slate-600 dark:text-slate-300 m-0 py-2 leading-relaxed">
-          {isTamil
-            ? 'இந்த செயலைத் திரும்பப் பெற முடியாது. உங்கள் சுயவிவரம், சாகுபடி திட்டங்கள் மற்றும் அனைத்து செயலில் உள்ள அமர்வுகளும் நிரந்தரமாக நீக்கப்படும்.'
-            : 'This action cannot be undone. Your user profile, saved cultivation plans, and all active sessions will be permanently deleted.'}
+          {sp.dangerZone.modalDesc}
         </p>
       </Modal>
     </div>

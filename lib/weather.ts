@@ -184,11 +184,57 @@ export interface WeatherConditionInfo {
   labelTa: string;
 }
 
+export function isNightHour(
+  timeStr?: string,
+  sunriseStr: string = '06:07',
+  sunsetStr: string = '17:39'
+): boolean {
+  if (!timeStr) return false;
+  const m = timeStr.match(/(\d{1,2}):(\d{2})/);
+  if (!m) return false;
+  const hour = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  const totalMins = hour * 60 + min;
+
+  const srM = sunriseStr.match(/(\d{1,2}):(\d{2})/);
+  const ssM = sunsetStr.match(/(\d{1,2}):(\d{2})/);
+  const srMins = srM ? parseInt(srM[1], 10) * 60 + parseInt(srM[2], 10) : 6 * 60 + 7;
+  const ssMins = ssM ? parseInt(ssM[1], 10) * 60 + parseInt(ssM[2], 10) : 17 * 60 + 39;
+
+  return totalMins < srMins || totalMins >= ssMins;
+}
+
+export function formatHourWithAmPm(timeStr: string): {
+  time24: string;
+  time12: string;
+  ampm: string;
+  full: string;
+  isHourly: boolean;
+} {
+  if (!timeStr) {
+    return { time24: '', time12: '', ampm: '', full: '', isHourly: false };
+  }
+  const m = timeStr.match(/(\d{1,2}):(\d{2})/);
+  if (!m) {
+    return { time24: timeStr, time12: timeStr, ampm: '', full: timeStr, isHourly: false };
+  }
+  const h = parseInt(m[1], 10);
+  const min = m[2];
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  const time12 = `${h12}:${min} ${ampm}`;
+  const time24 = `${String(h).padStart(2, '0')}:${min}`;
+  const full = `${time24} (${time12})`;
+
+  return { time24, time12, ampm, full, isHourly: true };
+}
+
 export function normalizeWeatherConditionText(
   rawCondition: string,
   precipMm: number = 0,
   chancePct: number = 0,
-  cloudCoverPct: number = 50
+  cloudCoverPct: number = 50,
+  isNight: boolean = false
 ): string {
   const cond = (rawCondition || '').trim();
   const lower = cond.toLowerCase();
@@ -217,7 +263,7 @@ export function normalizeWeatherConditionText(
     // If it's merely a trace (< 0.5mm) with low chance, categorize by sky cover
     if (cloudCoverPct >= 75) return 'Overcast';
     if (cloudCoverPct >= 40) return 'Cloudy';
-    return 'Partly Sunny';
+    return isNight ? 'Partly Cloudy' : 'Partly Sunny';
   }
 
   // 5. Patchy rain / light rain showers / slight rain (WMO 61, 80)
@@ -227,21 +273,33 @@ export function normalizeWeatherConditionText(
     }
     // Low precipitation: show dominant sky cover
     if (cloudCoverPct >= 75) return 'Cloudy';
-    if (cloudCoverPct >= 35) return 'Partly Sunny';
-    return 'Mostly Sunny';
+    if (cloudCoverPct >= 35) return isNight ? 'Partly Cloudy' : 'Partly Sunny';
+    return isNight ? 'Mostly Clear' : 'Mostly Sunny';
   }
 
   // 6. Fog / Mist / Haze
   if (/fog/i.test(lower)) return 'Fog';
   if (/mist/i.test(lower)) return 'Mist';
-  if (/haze|smoke/i.test(lower)) return cloudCoverPct < 40 ? 'Hazy Sunshine' : 'Hazy';
+  if (/haze|smoke/i.test(lower)) {
+    if (isNight) return 'Hazy';
+    return cloudCoverPct < 40 ? 'Hazy Sunshine' : 'Hazy';
+  }
 
   // 7. Sky Cover: Overcast / Cloudy / Partly Cloudy / Sunny / Clear Sky
   if (/overcast/i.test(lower)) return 'Overcast';
-  if (/partly/i.test(lower)) return 'Partly Sunny';
+  if (/partly/i.test(lower)) return isNight ? 'Partly Cloudy' : 'Partly Sunny';
   if (/cloudy/i.test(lower)) return 'Cloudy';
-  if (/mainly clear|mostly sunny/i.test(lower)) return 'Mostly Sunny';
-  if (/clear|sunny/i.test(lower)) return 'Clear / Sunny';
+  if (/mainly clear|mostly sunny|mostly clear/i.test(lower)) return isNight ? 'Mostly Clear' : 'Mostly Sunny';
+  if (/clear|sunny/i.test(lower)) return isNight ? 'Clear Sky' : 'Clear / Sunny';
+
+  if (isNight) {
+    return cond
+      ? cond.replace(/partly\s*sunny/gi, 'Partly Cloudy')
+            .replace(/mostly\s*sunny/gi, 'Mostly Clear')
+            .replace(/sunny/gi, 'Clear')
+            .replace(/sunshine/gi, 'Clear')
+      : 'Partly Cloudy';
+  }
 
   return cond || 'Partly Sunny';
 }

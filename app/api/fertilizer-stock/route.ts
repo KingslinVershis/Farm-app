@@ -111,7 +111,8 @@ export async function GET(request: NextRequest) {
 
   // 0a. Fertilizer Price: Product dropdown list
   if (mode === 'price-products') {
-    const targetUrl = `${PRICE_BASE_URL}/index/en`;
+    const targetUrl =
+      langParam === 'ta' ? `${PRICE_BASE_URL}/index/ta` : `${PRICE_BASE_URL}/index/en`;
     try {
       const html = await fetchHtml(targetUrl);
       const $ = cheerio.load(html);
@@ -121,7 +122,7 @@ export async function GET(request: NextRequest) {
       $('select option').each((_, el) => {
         const id = ($(el).attr('value') || '').trim();
         const name = $(el).text().replace(/\s+/g, ' ').trim();
-        if (id && name && !seen.has(id)) {
+        if (id && name && !seen.has(id) && name.toLowerCase() !== 'select') {
           seen.add(id);
           products.push({ id, name });
         }

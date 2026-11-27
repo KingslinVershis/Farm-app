@@ -4,11 +4,14 @@ import '@flaticon/flaticon-uicons/css/regular/rounded.css';
 import './globals.css';
 import { AppShell } from '@/components/layout/AppShell';
 import { TopProgressBar } from '@/components/layout/TopProgressBar';
+import { CurtainsIris } from '@/components/reactbits/CurtainsIris';
 import { LanguageProvider } from '@/components/providers/LanguageProvider';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { Agentation } from "agentation";
 
 import { AntdRegistry } from '@ant-design/nextjs-registry';
+import { App as AntdApp } from 'antd';
+import { AntdStaticBridge } from '@/components/providers/AntdStaticBridge';
 
 export const metadata: Metadata = {
   title: 'Precision Farm Management OS',
@@ -44,10 +47,16 @@ export default function RootLayout({
         </Suspense>
         <AntdRegistry>
           <ThemeProvider>
-            <LanguageProvider>
-              <Agentation />
-              <AppShell>{children}</AppShell>
-            </LanguageProvider>
+            <AntdApp>
+              <AntdStaticBridge />
+              <Suspense fallback={null}>
+                <CurtainsIris />
+              </Suspense>
+              <LanguageProvider>
+                <Agentation />
+                <AppShell>{children}</AppShell>
+              </LanguageProvider>
+            </AntdApp>
           </ThemeProvider>
         </AntdRegistry>
       </body>

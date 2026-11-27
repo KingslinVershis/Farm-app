@@ -1,45 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-/**
- * ═════════════════════════════════════════════════════════════════════
- * PREVIOUS LOCATION LOGIC (COMMENTED OUT AS REQUESTED BY USER)
- * ═════════════════════════════════════════════════════════════════════
- * import { State, City } from 'country-state-city';
- * 
- * const cache = new Map<string, { data: string[]; timestamp: number }>();
- * const CACHE_TTL_MS = 60 * 60 * 1000;
- * 
- * function resolveStateIso(stateInput: string): string {
- *   if (!stateInput) return 'TN';
- *   const trimmed = stateInput.trim().toLowerCase();
- *   const states = State.getStatesOfCountry('IN');
- *   const matched = states.find(
- *     (s) => s.name.toLowerCase() === trimmed || s.isoCode.toLowerCase() === trimmed
- *   );
- *   return matched ? matched.isoCode : 'TN';
- * }
- * 
- * async function fetchPostalData(query: string): Promise<any[]> {
- *   try {
- *     const controller = new AbortController();
- *     const timer = setTimeout(() => controller.abort(), 3500);
- *     const res = await fetch(`https://api.postalpincode.in/postoffice/${encodeURIComponent(query)}`, {
- *       signal: controller.signal,
- *       headers: { Accept: 'application/json', 'User-Agent': 'FarmHub/1.0' },
- *       next: { revalidate: 3600 },
- *     });
- *     clearTimeout(timer);
- *     if (!res.ok) return [];
- *     const json = await res.json();
- *     if (Array.isArray(json) && json[0]?.Status === 'Success' && Array.isArray(json[0]?.PostOffice)) {
- *       return json[0].PostOffice;
- *     }
- *   } catch (err) {}
- *   return [];
- * }
- * ═════════════════════════════════════════════════════════════════════
- */
-
 // LGD API Base URL (derived from Government of India's Local Government Directory)
 // GitHub: https://github.com/kalyangupta12/indian-cities-data
 const LGD_API_BASE = 'https://lgd-json-api.vercel.app/api';

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { emitNavStart, emitNavProgress, emitNavFinish } from '@/lib/navigationEvents';
 
 export const TopProgressBar: React.FC = () => {
   const pathname = usePathname();
@@ -11,28 +12,42 @@ export const TopProgressBar: React.FC = () => {
   const [isVisible, setIsVisible] = useState<boolean>(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const finishTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const safetyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const startProgress = () => {
+  const startProgress = (origin?: { x: string; y: string }, destination?: string) => {
     if (finishTimeoutRef.current) clearTimeout(finishTimeoutRef.current);
+    if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
     if (timerRef.current) clearInterval(timerRef.current);
 
     setIsVisible(true);
     setProgress(15);
+    emitNavStart({ origin, url: destination });
+    emitNavProgress(15);
 
-    // Incrementally creep progress to show activity
+    // Incrementally creep progress to show continuous loading activity
     timerRef.current = setInterval(() => {
       setProgress((prev) => {
-        if (prev < 40) return prev + 12;
-        if (prev < 75) return prev + 6;
-        if (prev < 88) return prev + 2;
-        return prev;
+        let nextVal = prev;
+        if (prev < 40) nextVal = prev + 12;
+        else if (prev < 75) nextVal = prev + 6;
+        else if (prev < 88) nextVal = prev + 2;
+        emitNavProgress(nextVal);
+        return nextVal;
       });
     }, 120);
+
+    // Emergency failsafe timeout after 6s (safe recovery, never locks user out)
+    safetyTimeoutRef.current = setTimeout(() => {
+      finishProgress();
+    }, 6000);
   };
 
   const finishProgress = () => {
     if (timerRef.current) clearInterval(timerRef.current);
+    if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
     setProgress(100);
+    emitNavProgress(100);
+    emitNavFinish();
 
     finishTimeoutRef.current = setTimeout(() => {
       setIsVisible(false);
@@ -75,12 +90,16 @@ export const TopProgressBar: React.FC = () => {
           (href.startsWith('http') && href.startsWith(window.location.origin));
 
         if (isInternal) {
-          const currentUrl = window.location.pathname + window.location.search;
-          const targetUrl = href.replace(window.location.origin, '');
+          const currentUrl = (window.location.pathname + window.location.search).replace(/\/+$/, '') || '/';
+          const targetUrl = (href.replace(window.location.origin, '')).replace(/\/+$/, '') || '/';
 
-          // If navigating to a different URL or page, show progress bar
+          // If navigating to a different URL or page, start progress with origin coordinates
           if (targetUrl !== currentUrl && !targetUrl.startsWith(`${window.location.pathname}#`)) {
-            startProgress();
+            const clickOrigin = {
+              x: `${event.clientX}px`,
+              y: `${event.clientY}px`,
+            };
+            startProgress(clickOrigin, targetUrl);
           }
         }
       } catch {
@@ -90,7 +109,7 @@ export const TopProgressBar: React.FC = () => {
 
     // Attach programmatic global helpers
     if (typeof window !== 'undefined') {
-      (window as any).__startTopProgress = startProgress;
+      (window as any).__startTopProgress = (origin?: { x: string; y: string }) => startProgress(origin);
       (window as any).__finishTopProgress = finishProgress;
     }
 
@@ -99,6 +118,7 @@ export const TopProgressBar: React.FC = () => {
       document.removeEventListener('click', handleAnchorClick, { capture: true });
       if (timerRef.current) clearInterval(timerRef.current);
       if (finishTimeoutRef.current) clearTimeout(finishTimeoutRef.current);
+      if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
     };
   }, []);
 
@@ -135,4 +155,3 @@ export const TopProgressBar: React.FC = () => {
     </div>
   );
 };
-

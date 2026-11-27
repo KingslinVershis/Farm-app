@@ -10,12 +10,15 @@ import {
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import type { TnauSeedResponse, TnauSeedItem } from '@/app/api/tnau-seeds/route';
-import { Input, Select, Table, Modal, Tag } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import { Input, Select, Modal, Tag } from 'antd';
+import { AnimatedCounter } from '@/components/reactbits/AnimatedCounter';
+import PlanSummaryReflectiveCard from '@/components/reactbits/PlanSummaryReflectiveCard';
+import ReflectiveCard from '@/components/reactbits/ReflectiveCard';
+import AnimatedContent from '@/components/reactbits/AnimatedContent';
 
 export default function TnauSeedsPage() {
   const { locale, messages } = useLanguage();
-  const isTamil = locale === 'ta';
+  const s = messages.seedsPage;
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -26,7 +29,6 @@ export default function TnauSeedsPage() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortBy, setSortBy] = useState<'default' | 'priceAsc' | 'priceDesc' | 'nameAsc'>('default');
   const [unitFilter, setUnitFilter] = useState<string>('all');
-  const [viewLayout, setViewLayout] = useState<'table' | 'grid'>('table');
   const [activeSeed, setActiveSeed] = useState<TnauSeedItem | null>(null);
 
   const fetchSeedData = async () => {
@@ -50,6 +52,17 @@ export default function TnauSeedsPage() {
   useEffect(() => {
     fetchSeedData();
   }, []);
+
+  const counts = useMemo(() => {
+    if (!data?.data || data.data.length === 0) {
+      return { total: data?.totalItems || 78, veg: 47, breeder: 21, fruit: 10 };
+    }
+    const total = data.totalItems || data.data.length;
+    const veg = data.data.filter((i) => i.category.toLowerCase().includes('vegetable') && !i.category.toLowerCase().includes('breeder')).length || 47;
+    const breeder = data.data.filter((i) => i.category.toLowerCase().includes('breeder')).length || 21;
+    const fruit = data.data.filter((i) => !i.category.toLowerCase().includes('vegetable') && !i.category.toLowerCase().includes('breeder')).length || 10;
+    return { total, veg, breeder, fruit };
+  }, [data]);
 
   // Category Color Map & Metadata
   const getCategoryTheme = (cat: string) => {
@@ -143,123 +156,13 @@ export default function TnauSeedsPage() {
     return list;
   }, [data, selectedCategory, unitFilter, searchQuery, sortBy]);
 
-  // Ant Design Table Columns
-  const columns: ColumnsType<TnauSeedItem> = useMemo(
-    () => [
-      {
-        title: isTamil ? 'வ.எண்' : 'Sl. No.',
-        dataIndex: 'slNo',
-        key: 'slNo',
-        width: 80,
-        align: 'center',
-        responsive: ['md'],
-        className: 'hidden md:table-cell',
-        onHeaderCell: () => ({ className: 'hidden md:table-cell' }),
-        render: (val: string | number) => (
-          <span className="font-mono text-xs text-text-muted font-bold">#{val}</span>
-        ),
-      },
-      {
-        title: isTamil ? 'பிரிவு' : 'Category',
-        dataIndex: 'category',
-        key: 'category',
-        width: 170,
-        responsive: ['md'],
-        className: 'hidden md:table-cell',
-        onHeaderCell: () => ({ className: 'hidden md:table-cell' }),
-        render: (cat: string) => {
-          const t = getCategoryTheme(cat);
-          return (
-            <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${t.bg} ${t.border} ${t.text}`}
-            >
-              <span>{t.icon}</span>
-              <span>{cat}</span>
-            </span>
-          );
-        },
-      },
-      {
-        title: isTamil ? 'விதை விவரம் (பயிர் / வகை)' : 'Seed Particulars & Variety',
-        dataIndex: 'particulars',
-        key: 'particulars',
-        render: (_, record) => {
-          return (
-            <div>
-              <span className="font-bold text-sm text-text-main hover:text-emerald-400 transition-colors block">
-                {record.particulars}
-              </span>
-              <span className="text-[11px] text-text-muted">
-                {record.category} • Official TNAU Sale Variety
-              </span>
-            </div>
-          );
-        },
-      },
-      {
-        title: isTamil ? 'அலகு' : 'Unit',
-        dataIndex: 'unit',
-        key: 'unit',
-        width: 110,
-        align: 'center',
-        responsive: ['md'],
-        className: 'hidden md:table-cell',
-        onHeaderCell: () => ({ className: 'hidden md:table-cell' }),
-        render: (unit: string) => (
-          <span className="text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-surface border border-border-subtle text-text-secondary">
-            /{unit}
-          </span>
-        ),
-      },
-      {
-        title: isTamil ? 'அரசு விலை (₹)' : 'Official Price (₹)',
-        dataIndex: 'pricePerKg',
-        key: 'pricePerKg',
-        width: 160,
-        align: 'right',
-        sorter: (a, b) => a.pricePerKg - b.pricePerKg,
-        render: (price: number, record) => (
-          <div>
-            <span className="font-mono text-base font-black text-emerald-400 block">
-              ₹{price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-            <span className="text-[10px] text-text-muted font-medium">
-              per {record.unit}
-            </span>
-          </div>
-        ),
-      },
-      {
-        title: isTamil ? 'செயல்' : 'Action',
-        key: 'action',
-        width: 100,
-        align: 'center',
-        render: (_, record) => (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveSeed(record);
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 hover:border-emerald-400 transition-all cursor-pointer shadow-sm group whitespace-nowrap"
-            title={isTamil ? 'விவரங்களைக் காண்க' : 'View seed details'}
-          >
-            <span className="text-xs group-hover:scale-110 transition-transform">👁️</span>
-            <span>{isTamil ? 'பார்' : 'View'}</span>
-          </button>
-        ),
-      },
-    ],
-    [isTamil]
-  );
-
   return (
     <div className="relative min-h-screen w-full overflow-x-hidden">
       {/* Background Photography Layer with Soft Vignette & Frosted Overlay */}
       <div
         className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out scale-105"
         style={{
-          backgroundImage: `url('/images/crop.jpg')`,
+          backgroundImage: `url('https://res.cloudinary.com/chk0va7a/image/upload/v1795773768/crop_img.jpg')`,
         }}
       />
       <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
@@ -277,7 +180,7 @@ export default function TnauSeedsPage() {
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 dark:bg-emerald-500/20 px-3 py-1 text-xs font-black text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
                 <SproutIcon size={14} />
-                <span>{isTamil ? 'அரசு சான்றளிக்கப்பட்ட விலை' : 'TNAU Certified Sale Rates'}</span>
+                <span>{s.liveBadge}</span>
               </span>
               {data?.isFallback && (
                 <span className="rounded-full bg-cyan-500/15 px-2.5 py-0.5 text-[11px] font-bold text-cyan-700 dark:text-cyan-300 border border-cyan-500/30">
@@ -286,12 +189,10 @@ export default function TnauSeedsPage() {
               )}
             </div>
             <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-black text-text-main tracking-tight">
-              {isTamil ? 'TNAU விதை விற்பனை விலைப்பட்டியல்' : 'TNAU Seed Price Directory'}
+              {s.pageTitle}
             </h1>
             <p className="text-xs sm:text-sm text-text-secondary max-w-3xl lg:max-w-4xl leading-relaxed">
-              {isTamil
-                ? 'தமிழ்நாடு வேளாண்மைப் பல்கலைக்கழகத்தால் (TNAU) நிர்ணயிக்கப்பட்ட நேரடி விதை விற்பனை மற்றும் கொள்முதல் விலை விவரங்கள். காய்கறி, பழங்கள், மரங்கள் மற்றும் மூலிகை பயிர்களின் சான்றளிக்கப்பட்ட விதைகள்.'
-                : 'Official live seed prices from Tamil Nadu Agricultural University (TNAU) Agritech Portal. Verified rates for certified vegetable, breeder, fruit, flower, and medicinal crops across Tamil Nadu.'}
+              {s.pageSubtitle}
             </p>
           </div>
 
@@ -303,7 +204,7 @@ export default function TnauSeedsPage() {
               className="rounded-xl glass-surface px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 border border-emerald-500/30 transition-all flex items-center gap-1.5"
             >
               <span>🌐</span>
-              <span>{isTamil ? 'அசல் இணையதளம்' : 'Govt Source URL'}</span>
+              <span>{s.govtSource}</span>
             </a>
             <button
               type="button"
@@ -312,69 +213,189 @@ export default function TnauSeedsPage() {
               className="rounded-xl glass-surface px-3.5 py-2 text-xs font-bold text-text-main hover:bg-white/10 border border-border-light transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <RefreshCwIcon size={14} className={loading ? 'animate-spin' : ''} />
-              <span>{isTamil ? 'புதுப்பி' : 'Refresh'}</span>
+              <span>{s.refresh}</span>
             </button>
           </div>
         </div>
 
         {/* KPI Overview Strip */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="glass-panel p-4 rounded-2xl border border-border-light shadow-xl flex items-center gap-3.5">
-            <div className="h-11 w-11 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xl shrink-0">
-              🌱
-            </div>
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
-                {isTamil ? 'மொத்த வகைகள்' : 'Total Varieties'}
+        <AnimatedContent
+          distance={30}
+          direction="vertical"
+          duration={0.7}
+          ease="back.out(1.2)"
+          stagger={0.06}
+          trigger="mount"
+          className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4"
+        >
+          <PlanSummaryReflectiveCard
+            theme="dark"
+            tint="#10b981"
+            metalness={0.9}
+            roughness={0.3}
+            blurStrength={6}
+            shine={1}
+            glare={0.5}
+            warp={0.5}
+            bevel={3}
+            radius={20}
+            enableTilt
+            height="100%"
+            className="min-h-[160px] shadow-xl"
+            bodyClassName="border border-white/10 hover:border-emerald-400/50 transition-colors"
+          >
+            <div className="h-full flex flex-col justify-between text-left select-none p-1">
+              <div className="flex items-center justify-between gap-1">
+                <div className="leading-tight text-left">
+                  <div className="text-[11px] font-bold text-white uppercase tracking-wider">
+                    {s.stats.totalVarieties}
+                  </div>
+                  <div className="text-[9px] font-mono text-emerald-300 mt-0.5">
+                    {s.stats.catalogSubtitle}
+                  </div>
+                </div>
+                <span className="plan-reflective-card__tile !w-10 !h-10 flex items-center justify-center p-1 overflow-hidden rounded-2xl bg-slate-900/40 border border-white/10 shadow-inner text-emerald-400 shrink-0 text-lg">
+                  🌱
+                </span>
               </div>
-              <div className="text-xl sm:text-2xl font-black text-text-main">
-                {data?.totalItems || 78}
-              </div>
-            </div>
-          </div>
 
-          <div className="glass-panel p-4 rounded-2xl border border-border-light shadow-xl flex items-center gap-3.5">
-            <div className="h-11 w-11 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30 flex items-center justify-center text-xl shrink-0">
-              🥦
-            </div>
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
-                {isTamil ? 'காய்கறி விதைகள்' : 'Vegetable Seeds'}
-              </div>
-              <div className="text-xl sm:text-2xl font-black text-emerald-400">
-                47
+              <div className="my-auto py-1 text-left">
+                <div className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none font-mono">
+                  <AnimatedCounter value={counts.total} />
+                </div>
+                <div className="text-[11px] text-slate-300 mt-1 font-medium">
+                  {s.stats.registeredSub}
+                </div>
               </div>
             </div>
-          </div>
+          </PlanSummaryReflectiveCard>
 
-          <div className="glass-panel p-4 rounded-2xl border border-border-light shadow-xl flex items-center gap-3.5">
-            <div className="h-11 w-11 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center text-xl shrink-0">
-              🔬
-            </div>
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
-                {isTamil ? 'இனப்பெருக்க விதைகள்' : 'Breeder Seeds'}
+          <PlanSummaryReflectiveCard
+            theme="dark"
+            tint="#06b6d4"
+            metalness={0.9}
+            roughness={0.3}
+            blurStrength={6}
+            shine={1}
+            glare={0.5}
+            warp={0.5}
+            bevel={3}
+            radius={20}
+            enableTilt
+            height="100%"
+            className="min-h-[160px] shadow-xl"
+            bodyClassName="border border-white/10 hover:border-cyan-400/50 transition-colors"
+          >
+            <div className="h-full flex flex-col justify-between text-left select-none p-1">
+              <div className="flex items-center justify-between gap-1">
+                <div className="leading-tight text-left">
+                  <div className="text-[11px] font-bold text-white uppercase tracking-wider">
+                    {s.stats.vegetables}
+                  </div>
+                  <div className="text-[9px] font-mono text-cyan-300 mt-0.5">
+                    {s.stats.highDemand}
+                  </div>
+                </div>
+                <span className="plan-reflective-card__tile !w-10 !h-10 flex items-center justify-center p-1 overflow-hidden rounded-2xl bg-slate-900/40 border border-white/10 shadow-inner text-cyan-400 shrink-0 text-lg">
+                  🥦
+                </span>
               </div>
-              <div className="text-xl sm:text-2xl font-black text-purple-400">
-                21
-              </div>
-            </div>
-          </div>
 
-          <div className="glass-panel p-4 rounded-2xl border border-border-light shadow-xl flex items-center gap-3.5">
-            <div className="h-11 w-11 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-xl shrink-0">
-              🍎
-            </div>
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
-                {isTamil ? 'பழங்கள் & மூலிகைகள்' : 'Fruit & Herb Seeds'}
-              </div>
-              <div className="text-xl sm:text-2xl font-black text-amber-400">
-                10
+              <div className="my-auto py-1 text-left">
+                <div className="text-2xl sm:text-3xl font-black text-cyan-400 tracking-tight leading-none font-mono">
+                  <AnimatedCounter value={counts.veg} />
+                </div>
+                <div className="text-[11px] text-slate-300 mt-1 font-medium">
+                  {s.stats.vegCultivars}
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+          </PlanSummaryReflectiveCard>
+
+          <PlanSummaryReflectiveCard
+            theme="dark"
+            tint="#a855f7"
+            metalness={0.9}
+            roughness={0.3}
+            blurStrength={6}
+            shine={1}
+            glare={0.5}
+            warp={0.5}
+            bevel={3}
+            radius={20}
+            enableTilt
+            height="100%"
+            className="min-h-[160px] shadow-xl"
+            bodyClassName="border border-white/10 hover:border-purple-400/50 transition-colors"
+          >
+            <div className="h-full flex flex-col justify-between text-left select-none p-1">
+              <div className="flex items-center justify-between gap-1">
+                <div className="leading-tight text-left">
+                  <div className="text-[11px] font-bold text-white uppercase tracking-wider">
+                    {s.stats.breeder}
+                  </div>
+                  <div className="text-[9px] font-mono text-purple-300 mt-0.5">
+                    {s.stats.researchCenter}
+                  </div>
+                </div>
+                <span className="plan-reflective-card__tile !w-10 !h-10 flex items-center justify-center p-1 overflow-hidden rounded-2xl bg-slate-900/40 border border-white/10 shadow-inner text-purple-400 shrink-0 text-lg">
+                  🔬
+                </span>
+              </div>
+
+              <div className="my-auto py-1 text-left">
+                <div className="text-2xl sm:text-3xl font-black text-purple-400 tracking-tight leading-none font-mono">
+                  <AnimatedCounter value={counts.breeder} />
+                </div>
+                <div className="text-[11px] text-slate-300 mt-1 font-medium">
+                  {s.stats.breederStock}
+                </div>
+              </div>
+            </div>
+          </PlanSummaryReflectiveCard>
+
+          <PlanSummaryReflectiveCard
+            theme="dark"
+            tint="#f59e0b"
+            metalness={0.9}
+            roughness={0.3}
+            blurStrength={6}
+            shine={1}
+            glare={0.5}
+            warp={0.5}
+            bevel={3}
+            radius={20}
+            enableTilt
+            height="100%"
+            className="min-h-[160px] shadow-xl"
+            bodyClassName="border border-white/10 hover:border-amber-400/50 transition-colors"
+          >
+            <div className="h-full flex flex-col justify-between text-left select-none p-1">
+              <div className="flex items-center justify-between gap-1">
+                <div className="leading-tight text-left">
+                  <div className="text-[11px] font-bold text-white uppercase tracking-wider">
+                    {s.stats.fruitHerb}
+                  </div>
+                  <div className="text-[9px] font-mono text-amber-300 mt-0.5">
+                    {s.stats.horticulture}
+                  </div>
+                </div>
+                <span className="plan-reflective-card__tile !w-10 !h-10 flex items-center justify-center p-1 overflow-hidden rounded-2xl bg-slate-900/40 border border-white/10 shadow-inner text-amber-400 shrink-0 text-lg">
+                  🍎
+                </span>
+              </div>
+
+              <div className="my-auto py-1 text-left">
+                <div className="text-2xl sm:text-3xl font-black text-amber-400 tracking-tight leading-none font-mono">
+                  <AnimatedCounter value={counts.fruit} />
+                </div>
+                <div className="text-[11px] text-slate-300 mt-1 font-medium">
+                  {s.stats.specialty}
+                </div>
+              </div>
+            </div>
+          </PlanSummaryReflectiveCard>
+        </AnimatedContent>
 
         {/* Filter and Search Control Bar */}
         <div className="glass-panel p-4 sm:p-5 rounded-2xl border border-border-light shadow-xl space-y-3.5">
@@ -384,7 +405,7 @@ export default function TnauSeedsPage() {
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={isTamil ? 'விதையின் பெயர் தேடவும் (எ.கா. தக்காளி, பப்பாளி, Co 7)...' : 'Search seed by name (e.g., Papaya, Tomato, Co 7, Bhendi)...'}
+                placeholder={s.searchPlaceholder}
                 prefix={<SearchIcon size={16} className="text-text-muted mr-1.5" />}
                 allowClear
                 className="h-10 text-xs font-semibold rounded-xl border-border-light shadow-sm w-full"
@@ -400,10 +421,10 @@ export default function TnauSeedsPage() {
                   onChange={(val) => setSortBy(val)}
                   className="w-full h-10 text-xs custom-antd-select"
                   options={[
-                    { value: 'default', label: isTamil ? 'வரிசை: இயல்பு' : 'Sort: Default' },
-                    { value: 'priceAsc', label: isTamil ? 'விலை: குறைவு → அதிகம்' : 'Price: Low → High' },
-                    { value: 'priceDesc', label: isTamil ? 'விலை: அதிகம் → குறைவு' : 'Price: High → Low' },
-                    { value: 'nameAsc', label: isTamil ? 'பெயர்: A → Z' : 'Name: A → Z' },
+                    { value: 'default', label: s.sort.default },
+                    { value: 'priceAsc', label: s.sort.priceAsc },
+                    { value: 'priceDesc', label: s.sort.priceDesc },
+                    { value: 'nameAsc', label: s.sort.nameAsc },
                   ]}
                 />
               </div>
@@ -415,38 +436,12 @@ export default function TnauSeedsPage() {
                   onChange={(val) => setUnitFilter(val)}
                   className="w-full h-10 text-xs custom-antd-select"
                   options={[
-                    { value: 'all', label: isTamil ? 'அனைத்தும்' : 'All Units' },
-                    { value: 'kg', label: isTamil ? 'கிலோ (kg)' : 'Per Kg' },
-                    { value: 'packet', label: isTamil ? 'பாக்கெட்' : 'Per Packet' },
-                    { value: 'plant', label: isTamil ? 'செடி' : 'Per Plant' },
+                    { value: 'all', label: s.units.all },
+                    { value: 'kg', label: s.units.kg },
+                    { value: 'packet', label: s.units.packet },
+                    { value: 'plant', label: s.units.plant },
                   ]}
                 />
-              </div>
-
-              {/* View Mode Toggle: Table / Grid */}
-              <div className="flex rounded-xl glass-surface p-1 border border-border-light shadow-inner">
-                <button
-                  type="button"
-                  onClick={() => setViewLayout('table')}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${viewLayout === 'table'
-                    ? 'bg-emerald-500 text-white keep-white shadow-sm'
-                    : 'text-text-secondary hover:text-text-main'
-                    }`}
-                  title="Table View"
-                >
-                  📋 {isTamil ? 'அட்டவணை' : 'Table'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewLayout('grid')}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${viewLayout === 'grid'
-                    ? 'bg-emerald-500 text-white keep-white shadow-sm'
-                    : 'text-text-secondary hover:text-text-main'
-                    }`}
-                  title="Card Grid View"
-                >
-                  🗂️ {isTamil ? 'கார்டுகள்' : 'Cards'}
-                </button>
               </div>
             </div>
           </div>
@@ -454,12 +449,12 @@ export default function TnauSeedsPage() {
           {/* Category Pill Tabs */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
             {[
-              { id: 'All', label: isTamil ? 'அனைத்து விதைகள்' : 'All Seeds', icon: '🌾' },
-              { id: 'Vegetable Seeds', label: isTamil ? 'காய்கறி விதைகள்' : 'Vegetable Seeds', icon: '🥦' },
-              { id: 'Breeder Seeds (Vegetables)', label: isTamil ? 'இனப்பெருக்க விதைகள்' : 'Breeder Seeds', icon: '🔬' },
-              { id: 'Fruit Seeds', label: isTamil ? 'பழ விதைகள்' : 'Fruit Seeds', icon: '🍎' },
-              { id: 'Flower & Tree Seeds', label: isTamil ? 'பூ & மர விதைகள்' : 'Flower & Tree', icon: '🌸' },
-              { id: 'Medicinal Plant Seeds', label: isTamil ? 'மூலிகை விதைகள்' : 'Medicinal Plants', icon: '🌿' },
+              { id: 'All', label: s.categories.all, icon: '🌾' },
+              { id: 'Vegetable Seeds', label: s.categories.vegetable, icon: '🥦' },
+              { id: 'Breeder Seeds (Vegetables)', label: s.categories.breeder, icon: '🔬' },
+              { id: 'Fruit Seeds', label: s.categories.fruit, icon: '🍎' },
+              { id: 'Flower & Tree Seeds', label: s.categories.flowerTree, icon: '🌸' },
+              { id: 'Medicinal Plant Seeds', label: s.categories.medicinal, icon: '🌿' },
             ].map((cat) => {
               const isSelected = selectedCategory === cat.id;
               return (
@@ -482,24 +477,34 @@ export default function TnauSeedsPage() {
 
         {/* Main Content Area */}
         {loading ? (
-          <div className="rounded-2xl glass-panel border border-border-light p-6 shadow-xl animate-pulse">
-            <div className="flex items-center justify-between pb-3 border-b border-border-light/60 mb-4">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                <span className="text-xs font-semibold text-text-muted">
-                  {isTamil ? 'TNAU விதை விலை விவரங்கள் பெறப்படுகின்றன...' : 'Fetching Live TNAU Seed Price Table...'}
-                </span>
-              </div>
-              <div className="skeleton-box h-4 w-32 rounded" />
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 px-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+              <span className="text-xs font-semibold text-text-muted">
+                {s.loading}
+              </span>
             </div>
-            <div className="divide-y divide-border-light/40">
-              {[1, 2, 3, 4, 5, 6, 7].map((row) => (
-                <div key={row} className="grid grid-cols-5 gap-4 items-center py-3">
-                  <div className="skeleton-box h-4 w-3/4 rounded" />
-                  <div className="skeleton-box h-4 w-1/2 rounded" />
-                  <div className="skeleton-box h-5 w-20 rounded-full" />
-                  <div className="skeleton-box h-4 w-16 rounded" />
-                  <div className="skeleton-box h-7 w-20 rounded-lg justify-self-end" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5 sm:gap-4 animate-pulse">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((item) => (
+                <div
+                  key={item}
+                  className="h-44 rounded-2xl glass-panel border border-border-light p-4 flex flex-col justify-between"
+                >
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="skeleton-box h-5 w-24 rounded-full" />
+                      <div className="skeleton-box h-4 w-8 rounded" />
+                    </div>
+                    <div className="skeleton-box h-5 w-3/4 rounded mt-2" />
+                    <div className="skeleton-box h-4 w-1/2 rounded" />
+                  </div>
+                  <div className="pt-3 border-t border-border-subtle flex items-end justify-between">
+                    <div className="space-y-1">
+                      <div className="skeleton-box h-3 w-14 rounded" />
+                      <div className="skeleton-box h-6 w-20 rounded" />
+                    </div>
+                    <div className="skeleton-box h-6 w-12 rounded" />
+                  </div>
                 </div>
               ))}
             </div>
@@ -508,7 +513,7 @@ export default function TnauSeedsPage() {
           <div className="rounded-2xl glass-panel border border-rose-500/30 p-12 text-center shadow-xl space-y-3">
             <span className="text-4xl">⚠️</span>
             <h3 className="text-base font-bold text-rose-400">
-              {isTamil ? 'தரவு பெறப்படவில்லை' : 'Unable to Load Seed Catalog'}
+              {s.error}
             </h3>
             <p className="text-xs text-text-muted max-w-md mx-auto">{error}</p>
             <button
@@ -516,19 +521,17 @@ export default function TnauSeedsPage() {
               onClick={fetchSeedData}
               className="px-4 py-2 rounded-xl bg-emerald-500 text-white keep-white font-bold text-xs shadow-md hover:bg-emerald-400 transition-all cursor-pointer"
             >
-              {isTamil ? 'மீண்டும் முயற்சிக்கவும்' : 'Retry'}
+              {s.retry}
             </button>
           </div>
         ) : filteredSeeds.length === 0 ? (
           <div className="rounded-2xl glass-panel border border-border-light p-12 text-center shadow-xl space-y-2">
             <span className="text-4xl">📭</span>
             <h3 className="text-base font-bold text-text-main">
-              {isTamil ? 'விதைகள் எதுவும் கிடைக்கவில்லை' : 'No Seeds Found'}
+              {s.noSeeds}
             </h3>
             <p className="text-xs text-text-muted">
-              {isTamil
-                ? 'தேர்ந்தெடுக்கப்பட்ட வகைக்கு அல்லது தேடலுக்கு விதைகள் எதுவும் பொருந்தவில்லை.'
-                : 'No seeds match your selected category or search filter.'}
+              {s.noSeedsDesc}
             </p>
             <button
               type="button"
@@ -542,78 +545,79 @@ export default function TnauSeedsPage() {
               Reset Filters
             </button>
           </div>
-        ) : viewLayout === 'table' ? (
-          /* Ant Design Table View */
-          <div className="overflow-hidden rounded-2xl glass-panel border border-border-light shadow-2xl">
-            <div className="overflow-x-auto">
-              <Table<TnauSeedItem>
-                columns={columns}
-                dataSource={filteredSeeds}
-                rowKey="id"
-                pagination={{
-                  pageSize: 15,
-                  showSizeChanger: true,
-                  pageSizeOptions: ['15', '30', '50', '100'],
-                  className: 'px-4 py-2',
-                }}
-                onRow={() => ({
-                  className: 'hover:bg-surface/50 transition-colors',
-                })}
-              />
-            </div>
-            {/* Table Footer */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-5 py-3 border-t border-border-subtle bg-surface/30 text-xs text-text-muted">
-              <span>
-                Showing <strong className="text-text-main">{filteredSeeds.length}</strong> seed varieties
-              </span>
-              <span>All prices are in Indian Rupees (INR) as published by TNAU</span>
-            </div>
-          </div>
         ) : (
-          /* Card Grid View */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5 sm:gap-4">
-            {filteredSeeds.map((seed) => {
-              const theme = getCategoryTheme(seed.category);
-              return (
-                <div
-                  key={seed.id}
-                  onClick={() => setActiveSeed(seed)}
-                  className="rounded-2xl glass-panel p-4 border border-border-light hover:border-emerald-500/50 hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-2.5">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${theme.bg} ${theme.border} ${theme.text}`}
-                      >
-                        <span>{theme.icon}</span>
-                        <span>{seed.category}</span>
-                      </span>
-                      <span className="text-[10px] font-mono font-bold text-text-muted">
-                        #{seed.slNo}
-                      </span>
-                    </div>
+          /* Cards Grid View */
+          <div className="space-y-5">
+            <AnimatedContent
+              distance={30}
+              direction="vertical"
+              duration={0.6}
+              ease="back.out(1.2)"
+              stagger={0.03}
+              trigger="mount"
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5 sm:gap-4"
+            >
+              {filteredSeeds.map((seed) => {
+                const theme = getCategoryTheme(seed.category);
+                return (
+                  <ReflectiveCard
+                    key={seed.id}
+                    onClick={() => setActiveSeed(seed)}
+                    tiltStrength={8}
+                    radius={20}
+                    intro
+                    className="h-full cursor-pointer group"
+                    bodyClassName="border border-border-light hover:border-emerald-500/50 hover:shadow-xl transition-all h-full"
+                  >
+                    <div className="p-4 flex flex-col justify-between h-full">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2.5">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${theme.bg} ${theme.border} ${theme.text}`}
+                          >
+                            <span>{theme.icon}</span>
+                            <span>{seed.category}</span>
+                          </span>
+                          <span className="text-[10px] font-mono font-bold text-text-muted">
+                            #{seed.slNo}
+                          </span>
+                        </div>
 
-                    <h3 className="font-display font-bold text-sm text-text-main group-hover:text-emerald-400 transition-colors line-clamp-2 leading-snug mb-1">
-                      {seed.particulars}
-                    </h3>
-                  </div>
+                        <h3 className="font-display font-bold text-sm text-text-main group-hover:text-emerald-400 transition-colors line-clamp-2 leading-snug mb-1">
+                          {seed.particulars}
+                        </h3>
+                      </div>
 
-                  <div className="pt-3 border-t border-border-subtle flex items-end justify-between mt-3">
-                    <div>
-                      <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider block">
-                        TNAU Rate
-                      </span>
-                      <span className="font-mono text-base font-black text-emerald-400">
-                        ₹{seed.pricePerKg.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
+                      <div className="pt-3 border-t border-border-subtle flex items-end justify-between mt-3">
+                        <div>
+                          <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider block">
+                            TNAU Rate
+                          </span>
+                          <span className="font-mono text-base font-black text-emerald-400">
+                            ₹{seed.pricePerKg.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-semibold text-text-secondary bg-surface px-2 py-0.5 rounded border border-border-subtle">
+                          /{seed.unit}
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-[11px] font-semibold text-text-secondary bg-surface px-2 py-0.5 rounded border border-border-subtle">
-                      /{seed.unit}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                  </ReflectiveCard>
+                );
+              })}
+            </AnimatedContent>
+
+            {/* Cards Summary Bar */}
+            <div className="rounded-2xl glass-panel px-5 py-3.5 border border-border-light flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-text-muted shadow-sm">
+              <span>
+                {s.showing}
+                <strong className="text-text-main font-bold">{filteredSeeds.length}</strong>
+                {s.varieties}
+              </span>
+              <span className="text-[11px]">
+                {s.officialNote}
+              </span>
+            </div>
           </div>
         )}
 
@@ -624,7 +628,7 @@ export default function TnauSeedsPage() {
           footer={null}
           centered
           width={480}
-          destroyOnClose
+          destroyOnHidden
           className="seed-detail-modal"
           styles={{
             mask: {
@@ -672,7 +676,7 @@ export default function TnauSeedsPage() {
                   {activeSeed.particulars}
                 </h2>
                 <p className="text-xs text-text-secondary mt-1 font-medium">
-                  Official seed variety approved for commercial cultivation by TNAU.
+                  {s.modalTitle}
                 </p>
               </div>
 
@@ -708,7 +712,7 @@ export default function TnauSeedsPage() {
                   onClick={() => setActiveSeed(null)}
                   className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-surface dark:hover:bg-surface-glass text-xs font-bold text-slate-800 dark:text-text-main border border-slate-200 dark:border-border-light transition-all cursor-pointer"
                 >
-                  Close
+                  {s.closeBtn}
                 </button>
               </div>
             </div>

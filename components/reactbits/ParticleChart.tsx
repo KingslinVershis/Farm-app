@@ -30,7 +30,7 @@ const pickShade = (x: number, y: number) => {
 };
 
 const listenReducedMotion = (cb: () => void) => {
-  if (typeof window === "undefined" || !window.matchMedia) return () => {};
+  if (typeof window === "undefined" || !window.matchMedia) return () => { };
   const media = window.matchMedia("(prefers-reduced-motion: reduce)");
   media.addEventListener("change", cb);
   return () => media.removeEventListener("change", cb);
@@ -197,7 +197,7 @@ export const ParticleChart = forwardRef<ParticleChartRef, ParticleChartProps>(fu
     totalSpan: 1,
     pointer: { x: 0, y: 0, vx: 0, vy: 0, t: 0 }
   });
-  const wakeLoopRef = useRef<() => void>(() => {});
+  const wakeLoopRef = useRef<() => void>(() => { });
   const lastValRef = useRef<number[]>([]);
   const lastTotalRef = useRef<number | null>(null);
   const physicsParamsRef = useRef({ speed, arc, pour, gravity });
@@ -220,22 +220,27 @@ export const ParticleChart = forwardRef<ParticleChartRef, ParticleChartProps>(fu
     const baseAccent: [number, number, number, number] = parsedAccent ?? (isDarkMode ? [169, 155, 255, 1] : [82, 39, 255, 1]);
     const shift = isDarkMode ? 0 : -0.04;
     return {
+      baseAccent,
       text: textColor || (isDarkMode ? "#EDEDEF" : "#18181B"),
       muted: isDarkMode ? "#8C8C95" : "#71717A",
-      line: isDarkMode ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)",
+      line: isDarkMode ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.16)",
       panel: surfaceColor || (isDarkMode ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.028)"),
-      ghost: isDarkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.065)",
+      ghost: isDarkMode ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.22)",
       pill: isDarkMode ? "rgba(255,255,255,0.075)" : "rgba(0,0,0,0.05)",
       sweep: isDarkMode
         ? parsedAccent
           ? tintRgba(parsedAccent, 0, 0.25)
           : "rgba(255,255,255,0.055)"
         : parsedAccent
-        ? tintRgba(parsedAccent, 0, 0.2)
-        : "rgba(0,0,0,0.045)",
+          ? tintRgba(parsedAccent, 0, 0.2)
+          : "rgba(0,0,0,0.045)",
       rise: isDarkMode ? "#5EDB8A" : "#15803D",
-      shades: SHADE_FACTORS.map((f) => tintRgba(baseAccent, f + shift)),
-      bright: SHADE_FACTORS.map((f) => tintRgba(baseAccent, (isDarkMode ? 0.26 : 0.12) + 0.55 * f))
+      shades: isDarkMode
+        ? SHADE_FACTORS.map((f) => tintRgba(baseAccent, f + shift))
+        : [-0.35, -0.2, 0, 0.1, 0.22].map((f) => tintRgba(baseAccent, f)),
+      bright: isDarkMode
+        ? SHADE_FACTORS.map((f) => tintRgba(baseAccent, (isDarkMode ? 0.26 : 0.12) + 0.55 * f))
+        : [-0.18, 0, 0.15, 0.28, 0.42].map((f) => tintRgba(baseAccent, f))
     };
   }, [parsedAccent, isDarkMode, surfaceColor, textColor]);
 
@@ -485,6 +490,29 @@ export const ParticleChart = forwardRef<ParticleChartRef, ParticleChartProps>(fu
       wakeLoopRef.current();
       return;
     }
+
+    // 1. Draw rounded capsule bar shell for every column track
+    sim.columns.forEach((col: any) => {
+      const colX = col.left;
+      const colY = 44;
+      const colW = col.width;
+      const colH = plotHeight;
+      const cornerRadius = Math.min(colW / 2, 14);
+
+      ctx.beginPath();
+      if (typeof ctx.roundRect === "function") {
+        ctx.roundRect(colX, colY, colW, colH, cornerRadius);
+      } else {
+        ctx.rect(colX, colY, colW, colH);
+      }
+      ctx.fillStyle = isDarkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.42)";
+      ctx.fill();
+      ctx.lineWidth = 1.25;
+      ctx.strokeStyle = isDarkMode ? "rgba(255, 255, 255, 0.18)" : "rgba(0, 0, 0, 0.22)";
+      ctx.stroke();
+    });
+
+    // 2. Draw ghost particle dots inside the tracks
     const radiusVal = grainRadius / 2;
     const minY = 44 + radiusVal + 1;
     ctx.beginPath();
@@ -508,7 +536,7 @@ export const ParticleChart = forwardRef<ParticleChartRef, ParticleChartProps>(fu
     ctx.fillStyle = palette.ghost;
     ctx.fill();
     wakeLoopRef.current();
-  }, [fullCanvasHeight, grainRadius, getBarSlots, palette.ghost, shape, track, containerWidth, barCount, colSlotWidth]);
+  }, [fullCanvasHeight, grainRadius, getBarSlots, palette.ghost, shape, track, containerWidth, barCount, colSlotWidth, isDarkMode, plotHeight]);
 
   const scheduleTransition = useCallback(() => {
     const sim = simRef.current;
@@ -607,8 +635,8 @@ export const ParticleChart = forwardRef<ParticleChartRef, ParticleChartProps>(fu
         Math.min(
           Math.sqrt((8 * Math.max(10, Math.min(grain.y || 0, targetSlotY) - (-topOffset + 18) - Math.abs(targetSlotY - (grain.y || 0)) / 2)) / gAcc),
           (0.36 + 0.32 * clamp(finiteNumber(arcFactor, 0.5), 0, 2)) *
-            (1 + (Math.abs(targetX - (grain.x || 0)) / Math.max(1, containerWidth)) * 0.7) *
-            (0.9 + 0.2 * pseudoRandom(i, 5.3))
+          (1 + (Math.abs(targetX - (grain.x || 0)) / Math.max(1, containerWidth)) * 0.7) *
+          (0.9 + 0.2 * pseudoRandom(i, 5.3))
         )
       );
       grain.t0 = now + 2.4 * fCount + 70 * pseudoRandom(i, 1.7);
@@ -732,6 +760,25 @@ export const ParticleChart = forwardRef<ParticleChartRef, ParticleChartProps>(fu
       ctx.drawImage(trackCanvasRef.current, 0, 0, containerWidth, fullCanvasHeight);
     }
 
+    // Highlight hovered bar shell capsule with luminous accent glow
+    if (hoveredBarIdx >= 0 && sim.columns[hoveredBarIdx]) {
+      const hCol = sim.columns[hoveredBarIdx];
+      const hCorner = Math.min(hCol.width / 2, 14);
+      ctx.save();
+      ctx.beginPath();
+      if (typeof ctx.roundRect === "function") {
+        ctx.roundRect(hCol.left, 44, hCol.width, plotHeight, hCorner);
+      } else {
+        ctx.rect(hCol.left, 44, hCol.width, plotHeight);
+      }
+      ctx.fillStyle = isDarkMode ? tintRgba(palette.baseAccent, 0, 0.15) : tintRgba(palette.baseAccent, 0, 0.15);
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = isDarkMode ? tintRgba(palette.baseAccent, 0.2, 0.85) : tintRgba(palette.baseAccent, -0.2, 0.88);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     const radiusVal = grainRadius / 2;
     const isCircle = shape !== "square";
     const shadeCount = SHADE_FACTORS.length;
@@ -766,8 +813,8 @@ export const ParticleChart = forwardRef<ParticleChartRef, ParticleChartProps>(fu
           sourceBar < 0
             ? grain.shade + 2
             : grain.mode === 0 && gIdx >= topCount
-            ? grain.shade + 1
-            : grain.shade;
+              ? grain.shade + 1
+              : grain.shade;
         const shadeIdx = clamp(finiteNumber(rawShade, 0), 0, shadeCount - 1);
 
         let disp = null;
@@ -825,7 +872,7 @@ export const ParticleChart = forwardRef<ParticleChartRef, ParticleChartProps>(fu
 
     const getBarColor = (barIdx: number, shadeIdx: number) =>
       hoveredBarIdx === barIdx ? palette.bright[shadeIdx] : palette.shades[shadeIdx];
-    const getBarAlpha = (barIdx: number) => (hoveredBarIdx >= 0 && hoveredBarIdx !== barIdx ? 0.5 : 1);
+    const getBarAlpha = (barIdx: number) => (hoveredBarIdx >= 0 && hoveredBarIdx !== barIdx ? (isDarkMode ? 0.68 : 0.75) : 1);
 
     for (let b = 0; b < colCount; b += 1) {
       ctx.globalAlpha = getBarAlpha(b);
@@ -871,8 +918,8 @@ export const ParticleChart = forwardRef<ParticleChartRef, ParticleChartProps>(fu
         stationaryCount[idx] === totalG && activeMovingCount[idx] === 0
           ? targetVal
           : totalG > 0
-          ? stationaryCount[idx] * (targetVal / totalG)
-          : 0;
+            ? stationaryCount[idx] * (targetVal / totalG)
+            : 0;
       const barTopY = stationaryCount[idx] > 0 ? colTops[idx] : 44 + plotHeight;
       lblEl.style.transform = `translate(-50%, ${Math.round(barTopY - 44 - 24)}px)`;
       if (sim.started && activeMovingCount[idx] === 0) {
@@ -1048,7 +1095,7 @@ export const ParticleChart = forwardRef<ParticleChartRef, ParticleChartProps>(fu
     wakeLoop();
 
     return () => {
-      wakeLoopRef.current = () => {};
+      wakeLoopRef.current = () => { };
       io.disconnect();
       doc.removeEventListener("visibilitychange", onVisChange);
       win.cancelAnimationFrame(animId);
@@ -1333,39 +1380,59 @@ export const ParticleChart = forwardRef<ParticleChartRef, ParticleChartProps>(fu
         >
           <canvas ref={canvasRef} aria-hidden="true" className="particle-chart-canvas" />
 
-          {/* Floating Tooltip Anchor */}
-          {renderTooltip && hoveredBarIdx >= 0 && (
-            <div
-              className="particle-chart-floating-tooltip"
-              style={{
-                position: "absolute",
-                left: `${Math.max(140, Math.min(containerWidth - 140, colSlotWidth * (hoveredBarIdx + 0.5)))}px`,
-                top: `${Math.max(14, (simRef.current?.tops?.[hoveredBarIdx] ?? 60) - 10)}px`,
-                transform: "translate(-50%, -100%)",
-                zIndex: 60,
-                pointerEvents: "none",
-              }}
-            >
-              {renderTooltip(hoveredBarIdx)}
-            </div>
-          )}
+          {/* Floating Tooltip Anchor - Positioned above top of chart bars */}
+          {renderTooltip && hoveredBarIdx >= 0 && (() => {
+            const barCenterX = colSlotWidth * (hoveredBarIdx + 0.5);
+            const tooltipWidth = Math.min(420, Math.max(280, containerWidth - 24));
+            const idealLeft = barCenterX - tooltipWidth / 2;
+            const clampedLeft = Math.max(8, Math.min(containerWidth - tooltipWidth - 8, idealLeft));
+            const arrowLeft = Math.max(16, Math.min(tooltipWidth - 16, barCenterX - clampedLeft));
+
+            return (
+              <div
+                className="particle-chart-floating-tooltip"
+                style={{
+                  position: "absolute",
+                  left: `${clampedLeft}px`,
+                  top: "20px",
+                  transform: "translateY(-100%)",
+                  width: `${tooltipWidth}px`,
+                  zIndex: 60,
+                  pointerEvents: "none",
+                }}
+              >
+                {renderTooltip(hoveredBarIdx)}
+                <div
+                  className="particle-chart-tooltip-arrow"
+                  style={{
+                    position: "absolute",
+                    left: `${arrowLeft}px`,
+                    bottom: "-5px",
+                    transform: "translateX(-50%) rotate(45deg)",
+                    width: "10px",
+                    height: "10px",
+                  }}
+                />
+              </div>
+            );
+          })()}
 
           {values
             ? currentData.map((d, idx) => (
-                <div
-                  key={`v-${d.label}-${idx}`}
-                  ref={(el) => {
-                    valLabelsRef.current[idx] = el;
-                  }}
-                  aria-hidden="true"
-                  className="particle-chart-bar-value"
-                  style={{
-                    left: `${colSlotWidth * (idx + 0.5)}px`,
-                    top: "44px",
-                    color: hoveredBarIdx === idx || hoveredBarIdx < 0 ? palette.text : palette.muted
-                  }}
-                />
-              ))
+              <div
+                key={`v-${d.label}-${idx}`}
+                ref={(el) => {
+                  valLabelsRef.current[idx] = el;
+                }}
+                aria-hidden="true"
+                className="particle-chart-bar-value"
+                style={{
+                  left: `${colSlotWidth * (idx + 0.5)}px`,
+                  top: "44px",
+                  color: hoveredBarIdx === idx || hoveredBarIdx < 0 ? palette.text : palette.muted
+                }}
+              />
+            ))
             : null}
         </div>
 

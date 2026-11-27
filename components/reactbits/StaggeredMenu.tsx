@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { gsap } from 'gsap';
+import ScrambleText from './ScrambleText';
 import './StaggeredMenu.css';
 
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
@@ -527,9 +528,10 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
                               }`}
                             />
                           )}
-                          <span className={isActive ? 'font-bold text-emerald-600 dark:text-emerald-400' : ''}>
-                            {it.label}
-                          </span>
+                          <ScrambleText
+                            text={it.label}
+                            className={isActive ? 'font-bold text-emerald-600 dark:text-emerald-400' : ''}
+                          />
                         </span>
                       </Link>
                     </li>

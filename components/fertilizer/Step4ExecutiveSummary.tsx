@@ -6,6 +6,7 @@ import { Dropdown, Select } from 'antd';
 import ParticleChart from '@/components/reactbits/ParticleChart';
 import PlanSummaryReflectiveCard, { CheckmarkBadgeIcon, FingerPrintIcon } from '@/components/reactbits/PlanSummaryReflectiveCard';
 import { DropletsIcon, SproutIcon, TractorIcon } from '@/components/icons/Icons';
+import AnimatedContent from '@/components/reactbits/AnimatedContent';
 import { useLanguage } from '@/components/providers/LanguageProvider';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { formatCurrency as fmt, computeDailyLabourCost } from '@/lib/fertilizer/calc';
@@ -97,31 +98,30 @@ interface Step4ExecutiveSummaryProps {
 function getWorkBreakdownDetails(
   task: ExpenseTask,
   entry: ExpenseEntry | undefined,
-  isTamil: boolean
-): Array<{ label: string; value: string; icon?: string }> {
+  t4: any
+): Array<{ label: string; value: string; subtext?: string; icon?: string }> {
   if (!entry) return [];
-  const lines: Array<{ label: string; value: string; icon?: string }> = [];
+  const lines: Array<{ label: string; value: string; subtext?: string; icon?: string }> = [];
 
   const isBagTask = task.id === 'p3_fert_dose3' || task.id === 'p2_fert_labour';
   const isPesticide = task.id === 'p1_fert' || task.id === 'p2_tillering';
 
   if (task.isGunnyBags) {
     const isPlastic = entry.isPlasticBag !== false;
-    const bagType = isPlastic
-      ? (isTamil ? 'பிளாஸ்டிக் சாக்கு' : 'Plastic bags')
-      : (isTamil ? 'பாரம்பரிய சாக்கு' : 'Gunny bags');
+    const bagType = isPlastic ? t4.plasticBags : t4.gunnyBags;
     const bCount = entry.bagCount ?? 0;
     const bPrice = entry.bagPrice ?? (isPlastic ? 20 : 45);
     lines.push({
       icon: '🛍️',
       label: bagType,
-      value: `${bCount} ${isTamil ? 'சாக்குகள்' : 'bags'} × ₹${fmt(bPrice)}`,
+      value: `₹${fmt(entry.totalCost || bCount * bPrice)}`,
+      subtext: `${bCount} ${t4.bags} × ₹${fmt(bPrice)}`,
     });
   } else if (task.isTransportLoading) {
     if ((entry.transportRent ?? 0) > 0) {
       lines.push({
         icon: '🚚',
-        label: isTamil ? 'வாகன வாடகை' : 'Transport Rent',
+        label: t4.transportRent,
         value: `₹${fmt(entry.transportRent ?? 0)}`,
       });
     }
@@ -130,21 +130,22 @@ function getWorkBreakdownDetails(
     if (loadW > 0 || loadWage > 0) {
       lines.push({
         icon: '📦',
-        label: isTamil ? 'சுமை ஏற்றுதல் ஆட்கள்' : 'Loading Labour',
-        value: `${loadW} ${isTamil ? 'ஆட்கள்' : 'workers'} × ₹${fmt(loadWage)}`,
+        label: t4.loadingLabour,
+        value: `₹${fmt(loadW * loadWage)}`,
+        subtext: `${loadW} ${t4.workers} × ₹${fmt(loadWage)}`,
       });
     }
     if ((entry.loadingSnacks ?? 0) > 0) {
       lines.push({
         icon: '☕',
-        label: isTamil ? 'சிற்றுண்டி' : 'Snacks',
+        label: t4.snacks,
         value: `₹${fmt(entry.loadingSnacks ?? 0)}`,
       });
     }
     if (lines.length === 0 && (entry.totalCost || entry.ratePerCent)) {
       lines.push({
         icon: '🚚',
-        label: isTamil ? 'போக்குவரத்து' : 'Transport',
+        label: t4.transport,
         value: `₹${fmt(entry.totalCost || entry.ratePerCent)}`,
       });
     }
@@ -152,45 +153,52 @@ function getWorkBreakdownDetails(
     if (entry.yieldMode !== 'bags') {
       lines.push({
         icon: '🌾',
-        label: isTamil ? 'மகசூல் (டன்)' : 'Yield (Tons)',
-        value: `${entry.yieldTons ?? 0} T (${entry.bagWeightKg ?? 50} kg/${isTamil ? 'மூட்டை' : 'bag'})`,
+        label: t4.yieldTons,
+        value: `${entry.yieldTons ?? 0} T`,
+        subtext: `${entry.bagWeightKg ?? 50} kg/${t4.bag}`,
       });
     }
     lines.push({
       icon: '💰',
-      label: isTamil ? 'தானிய விற்பனை' : 'Grain Sales',
-      value: `${entry.grainBagCount ?? 0} ${isTamil ? 'மூட்டைகள்' : 'bags'} × ₹${fmt(entry.grainBagPrice ?? 0)}`,
+      label: t4.grainSales,
+      value: `₹${fmt(entry.totalCost || (entry.grainBagCount ?? 0) * (entry.grainBagPrice ?? 0))}`,
+      subtext: `${entry.grainBagCount ?? 0} ${t4.bags} × ₹${fmt(entry.grainBagPrice ?? 0)}`,
     });
   } else if (task.isStrawYield) {
     lines.push({
       icon: '🌾',
-      label: isTamil ? 'வைக்கோல் விற்பனை' : 'Straw Sales',
-      value: `${entry.strawSackCount ?? 0} ${isTamil ? 'கட்டுகள்' : 'sacks'} × ₹${fmt(entry.strawPrice ?? 0)}`,
+      label: t4.strawSales,
+      value: `₹${fmt(entry.totalCost || (entry.strawSackCount ?? 0) * (entry.strawPrice ?? 0))}`,
+      subtext: `${entry.strawSackCount ?? 0} ${t4.sacks} × ₹${fmt(entry.strawPrice ?? 0)}`,
     });
   } else if (task.isMandiTrip) {
     lines.push({
       icon: '🏪',
-      label: isTamil ? 'மண்டி செலவு' : 'Mandi Trips',
-      value: `${entry.mandiCount ?? 0} ${isTamil ? 'முறை' : 'trips'} × ₹${fmt(entry.mandiRate ?? 0)}`,
+      label: t4.mandiTrips,
+      value: `₹${fmt(entry.totalCost || (entry.mandiCount ?? 0) * (entry.mandiRate ?? 0))}`,
+      subtext: `${entry.mandiCount ?? 0} ${t4.trips} × ₹${fmt(entry.mandiRate ?? 0)}`,
     });
   } else if (task.isFertilizerWithLabour) {
     if (isBagTask) {
       lines.push({
         icon: '🌱',
-        label: isTamil ? 'உரம்' : 'Fertilizer',
-        value: `${entry.fertQty ?? 0} ${isTamil ? 'மூட்டை' : 'Bags'} × ₹${fmt(entry.fertPrice ?? 0)}`,
+        label: t4.fertilizer,
+        value: `₹${fmt((entry.fertQty ?? 0) * (entry.fertPrice ?? 0))}`,
+        subtext: `${entry.fertQty ?? 0} ${t4.bag} × ₹${fmt(entry.fertPrice ?? 0)}`,
       });
     } else if (isPesticide) {
       lines.push({
         icon: '🧪',
-        label: isTamil ? 'பூச்சிக்கொல்லி' : 'Pesticide',
-        value: `${entry.fertQty ?? 0} L × ₹${fmt(entry.fertPrice ?? 0)}`,
+        label: t4.pesticide,
+        value: `₹${fmt((entry.fertQty ?? 0) * (entry.fertPrice ?? 0))}`,
+        subtext: `${entry.fertQty ?? 0} L × ₹${fmt(entry.fertPrice ?? 0)}`,
       });
     } else {
       lines.push({
         icon: '🌱',
-        label: isTamil ? 'பொருட்கள்' : 'Material',
-        value: `${entry.fertQty ?? 0} × ₹${fmt(entry.fertPrice ?? 0)}`,
+        label: t4.material,
+        value: `₹${fmt((entry.fertQty ?? 0) * (entry.fertPrice ?? 0))}`,
+        subtext: `${entry.fertQty ?? 0} × ₹${fmt(entry.fertPrice ?? 0)}`,
       });
     }
 
@@ -202,12 +210,15 @@ function getWorkBreakdownDetails(
         activeDays.forEach((d) => {
           const dayCost = computeDailyLabourCost(d);
           const extras: string[] = [];
-          if (d.snackCost > 0) extras.push(`+ ₹${fmt(d.snackCost)} ${isTamil ? 'சிற்றுண்டி' : 'snacks'}`);
-          if (d.travelCost > 0) extras.push(`+ ₹${fmt(d.travelCost)} ${isTamil ? 'பயணம்' : 'travel'}`);
+          if (d.snackCost > 0) extras.push(`+ ₹${fmt(d.snackCost)} ${t4.snacks}`);
+          if (d.travelCost > 0) extras.push(`+ ₹${fmt(d.travelCost)} ${t4.travel}`);
+          const mathParts = [`${d.labourCount} ${t4.workers} × ₹${fmt(d.labourWage)}`];
+          if (extras.length > 0) mathParts.push(extras.join(' '));
           lines.push({
             icon: '👷',
-            label: `${isTamil ? 'நாள்' : 'Day'} ${d.day}`,
-            value: `${d.labourCount} ${isTamil ? 'ஆட்கள்' : 'workers'} × ₹${fmt(d.labourWage)} ${extras.join(' ')} (₹${fmt(dayCost)})`,
+            label: `${t4.day} ${d.day}`,
+            value: `₹${fmt(dayCost)}`,
+            subtext: mathParts.join(' '),
           });
         });
       }
@@ -217,21 +228,22 @@ function getWorkBreakdownDetails(
       if (lCount > 0 || lWage > 0) {
         lines.push({
           icon: '👷',
-          label: isTamil ? 'கூலி ஆட்கள்' : 'Labour',
-          value: `${lCount} ${isTamil ? 'ஆட்கள்' : 'workers'} × ₹${fmt(lWage)}`,
+          label: t4.labour,
+          value: `₹${fmt(lCount * lWage)}`,
+          subtext: `${lCount} ${t4.workers} × ₹${fmt(lWage)}`,
         });
       }
       if ((entry.snackCost ?? 0) > 0) {
         lines.push({
           icon: '☕',
-          label: isTamil ? 'சிற்றுண்டி' : 'Snacks',
+          label: t4.snacks,
           value: `₹${fmt(entry.snackCost ?? 0)}`,
         });
       }
       if ((entry.travelCost ?? 0) > 0) {
         lines.push({
           icon: '🚗',
-          label: isTamil ? 'பயணச் செலவு' : 'Travel',
+          label: t4.travel,
           value: `₹${fmt(entry.travelCost ?? 0)}`,
         });
       }
@@ -239,27 +251,28 @@ function getWorkBreakdownDetails(
   } else if (task.id === 'p1_nursery') {
     lines.push({
       icon: '🌱',
-      label: isTamil ? 'விதை செலவு' : 'Seeds Cost',
+      label: t4.seedsCost,
       value: `₹${fmt(entry.ratePerCent)}`,
     });
     if (entry.hasTravelCost !== false && (entry.travelCost ?? 0) > 0) {
       lines.push({
         icon: '🚗',
-        label: isTamil ? 'விதை போக்குவரத்து' : 'Travel',
+        label: t4.travel,
         value: `₹${fmt(entry.travelCost ?? 0)}`,
       });
     }
   } else if (task.id === 'p1_fuel') {
     lines.push({
       icon: '⛽',
-      label: isTamil ? 'எரிபொருள்' : 'Fuel',
+      label: t4.fuel,
       value: `₹${fmt(entry.ratePerCent)}`,
     });
     if (entry.hasRepairCost && (entry.repairCost ?? 0) > 0) {
       lines.push({
         icon: '🔧',
-        label: isTamil ? 'பழுதுபார்த்தல்' : 'Repair',
-        value: `₹${fmt(entry.repairCost ?? 0)}${entry.mechanicName ? ` (${entry.mechanicName})` : ''}`,
+        label: t4.repair,
+        value: `₹${fmt(entry.repairCost ?? 0)}`,
+        subtext: entry.mechanicName ? `(${entry.mechanicName})` : undefined,
       });
     }
   } else if (task.isMultiDayLabour && !entry.isMachineMode) {
@@ -270,12 +283,15 @@ function getWorkBreakdownDetails(
       activeDays.forEach((d) => {
         const dayCost = computeDailyLabourCost(d);
         const extras: string[] = [];
-        if (d.snackCost > 0) extras.push(`+ ₹${fmt(d.snackCost)} ${isTamil ? 'சிற்றுண்டி' : 'snacks'}`);
-        if (d.travelCost > 0) extras.push(`+ ₹${fmt(d.travelCost)} ${isTamil ? 'பயணம்' : 'travel'}`);
+        if (d.snackCost > 0) extras.push(`+ ₹${fmt(d.snackCost)} ${t4.snacks}`);
+        if (d.travelCost > 0) extras.push(`+ ₹${fmt(d.travelCost)} ${t4.travel}`);
+        const mathParts = [`${d.labourCount} ${t4.workers} × ₹${fmt(d.labourWage)}`];
+        if (extras.length > 0) mathParts.push(extras.join(' '));
         lines.push({
           icon: '👷',
-          label: `${isTamil ? 'நாள்' : 'Day'} ${d.day}`,
-          value: `${d.labourCount} ${isTamil ? 'ஆட்கள்' : 'workers'} × ₹${fmt(d.labourWage)} ${extras.join(' ')} (₹${fmt(dayCost)})`,
+          label: `${t4.day} ${d.day}`,
+          value: `₹${fmt(dayCost)}`,
+          subtext: mathParts.join(' '),
         });
       });
     }
@@ -283,7 +299,7 @@ function getWorkBreakdownDetails(
     if (entry.isMachineMode) {
       lines.push({
         icon: '🚜',
-        label: isTamil ? 'இயந்திர வாடகை' : 'Machine Hire',
+        label: t4.machineHire,
         value: `₹${fmt(entry.ratePerCent)}`,
       });
     } else {
@@ -292,21 +308,22 @@ function getWorkBreakdownDetails(
       if (lCount > 0 || lWage > 0) {
         lines.push({
           icon: '👷',
-          label: isTamil ? 'கூலி ஆட்கள்' : 'Labour',
-          value: `${lCount} ${isTamil ? 'ஆட்கள்' : 'workers'} × ₹${fmt(lWage)}`,
+          label: t4.labour,
+          value: `₹${fmt(lCount * lWage)}`,
+          subtext: `${lCount} ${t4.workers} × ₹${fmt(lWage)}`,
         });
       }
       if ((entry.snackCost ?? 0) > 0) {
         lines.push({
           icon: '☕',
-          label: isTamil ? 'சிற்றுண்டி' : 'Snacks',
+          label: t4.snacks,
           value: `₹${fmt(entry.snackCost ?? 0)}`,
         });
       }
       if ((entry.travelCost ?? 0) > 0) {
         lines.push({
           icon: '🚗',
-          label: isTamil ? 'பயணச் செலவு' : 'Travel',
+          label: t4.travel,
           value: `₹${fmt(entry.travelCost ?? 0)}`,
         });
       }
@@ -314,7 +331,7 @@ function getWorkBreakdownDetails(
   } else if (entry.totalCost > 0) {
     lines.push({
       icon: '💵',
-      label: isTamil ? 'செலவு' : 'Cost',
+      label: t4.cost,
       value: `₹${fmt(entry.ratePerCent || entry.totalCost)}`,
     });
   }
@@ -328,13 +345,13 @@ const PhaseParticleBarChart: React.FC<{
   expenseMap: Record<string, ExpenseEntry>;
   getTaskMeta: (task: ExpenseTask) => { name: string; dayRange: string; description: string; costEstimateHint: string };
   isDark: boolean;
-  isTamil: boolean;
+  t4: any;
   mounted: boolean;
-}> = ({ phase, tasks, expenseMap, getTaskMeta, isDark, isTamil, mounted }) => {
+}> = ({ phase, tasks, expenseMap, getTaskMeta, isDark, t4, mounted }) => {
   if (!mounted) {
     return (
       <div className="w-full h-72 rounded-xl bg-black/10 dark:bg-white/[0.02] animate-pulse flex items-center justify-center text-xs text-text-muted">
-        Loading chart...
+        {t4.loadingChart}
       </div>
     );
   }
@@ -345,7 +362,7 @@ const PhaseParticleBarChart: React.FC<{
     const isSkipped = task.isOptional && entry?.isEnabled === false;
     const cost = isSkipped ? 0 : (entry?.totalCost || 0);
     const workIndex = idx + 1;
-    const breakdown = getWorkBreakdownDetails(task, entry, isTamil);
+    const breakdown = getWorkBreakdownDetails(task, entry, t4);
 
     return {
       label: String(workIndex),
@@ -360,7 +377,7 @@ const PhaseParticleBarChart: React.FC<{
   });
 
   return (
-    <div className="w-full py-2">
+    <div className="w-full pt-28 sm:pt-32 pb-2">
       <ParticleChart
         data={chartData}
         accentColor={phase.color}
@@ -388,17 +405,17 @@ const PhaseParticleBarChart: React.FC<{
           const d = chartData[hoveredIdx];
           if (!d) return null;
           return (
-            <div className="rounded-xl glass-panel p-3.5 shadow-2xl border border-slate-200/60 dark:border-white/20 text-xs space-y-2 backdrop-blur-md min-w-[250px] max-w-sm pointer-events-none bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-white">
+            <div className="w-full rounded-xl glass-panel p-3.5 shadow-2xl border border-slate-200/80 dark:border-white/20 text-xs space-y-2 backdrop-blur-xl pointer-events-none bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-white">
               <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-start gap-2 min-w-0 flex-1">
                   <span
-                    className="w-5 h-5 rounded-md flex items-center justify-center text-[11px] font-black text-white shrink-0 shadow-sm"
+                    className="w-5 h-5 rounded-md flex items-center justify-center text-[11px] font-black text-white shrink-0 shadow-sm mt-0.5"
                     style={{ backgroundColor: phase.color }}
                   >
                     {d.workIndex}
                   </span>
-                  <div className="font-extrabold text-slate-900 dark:text-white text-xs line-clamp-2">
-                    {d.fullName}
+                  <div className="font-extrabold text-slate-900 dark:text-white text-xs leading-snug break-words">
+                    {d.fullName ? d.fullName.replace(/^\s*\d+\.\s*/, '') : ''}
                   </div>
                 </div>
                 {d.dayRange && (
@@ -410,19 +427,26 @@ const PhaseParticleBarChart: React.FC<{
 
               {d.isSkipped ? (
                 <div className="text-amber-600 dark:text-amber-400 font-semibold text-xs py-1">
-                  ⚠️ {isTamil ? 'தவிர்க்கப்பட்டது (₹0)' : 'Skipped (₹0)'}
+                  ⚠️ {t4.skippedZero}
                 </div>
               ) : d.breakdown && d.breakdown.length > 0 ? (
-                <div className="pt-2 pb-1 border-t border-slate-200 dark:border-white/10 space-y-1.5">
+                <div className="pt-2 pb-1 border-t border-slate-200 dark:border-white/10 space-y-1">
                   {d.breakdown.map((item: any, bIdx: number) => (
-                    <div key={bIdx} className="flex items-center justify-between gap-3 text-[11px]">
-                      <span className="text-slate-600 dark:text-slate-400 flex items-center gap-1.5 truncate font-medium">
-                        {item.icon && <span>{item.icon}</span>}
-                        <span>{item.label}:</span>
-                      </span>
-                      <span className="font-semibold text-slate-900 dark:text-white shrink-0">
-                        {item.value}
-                      </span>
+                    <div key={bIdx} className="py-0.5 border-b border-slate-200/50 dark:border-white/5 last:border-0">
+                      <div className="flex items-center justify-between gap-2 text-[11px]">
+                        <span className="text-slate-600 dark:text-slate-400 flex items-center gap-1.5 font-semibold shrink-0">
+                          {item.icon && <span>{item.icon}</span>}
+                          <span>{item.label}:</span>
+                        </span>
+                        <span className="font-bold text-slate-900 dark:text-white font-mono text-right">
+                          {item.value}
+                        </span>
+                      </div>
+                      {item.subtext && (
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 pl-4 mt-0.5 leading-snug break-words font-medium">
+                          {item.subtext}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -430,7 +454,7 @@ const PhaseParticleBarChart: React.FC<{
 
               <div className="pt-2 border-t border-slate-200 dark:border-white/10 flex items-center justify-between gap-4">
                 <span className="text-slate-600 dark:text-slate-400 font-bold text-xs">
-                  {d.isProfit ? (isTamil ? 'மொத்த வருவாய்' : 'Total Revenue') : (isTamil ? 'வேலை செலவு' : 'Work Cost')}:
+                  {d.isProfit ? t4.totalRevenue : t4.workCost}:
                 </span>
                 <span className="font-black text-emerald-600 dark:text-emerald-400 text-sm font-mono">
                   {d.isSkipped ? '₹0' : `₹${fmt(d.value)}`}
@@ -486,13 +510,13 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
     userDetails.taluk,
     userDetails.district,
     userDetails.state,
-    userDetails.pincode ? `PIN: ${userDetails.pincode}` : '',
+    userDetails.pincode ? `${t.step4.pincode} ${userDetails.pincode}` : '',
   ]
     .filter(Boolean)
     .filter((item, idx, arr) => arr.indexOf(item) === idx)
     .join(', ');
 
-  const completeInfo = completeLocation || userDetails.location || userDetails.address || 'Melakrishnaneri, Tenkasi, Tamil Nadu';
+  const completeInfo = completeLocation || userDetails.location || userDetails.address || t.step4.defaultLocation;
 
   React.useEffect(() => {
     setMounted(true);
@@ -507,8 +531,15 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
     }
   };
 
+  const cultivationDisplay =
+    cultivation.toLowerCase() === 'paddy'
+      ? t.step4.paddyCultivation
+      : cultivation.toLowerCase() === 'banana'
+        ? t.step4.bananaCultivation
+        : cultivation;
+
   return (
-    <div className="space-y-6 sm:space-y-8 animate-fade-in">
+    <div className="space-y-6 sm:space-y-8">
       {/* Dossier Top Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 glass-panel rounded-2xl p-4 sm:p-6 shadow-2xl">
         <div>
@@ -517,14 +548,11 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
               {t.step4.badge}
             </span>
             {activePlanId && (
-              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold border ${
-                isPlanCompleted
-                  ? 'bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border-emerald-500/40'
-                  : 'bg-cyan-500/15 dark:bg-cyan-500/20 text-cyan-800 dark:text-cyan-300 border-cyan-500/40'
-              }`}>
-                {isPlanCompleted
-                  ? (isTamil ? '✅ நிறைவுற்ற திட்டம்' : '✅ Finalized Plan')
-                  : (isTamil ? '💾 சேமிக்கப்பட்ட திட்டம்' : '💾 Stored Plan Record')}
+              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold border ${isPlanCompleted
+                ? 'bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border-emerald-500/40'
+                : 'bg-cyan-500/15 dark:bg-cyan-500/20 text-cyan-800 dark:text-cyan-300 border-cyan-500/40'
+                }`}>
+                {isPlanCompleted ? t.step4.finalizedPlan : t.step4.storedPlan}
               </span>
             )}
           </div>
@@ -543,7 +571,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
               className="rounded-xl glass-surface px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 border border-emerald-500/30 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
             >
               <span>✏️</span>
-              <span>{isTamil ? 'திட்டத்தைத் திருத்து' : 'Edit Plan'}</span>
+              <span>{t.step4.editPlan}</span>
             </button>
           )}
           {onOpenSavedRecords && (
@@ -553,7 +581,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
               className="rounded-xl glass-surface px-4 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 border border-emerald-500/30 transition-all cursor-pointer flex items-center gap-2 shadow-sm"
             >
               <span>🗂️</span>
-              <span>All Saved Records</span>
+              <span>{t.step4.allSavedRecords}</span>
             </button>
           )}
           {/* Download Cost Summary (Simple Phase 1-5 design) */}
@@ -565,7 +593,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
                   icon: <span className="text-sm">📄</span>,
                   label: (
                     <span className="font-semibold text-xs">
-                      {isTamil ? 'PDF வடிவில் சேமி / அச்சிடு (A4)' : 'Save as PDF / Print (A4)'}
+                      {t.step4.saveAsPdf}
                     </span>
                   ),
                   onClick: () =>
@@ -593,7 +621,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
                   icon: <span className="text-sm">🌐</span>,
                   label: (
                     <span className="font-semibold text-xs">
-                      {isTamil ? 'HTML அறிக்கையாக பதிவிறக்கு' : 'Download HTML Report'}
+                      {t.step4.downloadHtml}
                     </span>
                   ),
                   onClick: () =>
@@ -621,7 +649,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
                   icon: <span className="text-sm">📊</span>,
                   label: (
                     <span className="font-semibold text-xs">
-                      {isTamil ? 'CSV கோப்பாக பதிவிறக்கு' : 'Download CSV Spreadsheet'}
+                      {t.step4.downloadCsv}
                     </span>
                   ),
                   onClick: () =>
@@ -652,10 +680,10 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
             <button
               type="button"
               className="rounded-xl glass-surface px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 border border-emerald-500/30 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
-              title={isTamil ? 'கட்ட வாரியான எளிய செலவு சுருக்கம் பதிவிறக்கு' : 'Download Simple Phase Cost Summary'}
+              title={t.step4.downloadSummaryTooltip}
             >
               <span>📥</span>
-              <span>{isTamil ? 'செலவு சுருக்கம்' : 'Download Summary'}</span>
+              <span>{t.step4.downloadSummary}</span>
               <span className="text-[10px] opacity-60 ml-0.5">▾</span>
             </button>
           </Dropdown>
@@ -695,7 +723,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
           <div className="flex items-center gap-2 shrink-0">
             <span className="text-base">🗂️</span>
             <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
-              {isTamil ? 'சேமிக்கப்பட்ட திட்டங்கள்' : 'Saved Plans'} ({savedPlans.length}):
+              {t.step4.savedPlans} ({savedPlans.length}):
             </span>
           </div>
           <div className="flex items-center gap-2.5 w-full sm:w-auto">
@@ -703,13 +731,13 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
               value={activePlanId || (savedPlans[0]?.id ?? undefined)}
               onChange={(val) => onLoadPlan(val)}
               className="w-full sm:w-80 custom-antd-select"
-              dropdownMatchSelectWidth={false}
+              popupMatchSelectWidth={false}
               options={savedPlans.map((plan, idx) => ({
                 value: plan.id,
                 label: (
                   <div className="flex items-center justify-between gap-3 py-0.5 text-xs">
-                    <span className="font-bold truncate">#{savedPlans.length - idx} {plan.userDetails.name || 'Plan'}</span>
-                    <span className="text-[10px] text-text-muted shrink-0 font-medium">{plan.userDetails.landSize}c</span>
+                    <span className="font-bold truncate">#{savedPlans.length - idx} {plan.userDetails.name || t.step4.plan}</span>
+                    <span className="text-[10px] text-text-muted shrink-0 font-medium">{plan.userDetails.landSize} {t.step4.centsAbbr}</span>
                     <span className="font-extrabold text-emerald-500 shrink-0">₹{fmt(plan.totals.netProfit)}</span>
                   </div>
                 ),
@@ -720,10 +748,20 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
       )}
 
       {/* Dossier Meta + 3 High-Impact Reflective KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      <AnimatedContent
+        key={`dossier-kpis-${activePlanId || userDetails.name || 'default'}`}
+        distance={120}
+        direction="vertical"
+        duration={1.4}
+        ease="elastic.out(1, 0.55)"
+        blur={0}
+        stagger={0.08}
+        threshold={0.1}
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
+      >
         {/* Card 1: Farmer & Plot Parameters Card */}
         <PlanSummaryReflectiveCard
-          videoSrc="/videos/fertilizer.mp4"
+          videoSrc="https://res.cloudinary.com/chk0va7a/video/upload/v1795760505/fertilizer.mp4"
           theme="dark"
           tint="#ffffff"
           metalness={0.9}
@@ -747,10 +785,10 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
                 </span>
                 <div className="leading-tight text-left">
                   <div className="text-[11px] font-bold text-white">
-                    {isTamil ? 'விவசாயி & நில' : 'Farmer & Plot'}
+                    {t.step4.farmerPlot}
                   </div>
                   <div className="text-[11px] font-bold text-white">
-                    {isTamil ? 'அளவுருக்கள்' : 'Parameters'}
+                    {t.step4.parameters}
                   </div>
                 </div>
               </div>
@@ -767,10 +805,10 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
             <div className="my-auto py-2.5 space-y-2 text-left">
               <div>
                 <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                  {userDetails.name || 'kings'}
+                  {userDetails.name || t.step4.defaultFarmer}
                 </h3>
                 <p className="text-xs font-bold text-emerald-400 mt-0.5">
-                  {cultivation} ({totalCropDays} {messages.common.days})
+                  {cultivationDisplay} ({totalCropDays} {messages.common.days})
                 </p>
               </div>
 
@@ -793,7 +831,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-white/70 font-medium">
-                    PIN:
+                    {t.step4.pincode}
                   </span>
                   <span className="font-semibold text-slate-200 font-mono">
                     {userDetails.pincode || '627808'}
@@ -806,7 +844,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
             <div className="plan-reflective-card__footer !pt-2">
               <div className="plan-reflective-card__id text-left">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-white/60">
-                  {t.step4.mobile || 'MOBILE:'}
+                  {t.step4.mobile}
                 </span>
                 <span className="text-sm font-bold text-white font-mono">
                   +91 {userDetails.phone || '1111111111'}
@@ -821,7 +859,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
 
         {/* Card 2: Total Cultivation Outlay */}
         <PlanSummaryReflectiveCard
-          videoSrc="/videos/fertilizer.mp4"
+          videoSrc="https://res.cloudinary.com/chk0va7a/video/upload/v1795760505/fertilizer.mp4"
           theme="dark"
           tint="#f59e0b"
           metalness={0.9}
@@ -842,25 +880,25 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
               <div className="flex items-center gap-2 text-white">
                 <SproutIcon size={18} className="text-amber-400 shrink-0" />
                 <span className="text-xs font-bold leading-tight">
-                  {isTamil ? t.step4.kpi1Title : 'Total Cultivation Outlay'}
+                  {t.step4.kpi1Title}
                 </span>
               </div>
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/35 text-amber-300 text-[11px] font-bold shadow-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_6px_#f59e0b]" />
-                Cost
+                {t.step4.costTag}
               </div>
             </div>
 
             {/* DETAILS AT CENTER */}
             <div className="my-auto py-2.5 space-y-1 text-left">
               <div className="text-[10px] font-bold uppercase tracking-wider text-white/60">
-                {isTamil ? 'மொத்த சாகுபடி செலவு' : 'TOTAL CULTIVATION OUTLAY'}
+                {t.step4.totalCultivationOutlay}
               </div>
               <div className="text-3xl sm:text-4xl font-black text-amber-400 tracking-tight my-1 drop-shadow-sm">
                 ₹{fmt(grandTotal)}
               </div>
               <p className="text-xs text-white/70 leading-relaxed line-clamp-2">
-                {t.step4.kpi1Desc || 'Comprehensive cost across operations'}
+                {t.step4.kpi1Desc}
               </p>
             </div>
 
@@ -868,7 +906,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
             <div className="plan-reflective-card__footer !pt-2">
               <div className="plan-reflective-card__id text-left">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-white/60">
-                  COST / CENT
+                  {t.step4.costPerCent}
                 </span>
                 <span className="text-sm font-black text-white font-mono">
                   ₹{fmt(costPerCent)}
@@ -883,7 +921,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
 
         {/* Card 3: Gross Revenue Realization (Ph 5) */}
         <PlanSummaryReflectiveCard
-          videoSrc="/videos/fertilizer.mp4"
+          videoSrc="https://res.cloudinary.com/chk0va7a/video/upload/v1795760505/fertilizer.mp4"
           theme="dark"
           tint="#06b6d4"
           metalness={0.9}
@@ -904,25 +942,25 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
               <div className="flex items-center gap-2 text-white">
                 <TractorIcon size={18} className="text-cyan-400 shrink-0" />
                 <span className="text-xs font-bold leading-tight">
-                  {isTamil ? t.step4.kpi2Title : 'Gross Revenue Realization (Ph 5)'}
+                  {t.step4.kpi2Title}
                 </span>
               </div>
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/35 text-cyan-300 text-[11px] font-bold shadow-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#06b6d4]" />
-                Yield
+                {t.step4.yieldTag}
               </div>
             </div>
 
             {/* DETAILS AT CENTER */}
             <div className="my-auto py-2.5 space-y-1 text-left">
               <div className="text-[10px] font-bold uppercase tracking-wider text-white/60">
-                {isTamil ? 'மொத்த வருவாய் உணர்தல் (கட்டம் 5)' : 'GROSS REVENUE REALIZATION (PH 5)'}
+                {t.step4.grossRevenueRealization}
               </div>
               <div className="text-3xl sm:text-4xl font-black text-cyan-400 tracking-tight my-1 drop-shadow-sm">
                 ₹{fmt(revenueTotal)}
               </div>
               <p className="text-xs text-white/70 leading-relaxed line-clamp-2">
-                {t.step4.kpi2Desc || 'Yield & by-product commercial sales across plot'}
+                {t.step4.kpi2Desc}
               </p>
             </div>
 
@@ -930,7 +968,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
             <div className="plan-reflective-card__footer !pt-2">
               <div className="plan-reflective-card__id text-left">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-white/60">
-                  REVENUE / CENT
+                  {t.step4.revenuePerCent}
                 </span>
                 <span className="text-sm font-black text-white font-mono">
                   ₹{fmt(revenuePerCent)}
@@ -945,7 +983,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
 
         {/* Card 4: Net Farm Profit & ROI */}
         <PlanSummaryReflectiveCard
-          videoSrc="/videos/fertilizer.mp4"
+          videoSrc="https://res.cloudinary.com/chk0va7a/video/upload/v1795760505/fertilizer.mp4"
           theme="dark"
           tint="#10b981"
           metalness={0.9}
@@ -966,25 +1004,25 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
               <div className="flex items-center gap-2 text-white">
                 <DropletsIcon size={18} className="text-emerald-400 shrink-0" />
                 <span className="text-xs font-bold leading-tight">
-                  {isTamil ? t.step4.kpi3Title : 'Net Farm Profit & ROI'}
+                  {t.step4.kpi3Title}
                 </span>
               </div>
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 text-[11px] font-bold shadow-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]" />
-                Return
+                {t.step4.returnTag}
               </div>
             </div>
 
             {/* DETAILS AT CENTER */}
             <div className="relative my-auto py-2.5 space-y-1 text-left">
               <div className="text-[10px] font-bold uppercase tracking-wider text-white/60">
-                {isTamil ? 'நிகர பண்ணை லாபம் & ROI' : 'NET FARM PROFIT & ROI'}
+                {t.step4.netFarmProfitRoi}
               </div>
               <div className="text-3xl sm:text-4xl font-black text-emerald-400 tracking-tight my-1 drop-shadow-sm">
                 ₹{fmt(netProfit)}
               </div>
               <p className="text-xs text-white/70 leading-relaxed line-clamp-2 pr-7">
-                {t.step4.kpi3Desc || 'Net profit after deducting all inputs, labour, tractor, fertilizers & operations'}
+                {t.step4.kpi3Desc}
               </p>
               <span className="absolute right-0 bottom-1 text-emerald-300/40 pointer-events-none">
                 <SparkleIcon size={30} />
@@ -995,7 +1033,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
             <div className="plan-reflective-card__footer !pt-2">
               <div className="plan-reflective-card__id text-left">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-white/60">
-                  PROFIT RATIO
+                  {t.step4.profitRatio}
                 </span>
                 <span className="text-sm font-black text-white font-mono">
                   {roiPercentage}%
@@ -1007,7 +1045,7 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
             </div>
           </div>
         </PlanSummaryReflectiveCard>
-      </div>
+      </AnimatedContent>
 
       {/* Phase-wise Distribution Bar */}
       <div className="rounded-2xl glass-panel p-5 sm:p-6 shadow-2xl">
@@ -1028,11 +1066,10 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
                 type="button"
                 key={phase.id}
                 onClick={() => setActivePhaseIdx(idx)}
-                className={`rounded-xl border p-3 text-xs flex flex-col justify-between text-left transition-all cursor-pointer ${
-                  isSelected
-                    ? 'glass-panel ring-2 ring-emerald-500/50 bg-emerald-950/40 border-emerald-500 shadow-lg scale-[1.02]'
-                    : 'glass-surface border-white/5 hover:border-white/20 hover:bg-white/5'
-                }`}
+                className={`rounded-xl border p-3 text-xs flex flex-col justify-between text-left transition-all cursor-pointer ${isSelected
+                  ? 'glass-panel ring-2 ring-emerald-500/50 bg-emerald-950/40 border-emerald-500 shadow-lg scale-[1.02]'
+                  : 'glass-surface border-white/5 hover:border-white/20 hover:bg-white/5'
+                  }`}
               >
                 <div>
                   <div className="font-extrabold text-[11px] mb-0.5" style={{ color: phase.color }}>
@@ -1066,14 +1103,14 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
                     {selectedPhaseMeta.month}
                   </span>
                   <span className="text-xs text-text-muted font-bold">
-                    Phase {activePhaseIdx + 1} of {currentPhases.length}
+                    {t.step4.phaseOf.replace('{current}', String(activePhaseIdx + 1)).replace('{total}', String(currentPhases.length))}
                   </span>
                 </div>
                 <h3 className="font-display text-lg sm:text-xl font-bold text-text-main">
                   {selectedPhaseMeta.name}
                 </h3>
                 <p className="text-xs text-text-muted mt-0.5">
-                  {selectedPhaseMeta.daySpan} • Comprehensive audit trail of input costs, equipment, and yield projections
+                  {selectedPhaseMeta.daySpan} • {t.step4.auditSubtitle}
                 </p>
               </div>
 
@@ -1082,27 +1119,32 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
                   <button
                     type="button"
                     onClick={() => handleNavigateToPhase(activePhaseIdx)}
-                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-600 dark:text-emerald-300 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
+                    title={t.step4.editPhase}
+                    className="px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-600 dark:text-emerald-300 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
                   >
                     <span>✏️</span>
-                    <span>{isTamil ? 'கட்டத்தை திருத்து' : 'Edit Phase'}</span>
+                    <span className="hidden sm:inline">{t.step4.editPhase}</span>
                   </button>
                 )}
                 <button
                   type="button"
                   disabled={activePhaseIdx === 0}
                   onClick={() => setActivePhaseIdx((prev) => Math.max(0, prev - 1))}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold glass-surface border border-white/10 text-text-secondary hover:text-text-main hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  title={t.step4.prevPhase}
+                  className="px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold glass-surface border border-white/10 text-text-secondary hover:text-text-main hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer flex items-center gap-1"
                 >
-                  ← Prev Phase
+                  <span>←</span>
+                  <span className="hidden sm:inline">{t.step4.prevPhase}</span>
                 </button>
                 <button
                   type="button"
                   disabled={activePhaseIdx === currentPhases.length - 1}
                   onClick={() => setActivePhaseIdx((prev) => Math.min(currentPhases.length - 1, prev + 1))}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold glass-surface border border-white/10 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  title={t.step4.nextPhase}
+                  className="px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold glass-surface border border-white/10 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer flex items-center gap-1"
                 >
-                  Next Phase →
+                  <span className="hidden sm:inline">{t.step4.nextPhase}</span>
+                  <span>→</span>
                 </button>
               </div>
             </div>
@@ -1113,12 +1155,12 @@ export const Step4ExecutiveSummary: React.FC<Step4ExecutiveSummaryProps> = ({
               expenseMap={expenseMap}
               getTaskMeta={getTaskMeta}
               isDark={isDark}
-              isTamil={isTamil}
+              t4={t.step4}
               mounted={mounted}
             />
           </div>
         );
       })()}
-    </div>
+    </div >
   );
 };

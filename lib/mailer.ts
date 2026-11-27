@@ -126,10 +126,15 @@ export async function sendVerificationOtpEmail({
 
     const copy = PURPOSE_COPY[purpose];
     const displayName = username?.trim() || 'Farmer';
-    const baseOrigin = (appOrigin || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(
-      /\/+$/,
-      ''
-    );
+    const resolvedOrigin =
+      appOrigin ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.VERCEL_PROJECT_PRODUCTION_URL
+        ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+        : undefined) ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined) ||
+      'http://localhost:3000';
+    const baseOrigin = resolvedOrigin.replace(/\/+$/, '');
     const copyUrl = `${baseOrigin}/copy-otp?code=${encodeURIComponent(code)}`;
 
     const html = `
@@ -176,24 +181,34 @@ export async function sendVerificationOtpEmail({
                 <!-- OTP Code Card -->
                 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#111c30; border:1px solid rgba(16,185,129,0.4); border-radius:16px; margin:0 0 20px;">
                   <tr>
-                    <td style="padding:20px 20px 18px; text-align:center;">
-                      <div style="font-size:10px; font-weight:700; letter-spacing:1.8px; text-transform:uppercase; color:#94a3b8; margin-bottom:10px;">
+                    <td style="padding:22px 20px; text-align:center;">
+                      <div style="font-size:10px; font-weight:700; letter-spacing:1.8px; text-transform:uppercase; color:#94a3b8; margin-bottom:12px;">
                         6-Digit Verification Code
                       </div>
-                      <div style="margin:0 auto 14px;">
-                        <span style="display:inline-block; font-family:'Courier New', Courier, monospace; font-size:34px; font-weight:900; letter-spacing:10px; padding-left:10px; color:#34d399; user-select:all; -webkit-user-select:all;">${code}</span>
+                      <div style="margin:0 auto 8px; display:inline-block; padding:12px 24px; background-color:#08101e; border:2px dashed rgba(52,211,153,0.5); border-radius:12px; user-select:all; -webkit-user-select:all; -moz-user-select:all; cursor:pointer;" title="Click or tap to select code">
+                        <span style="display:inline-block; font-family:'Courier New', Courier, monospace; font-size:36px; font-weight:900; letter-spacing:12px; padding-left:12px; color:#34d399; user-select:all; -webkit-user-select:all; -moz-user-select:all;">${code}</span>
                       </div>
-                      <div>
+                      <div style="margin-top:8px;">
+                        <span style="display:inline-block; padding:6px 14px; border-radius:8px; background-color:rgba(16,185,129,0.12); border:1px solid rgba(52,211,153,0.3); font-size:12px; font-weight:700; color:#6ee7b7; user-select:none;">
+                          &#128070;&nbsp; Click or tap code above to select &amp; copy
+                        </span>
+                      </div>
+                      ${
+                        purpose === 'forgot-password'
+                          ? `
+                      <div style="margin-top:16px; border-top:1px solid rgba(255,255,255,0.08); padding-top:14px;">
                         <a
-                          href="${copyUrl}"
+                          href="${baseOrigin}/forgot-password?email=${encodeURIComponent(toEmail)}&code=${encodeURIComponent(code)}"
                           target="_blank"
                           rel="noopener noreferrer"
-                          title="Copy verification code"
-                          style="display:inline-block; padding:8px 16px; border-radius:10px; background-color:rgba(16,185,129,0.16); border:1px solid rgba(52,211,153,0.45); color:#6ee7b7; font-size:12px; font-weight:700; text-decoration:none; letter-spacing:0.2px;"
+                          style="display:inline-block; padding:9px 18px; border-radius:10px; background:linear-gradient(90deg, #10b981, #06b6d4); color:#ffffff; font-size:12px; font-weight:800; text-decoration:none; letter-spacing:0.2px;"
                         >
-                          &#10064;&nbsp; Copy Code
+                          Auto-Fill &amp; Reset Password &rarr;
                         </a>
                       </div>
+                      `
+                          : ''
+                      }
                     </td>
                   </tr>
                 </table>
@@ -230,7 +245,9 @@ export async function sendVerificationOtpEmail({
       `Hello ${displayName},`,
       '',
       `Your FarmHub verification code is: ${code}`,
-      `Copy code link: ${copyUrl}`,
+      ...(purpose === 'forgot-password'
+        ? [`Direct reset link: ${baseOrigin}/forgot-password?email=${encodeURIComponent(toEmail)}&code=${encodeURIComponent(code)}`]
+        : []),
       '',
       'This code is valid for 5 minutes.',
       copy.ignoreText,

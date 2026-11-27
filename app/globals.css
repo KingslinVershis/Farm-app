@@ -160,6 +160,40 @@ button {
   background: rgba(255, 255, 255, 0.22);
 }
 
+/* Mini Scrollbar for Card Advisory Details */
+.mini-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.mini-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+
+.mini-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.35);
+  border-radius: 999px;
+}
+
+.mini-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.65);
+}
+
+[data-theme='light'] .mini-scrollbar::-webkit-scrollbar-track,
+.light .mini-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme='light'] .mini-scrollbar::-webkit-scrollbar-thumb,
+.light .mini-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.45);
+}
+
+.mini-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(16, 185, 129, 0.4) transparent;
+}
+
 /* Animations */
 @keyframes pulseGlow {
 
@@ -469,12 +503,12 @@ body[data-theme='light'] {
 /* Text Color Classes in Light Theme */
 [data-theme='light'] .text-text-main:not(.weather-page-scope *),
 [data-theme='light'] .text-main:not(.weather-page-scope *),
-[data-theme='light'] h1:not(.text-white):not(.keep-white):not(.weather-page-scope *),
-[data-theme='light'] h2:not(.text-white):not(.keep-white):not(.weather-page-scope *),
-[data-theme='light'] h3:not(.text-white):not(.keep-white):not(.weather-page-scope *),
-[data-theme='light'] h4:not(.text-white):not(.keep-white):not(.weather-page-scope *),
-[data-theme='light'] h5:not(.text-white):not(.keep-white):not(.weather-page-scope *),
-[data-theme='light'] h6:not(.text-white):not(.keep-white):not(.weather-page-scope *) {
+[data-theme='light'] h1:not(.text-white):not(.keep-white):not(.weather-page-scope *):not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *),
+[data-theme='light'] h2:not(.text-white):not(.keep-white):not(.weather-page-scope *):not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *),
+[data-theme='light'] h3:not(.text-white):not(.keep-white):not(.weather-page-scope *):not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *),
+[data-theme='light'] h4:not(.text-white):not(.keep-white):not(.weather-page-scope *):not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *),
+[data-theme='light'] h5:not(.text-white):not(.keep-white):not(.weather-page-scope *):not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *),
+[data-theme='light'] h6:not(.text-white):not(.keep-white):not(.weather-page-scope *):not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *) {
   color: #090d16 !important;
 }
 
@@ -624,6 +658,71 @@ textarea::placeholder,
   color: #0f172a !important;
 }
 
+/* Fertilizer Summary: GlassSurface design background style for White Theme */
+[data-theme='light'] .fertilizer-step-scope .rounded-2xl.glass-panel,
+[data-theme='light'] .fertilizer-step-scope .rounded-2xl.glass-table-panel,
+[data-theme='light'] .fertilizer-step-scope .space-y-6 > .rounded-2xl,
+[data-theme='light'] .fertilizer-step-scope .space-y-8 > .rounded-2xl,
+.light .fertilizer-step-scope .rounded-2xl.glass-panel,
+.light .fertilizer-step-scope .rounded-2xl.glass-table-panel,
+.light .fertilizer-step-scope .space-y-6 > .rounded-2xl,
+.light .fertilizer-step-scope .space-y-8 > .rounded-2xl {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.72) 0%,
+    rgba(255, 255, 255, 0.48) 50%,
+    rgba(255, 255, 255, 0.62) 100%
+  ) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(1.4) brightness(1.04) !important;
+  backdrop-filter: blur(14px) saturate(1.4) brightness(1.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.85),
+    inset 0 -1px 0 0 rgba(255, 255, 255, 0.35),
+    0 0 2px 1px rgba(0, 0, 0, 0.04) inset,
+    0 0 12px 3px rgba(255, 255, 255, 0.72) inset,
+    0px 4px 16px rgba(17, 17, 26, 0.06),
+    0px 8px 24px rgba(17, 17, 26, 0.06),
+    0px 16px 56px rgba(17, 17, 26, 0.06) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+[data-theme='light'] .fertilizer-step-scope .rounded-2xl.glass-panel::before,
+[data-theme='light'] .fertilizer-step-scope .rounded-2xl.glass-table-panel::before,
+[data-theme='light'] .fertilizer-step-scope .space-y-6 > .rounded-2xl::before,
+[data-theme='light'] .fertilizer-step-scope .space-y-8 > .rounded-2xl::before,
+.light .fertilizer-step-scope .rounded-2xl.glass-panel::before,
+.light .fertilizer-step-scope .rounded-2xl.glass-table-panel::before,
+.light .fertilizer-step-scope .space-y-6 > .rounded-2xl::before,
+.light .fertilizer-step-scope .space-y-8 > .rounded-2xl::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.42) 0%,
+    transparent 42%,
+    transparent 64%,
+    rgba(255, 255, 255, 0.18) 100%
+  );
+  z-index: 0;
+}
+
+[data-theme='light'] .fertilizer-step-scope .rounded-2xl.glass-panel > *,
+[data-theme='light'] .fertilizer-step-scope .rounded-2xl.glass-table-panel > *,
+[data-theme='light'] .fertilizer-step-scope .space-y-6 > .rounded-2xl > *,
+[data-theme='light'] .fertilizer-step-scope .space-y-8 > .rounded-2xl > *,
+.light .fertilizer-step-scope .rounded-2xl.glass-panel > *,
+.light .fertilizer-step-scope .rounded-2xl.glass-table-panel > *,
+.light .fertilizer-step-scope .space-y-6 > .rounded-2xl > *,
+.light .fertilizer-step-scope .space-y-8 > .rounded-2xl > * {
+  position: relative;
+  z-index: 1;
+}
+
 /* Weather Page: Replicate exact dark theme card design to white theme cards */
 [data-theme='light'] .weather-page-scope .flip-card .glass-panel,
 .light .weather-page-scope .flip-card .glass-panel,
@@ -662,6 +761,29 @@ textarea::placeholder,
   background-color: #ffffff !important;
   border-color: #cbd5e1 !important;
   color: #0f172a !important;
+}
+
+[data-theme='light'] .weather-top-controls .custom-antd-select .ant-select-selector,
+.light .weather-top-controls .custom-antd-select .ant-select-selector {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+[data-theme='light'] .weather-top-controls .custom-antd-select .ant-select-selection-item,
+.light .weather-top-controls .custom-antd-select .ant-select-selection-item,
+[data-theme='light'] .weather-top-controls .custom-antd-select .ant-select-selection-item *,
+.light .weather-top-controls .custom-antd-select .ant-select-selection-item *,
+[data-theme='light'] .weather-top-controls .custom-antd-select .ant-select-selection-placeholder,
+.light .weather-top-controls .custom-antd-select .ant-select-selection-placeholder {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+[data-theme='light'] .weather-top-controls .custom-antd-select .ant-select-arrow,
+.light .weather-top-controls .custom-antd-select .ant-select-arrow {
+  color: #059669 !important;
 }
 
 [data-theme='light'] .weather-page-scope .carousel-helper-text,
@@ -746,16 +868,17 @@ textarea::placeholder,
   color: #0f172a !important;
 }
 
-[data-theme='light'] .bg-slate-900,
-[data-theme='light'] .bg-slate-900\/60,
-[data-theme='light'] .bg-slate-900\/85,
-[data-theme='light'] .bg-slate-900\/50,
-[data-theme='light'] .bg-slate-950,
-[data-theme='light'] .bg-slate-950\/85,
-[data-theme='light'] .bg-slate-950\/80,
-[data-theme='light'] .bg-slate-950\/70,
-[data-theme='light'] .bg-slate-950\/60,
-[data-theme='light'] .bg-slate-950\/95 {
+[data-theme='light'] .bg-slate-900:not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *):not(.weather-carousel-card),
+[data-theme='light'] .bg-slate-900\/60:not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *):not(.weather-carousel-card),
+[data-theme='light'] .bg-slate-900\/85:not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *):not(.weather-carousel-card),
+[data-theme='light'] .bg-slate-900\/90:not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *):not(.weather-carousel-card),
+[data-theme='light'] .bg-slate-900\/50:not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *):not(.weather-carousel-card),
+[data-theme='light'] .bg-slate-950:not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *):not(.weather-carousel-card),
+[data-theme='light'] .bg-slate-950\/85:not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *):not(.weather-carousel-card),
+[data-theme='light'] .bg-slate-950\/80:not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *):not(.weather-carousel-card),
+[data-theme='light'] .bg-slate-950\/70:not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *):not(.weather-carousel-card),
+[data-theme='light'] .bg-slate-950\/60:not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *):not(.weather-carousel-card),
+[data-theme='light'] .bg-slate-950\/95:not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *):not(.weather-carousel-card) {
   background-color: #ffffff !important;
   border-color: rgba(226, 232, 240, 0.95) !important;
   color: #0f172a !important;
@@ -784,14 +907,135 @@ textarea::placeholder,
   border-color: rgba(226, 232, 240, 0.95) !important;
 }
 
-[data-theme='light'] .text-white:not(.keep-white):not(.weather-page-scope *) {
+[data-theme='light'] .text-white:not(.keep-white):not(.weather-page-scope *):not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *) {
   color: #0f172a !important;
 }
 
-[data-theme='light'] .text-slate-100,
-[data-theme='light'] .text-slate-200,
-[data-theme='light'] .text-slate-300 {
+[data-theme='light'] .text-slate-100:not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *),
+[data-theme='light'] .text-slate-200:not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *),
+[data-theme='light'] .text-slate-300:not(.plan-reflective-card *):not(.reflective-card--dark *):not(.weather-carousel-card *) {
   color: #0f172a !important;
+}
+
+/* Explicit preservation of reflective card text & highlights in Light Mode */
+[data-theme='light'] .plan-reflective-card,
+.light .plan-reflective-card,
+[data-theme='light'] .reflective-card--dark,
+.light .reflective-card--dark,
+[data-theme='light'] .weather-carousel-card,
+.light .weather-carousel-card {
+  color: #ffffff !important;
+}
+
+[data-theme='light'] .plan-reflective-card .text-white,
+.light .plan-reflective-card .text-white,
+[data-theme='light'] .plan-reflective-card [class*='text-white'],
+.light .plan-reflective-card [class*='text-white'],
+[data-theme='light'] .plan-reflective-card h3,
+.light .plan-reflective-card h3,
+[data-theme='light'] .reflective-card--dark .text-white,
+.light .reflective-card--dark .text-white,
+[data-theme='light'] .reflective-card--dark [class*='text-white'],
+.light .reflective-card--dark [class*='text-white'],
+[data-theme='light'] .weather-carousel-card .text-white,
+.light .weather-carousel-card .text-white,
+[data-theme='light'] .weather-carousel-card [class*='text-white'],
+.light .weather-carousel-card [class*='text-white'] {
+  color: #ffffff !important;
+}
+
+[data-theme='light'] .plan-reflective-card .text-white\/70,
+.light .plan-reflective-card .text-white\/70,
+[data-theme='light'] .reflective-card--dark .text-white\/70,
+.light .reflective-card--dark .text-white\/70,
+[data-theme='light'] .weather-carousel-card .text-white\/70,
+.light .weather-carousel-card .text-white\/70 {
+  color: rgba(255, 255, 255, 0.70) !important;
+}
+
+[data-theme='light'] .plan-reflective-card .text-white\/60,
+.light .plan-reflective-card .text-white\/60,
+[data-theme='light'] .reflective-card--dark .text-white\/60,
+.light .reflective-card--dark .text-white\/60,
+[data-theme='light'] .weather-carousel-card .text-white\/60,
+.light .weather-carousel-card .text-white\/60 {
+  color: rgba(255, 255, 255, 0.60) !important;
+}
+
+[data-theme='light'] .plan-reflective-card .text-white\/80,
+.light .plan-reflective-card .text-white\/80,
+[data-theme='light'] .reflective-card--dark .text-white\/80,
+.light .reflective-card--dark .text-white\/80,
+[data-theme='light'] .weather-carousel-card .text-white\/80,
+.light .weather-carousel-card .text-white\/80 {
+  color: rgba(255, 255, 255, 0.80) !important;
+}
+
+[data-theme='light'] .plan-reflective-card .text-white\/90,
+.light .plan-reflective-card .text-white\/90,
+[data-theme='light'] .reflective-card--dark .text-white\/90,
+.light .reflective-card--dark .text-white\/90,
+[data-theme='light'] .weather-carousel-card .text-white\/90,
+.light .weather-carousel-card .text-white\/90 {
+  color: rgba(255, 255, 255, 0.90) !important;
+}
+
+[data-theme='light'] .plan-reflective-card .text-slate-200,
+.light .plan-reflective-card .text-slate-200,
+[data-theme='light'] .reflective-card--dark .text-slate-200,
+.light .reflective-card--dark .text-slate-200,
+[data-theme='light'] .weather-carousel-card .text-slate-200,
+.light .weather-carousel-card .text-slate-200 {
+  color: #e2e8f0 !important;
+}
+
+[data-theme='light'] .plan-reflective-card .text-slate-300,
+.light .plan-reflective-card .text-slate-300,
+[data-theme='light'] .reflective-card--dark .text-slate-300,
+.light .reflective-card--dark .text-slate-300,
+[data-theme='light'] .weather-carousel-card .text-slate-300,
+.light .weather-carousel-card .text-slate-300 {
+  color: #cbd5e1 !important;
+}
+
+/* Explicit background preservation for weather carousel cards in Light Mode */
+[data-theme='light'] .weather-carousel-card .reflective-card__body,
+.light .weather-carousel-card .reflective-card__body,
+[data-theme='light'] .weather-carousel-card,
+.light .weather-carousel-card {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.92) 0%, rgba(30, 41, 59, 0.86) 100%) !important;
+  backdrop-filter: blur(16px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(160%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 14px 34px -8px rgba(0, 0, 0, 0.65) !important;
+  color: #ffffff !important;
+}
+
+[data-theme='light'] .weather-carousel-card .reflective-card__body[class*='!bg-sky-950'],
+.light .weather-carousel-card .reflective-card__body[class*='!bg-sky-950'] {
+  background: linear-gradient(135deg, rgba(8, 47, 73, 0.95) 0%, rgba(12, 74, 110, 0.90) 100%) !important;
+  border-color: #38bdf8 !important;
+}
+
+[data-theme='light'] .weather-carousel-card .reflective-card__body[class*='!bg-emerald-950'],
+.light .weather-carousel-card .reflective-card__body[class*='!bg-emerald-950'] {
+  background: linear-gradient(135deg, rgba(2, 44, 34, 0.95) 0%, rgba(6, 78, 59, 0.90) 100%) !important;
+  border-color: #34d399 !important;
+}
+
+[data-theme='light'] .weather-carousel-card .bg-white\/10,
+.light .weather-carousel-card .bg-white\/10 {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+[data-theme='light'] .weather-carousel-card .border-white\/10,
+.light .weather-carousel-card .border-white\/10 {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Reservoir Telemetry Modal Chart: Hide any floating tooltip values on hover in this popup only */
+.reservoir-telemetry-modal .particle-chart-floating-tooltip {
+  display: none !important;
 }
 
 [data-theme='light'] .text-slate-400 {

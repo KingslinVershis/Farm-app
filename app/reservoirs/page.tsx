@@ -16,6 +16,7 @@ import ReflectiveCard from '@/components/reactbits/ReflectiveCard';
 import ParticleChart from '@/components/reactbits/ParticleChart';
 import { AnimatedCounter } from '@/components/reactbits/AnimatedCounter';
 import { ShinyText } from '@/components/reactbits/ShinyText';
+import AnimatedContent from '@/components/reactbits/AnimatedContent';
 import { LayoutGrid, TableList, Eye } from '@/components/icons/FlaticonIcons';
 
 export default function ReservoirsPage() {
@@ -334,7 +335,7 @@ export default function ReservoirsPage() {
       <div
         className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out scale-105"
         style={{
-          backgroundImage: `url('/images/water_dam.jpeg')`,
+          backgroundImage: `url('https://res.cloudinary.com/chk0va7a/image/upload/v1795763642/water_dam.jpg')`,
         }}
       />
       <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />
@@ -428,7 +429,7 @@ export default function ReservoirsPage() {
                   setReservoirSearchText('');
                   setReservoirSearching(false);
                 }}
-                onDropdownVisibleChange={(open) => {
+                onOpenChange={(open) => {
                   if (!open) {
                     setReservoirSearchText('');
                     setReservoirSearching(false);
@@ -437,7 +438,7 @@ export default function ReservoirsPage() {
                 placeholder={m.reservoirPlaceholder}
                 className={`h-10 text-xs font-semibold rounded-xl shadow-sm custom-antd-select w-full ${reservoirSearching ? 'is-searching' : ''}`}
                 popupMatchSelectWidth={false}
-                dropdownStyle={{ width: '380px', maxWidth: '95vw' }}
+                styles={{ popup: { root: { width: '380px', maxWidth: '95vw' } } }}
                 filterOption={(input, option) =>
                   ((option?.searchStr as string) || '').toLowerCase().includes(input.toLowerCase())
                 }
@@ -589,7 +590,15 @@ export default function ReservoirsPage() {
               </p>
             </div>
           ) : viewMode === 'cards' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+            <AnimatedContent
+              distance={25}
+              direction="vertical"
+              duration={0.6}
+              ease="back.out(1.2)"
+              blur={0}
+              threshold={0.05}
+              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5"
+            >
               {filteredReservoirs.map((res) => {
                 const fillPct =
                   res.fullCapacityMcft > 0
@@ -755,7 +764,7 @@ export default function ReservoirsPage() {
                   </ReflectiveCard>
                 );
               })}
-            </div>
+            </AnimatedContent>
           ) : (
             <div className="w-full overflow-x-auto scrollbar-thin">
               <Table<ReservoirRecord>
@@ -770,24 +779,6 @@ export default function ReservoirsPage() {
               />
             </div>
           )}
-
-          {/* Table / Cards Footer info note */}
-          <div
-            className={`flex flex-col sm:flex-row items-center justify-between gap-2 px-5 py-3.5 text-xs text-text-muted ${
-              viewMode === 'cards'
-                ? 'rounded-2xl glass-panel border border-border-light shadow-xl'
-                : 'border-t border-border-light bg-surface/40'
-            }`}
-          >
-            <div className="flex items-center gap-2 text-center sm:text-left">
-              <span>📡</span>
-              <span>{m.dataExtractedNote}</span>
-            </div>
-            <div className="font-semibold text-text-secondary">
-              {m.totalDamsFooter}{' '}
-              <span className="font-bold text-text-main">{filteredReservoirs.length}</span>
-            </div>
-          </div>
         </motion.div>
 
         {/* Ant Design Modal Component with Recharts + React Bits Animations */}
@@ -797,7 +788,7 @@ export default function ReservoirsPage() {
           footer={null}
           centered
           width={720}
-          destroyOnClose
+          destroyOnHidden
           className="reservoir-telemetry-modal"
           styles={{
             mask: {
@@ -989,18 +980,6 @@ export default function ReservoirsPage() {
                         baseline={true}
                         surface={false}
                         interactive={true}
-                        renderTooltip={(idx) => {
-                          const item = storageChartData[idx];
-                          if (!item) return null;
-                          return (
-                            <div className="rounded-xl glass-panel p-2.5 shadow-2xl border border-slate-200/60 dark:border-white/20 text-xs backdrop-blur-md min-w-[160px] bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-white pointer-events-none">
-                              <div className="font-semibold text-text-muted text-[11px]">{item.label}</div>
-                              <div className="text-sm font-black font-mono text-cyan-600 dark:text-cyan-400 mt-0.5">
-                                {item.value.toLocaleString()} M.Cft
-                              </div>
-                            </div>
-                          );
-                        }}
                       />
                     </div>
                   </div>
@@ -1027,18 +1006,6 @@ export default function ReservoirsPage() {
                         baseline={true}
                         surface={false}
                         interactive={true}
-                        renderTooltip={(idx) => {
-                          const item = levelsChartData[idx];
-                          if (!item) return null;
-                          return (
-                            <div className="rounded-xl glass-panel p-2.5 shadow-2xl border border-slate-200/60 dark:border-white/20 text-xs backdrop-blur-md min-w-[160px] bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-white pointer-events-none">
-                              <div className="font-semibold text-text-muted text-[11px]">{item.label}</div>
-                              <div className="text-sm font-black font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
-                                {item.value.toLocaleString()} Feet
-                              </div>
-                            </div>
-                          );
-                        }}
                       />
                     </div>
                   </div>
@@ -1065,18 +1032,6 @@ export default function ReservoirsPage() {
                         baseline={true}
                         surface={false}
                         interactive={true}
-                        renderTooltip={(idx) => {
-                          const item = flowsChartData[idx];
-                          if (!item) return null;
-                          return (
-                            <div className="rounded-xl glass-panel p-2.5 shadow-2xl border border-slate-200/60 dark:border-white/20 text-xs backdrop-blur-md min-w-[160px] bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-white pointer-events-none">
-                              <div className="font-semibold text-text-muted text-[11px]">{item.label}</div>
-                              <div className="text-sm font-black font-mono text-amber-600 dark:text-amber-400 mt-0.5">
-                                {item.value.toLocaleString()} CuSecs
-                              </div>
-                            </div>
-                          );
-                        }}
                       />
                     </div>
                   </div>

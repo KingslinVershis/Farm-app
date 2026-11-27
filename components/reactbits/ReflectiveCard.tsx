@@ -9,10 +9,12 @@ export interface ReflectiveCardProps {
   tiltStrength?: number;
   glare?: number;
   intro?: boolean;
+  theme?: 'dark' | 'light' | 'auto';
   width?: number | string;
   height?: number | string;
   radius?: number;
   className?: string;
+  bodyClassName?: string;
   style?: React.CSSProperties;
   onClick?: () => void;
 }
@@ -30,10 +32,12 @@ const ReflectiveCard: React.FC<ReflectiveCardProps> = ({
   tiltStrength = 10,
   glare = 0.85,
   intro = true,
+  theme = 'auto',
   width = '100%',
   height = 'auto',
   radius = 24,
   className = '',
+  bodyClassName = '',
   style,
   onClick,
 }) => {
@@ -212,10 +216,10 @@ const ReflectiveCard: React.FC<ReflectiveCardProps> = ({
             }
           : undefined
       }
-      className={`reflective-card ${onClick ? 'cursor-pointer' : ''} ${className}`.trim()}
+      className={`reflective-card ${theme === 'dark' ? 'reflective-card--dark' : ''} ${onClick ? 'cursor-pointer' : ''} ${className}`.trim()}
       style={cardStyle}
     >
-      <div className="reflective-card__body glass-panel shadow-xl">
+      <div className={`reflective-card__body ${theme === 'dark' ? 'reflective-card__body--dark' : 'glass-panel'} shadow-xl ${bodyClassName}`.trim()}>
         <div className="reflective-card__sheen" aria-hidden="true" />
         <div className="reflective-card__glare" aria-hidden="true" />
         <div className="reflective-card__content">{children}</div>

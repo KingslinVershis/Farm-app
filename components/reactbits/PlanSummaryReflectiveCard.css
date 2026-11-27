@@ -5,10 +5,17 @@
   height: var(--rc-height, 100%);
   max-width: 100%;
   perspective: 900px;
-  color: var(--rc-ink);
+  border-radius: var(--rc-radius, 24px);
+  color: #ffffff;
   touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
+}
+
+.plan-reflective-card,
+.plan-reflective-card__body,
+.plan-reflective-card__content {
+  color: #ffffff;
 }
 
 .plan-reflective-card__body {
@@ -20,6 +27,7 @@
   border-radius: var(--rc-radius);
   background: var(--rc-base);
   box-shadow: var(--rc-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   transform: translate3d(0, var(--rc-lift, 0px), 0) rotateX(var(--rc-rotate-x, 0deg)) rotateY(var(--rc-rotate-y, 0deg));
   opacity: var(--rc-presence, 1);
   isolation: isolate;
@@ -159,8 +167,8 @@
   position: relative;
   box-sizing: border-box;
   display: flex;
-  width: 40px;
-  height: 40px;
+  width: 46px;
+  height: 46px;
   flex: none;
   align-items: center;
   justify-content: center;
@@ -197,9 +205,10 @@
   position: absolute;
   top: 0;
   left: 0;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
+  width: 16px;
+  height: 16px;
+  opacity: 0.001;
   pointer-events: none;
+  z-index: -1;
 }
 

@@ -2,8 +2,9 @@
 
 import React, { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import { message } from 'antd';
+import { App } from 'antd';
 import { Topbar } from './Topbar';
+import { invalidateUserDataCache } from '@/lib/clientUser';
 import type { AppShellProps } from '@/types/components';
 
 const PUBLIC_AUTH_ROUTES = ['/signin', '/signup', '/forgot-password', '/copy-otp'];
@@ -11,6 +12,7 @@ const PUBLIC_AUTH_ROUTES = ['/signin', '/signup', '/forgot-password', '/copy-otp
 export function clearClientSessionStorage() {
   if (typeof window === 'undefined') return;
   (window as any).__farmhubUserSynced = false;
+  invalidateUserDataCache();
   document.cookie = 'farmhub_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;';
   document.cookie = 'agripulse_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;';
   try {
@@ -34,12 +36,13 @@ export function clearClientSessionStorage() {
 }
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
+  const { message } = App.useApp();
   const pathname = usePathname();
   const isAuthPage = PUBLIC_AUTH_ROUTES.some(
     (route) => pathname === route || pathname?.startsWith(`${route}/`)
   );
   const redirectingRef = useRef(false);
-  const lastVerifyRef = useRef(0);
+  const lastVerifyRef = useRef(Date.now());
 
   // Global 401 handler + cross-tab/cross-device session check on authenticated pages:
   // If server invalidated the session (e.g., password reset/change or account deletion),

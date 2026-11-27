@@ -7,7 +7,7 @@ export default function CropHealthLoading() {
       <div
         className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-in-out scale-105"
         style={{
-          backgroundImage: `url('/images/crop.jpg')`,
+          backgroundImage: `url('https://res.cloudinary.com/chk0va7a/image/upload/v1795773768/crop_img.jpg')`,
         }}
       />
       <div className="fixed inset-0 pointer-events-none z-0 gpu-accelerate" />

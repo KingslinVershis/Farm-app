@@ -55,16 +55,16 @@ const THEMES = {
     '--rc-rim-highlight': 'rgba(255, 255, 255, 0.1)'
   },
   light: {
-    '--rc-base': '#1d1c22',
-    '--rc-shadow': '0 22px 44px -20px rgba(0, 0, 0, 0.8), 0 6px 16px -8px rgba(0, 0, 0, 0.5)',
-    '--rc-ink': '#f4f4f5',
-    '--rc-muted': 'rgba(244, 244, 245, 0.65)',
-    '--rc-tile': 'linear-gradient(180deg, #3a3644 0%, #27242f 100%)',
-    '--rc-tile-edge': 'rgba(255, 255, 255, 0.07)',
-    '--rc-tile-highlight': 'rgba(255, 255, 255, 0.12)',
-    '--rc-tile-shadow': '0 4px 10px -4px rgba(0, 0, 0, 0.7)',
-    '--rc-rim': 'rgba(255, 255, 255, 0.07)',
-    '--rc-rim-highlight': 'rgba(255, 255, 255, 0.1)'
+    '--rc-base': 'rgba(30, 41, 59, 0.82)',
+    '--rc-shadow': '0 12px 28px -8px rgba(0, 0, 0, 0.18), 0 4px 12px -4px rgba(0, 0, 0, 0.08)',
+    '--rc-ink': '#ffffff',
+    '--rc-muted': 'rgba(255, 255, 255, 0.75)',
+    '--rc-tile': 'linear-gradient(180deg, rgba(71, 85, 105, 0.6) 0%, rgba(30, 41, 59, 0.8) 100%)',
+    '--rc-tile-edge': 'rgba(255, 255, 255, 0.12)',
+    '--rc-tile-highlight': 'rgba(255, 255, 255, 0.22)',
+    '--rc-tile-shadow': '0 4px 10px -4px rgba(0, 0, 0, 0.2)',
+    '--rc-rim': 'rgba(255, 255, 255, 0.14)',
+    '--rc-rim-highlight': 'rgba(255, 255, 255, 0.25)'
   }
 };
 
@@ -534,6 +534,7 @@ export interface PlanSummaryReflectiveCardProps {
   height?: number | string;
   radius?: number;
   className?: string;
+  bodyClassName?: string;
   style?: React.CSSProperties;
   onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
 }
@@ -561,6 +562,7 @@ export const PlanSummaryReflectiveCard: React.FC<PlanSummaryReflectiveCardProps>
   height = '100%',
   radius = 24,
   className = '',
+  bodyClassName = '',
   style,
   onClick
 }) => {
@@ -587,7 +589,7 @@ export const PlanSummaryReflectiveCard: React.FC<PlanSummaryReflectiveCardProps>
     enableTilt,
     tiltStrength: clamp(tiltStrength, 0, 30),
     radius: Math.max(0, radius),
-    theme: 0,
+    theme: palette === 'light' ? 1 : 0,
     intro
   };
   const settingsRef = useRef(settings);
@@ -781,7 +783,7 @@ export const PlanSummaryReflectiveCard: React.FC<PlanSummaryReflectiveCardProps>
 
       gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-      if (moving || videoSource.ready) {
+      if (moving || videoSource.ready || (videoSrc && !videoSource.failed)) {
         animationFrame = requestAnimationFrame(render);
       }
     };
@@ -842,17 +844,56 @@ export const PlanSummaryReflectiveCard: React.FC<PlanSummaryReflectiveCardProps>
       root.removeEventListener('pointerleave', onLeave);
       renderer?.destroy();
     };
-  }, []);
+  }, [videoSrc]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !videoSrc) return;
+
+    video.muted = true;
+    video.defaultMuted = true;
+    video.playsInline = true;
     video.src = videoSrc;
+    video.load();
+
+    const onVideoReady = () => {
+      wakeRef.current?.();
+    };
+
+    video.addEventListener('loadedmetadata', onVideoReady);
+    video.addEventListener('loadeddata', onVideoReady);
+    video.addEventListener('canplay', onVideoReady);
+    video.addEventListener('playing', onVideoReady);
+    video.addEventListener('timeupdate', onVideoReady);
+
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      video.play().catch(() => {});
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            wakeRef.current?.();
+          })
+          .catch(() => {
+            const onFirstInteraction = () => {
+              video.play().then(() => wakeRef.current?.()).catch(() => {});
+              window.removeEventListener('pointerdown', onFirstInteraction);
+              window.removeEventListener('touchstart', onFirstInteraction);
+              window.removeEventListener('scroll', onFirstInteraction);
+            };
+            window.addEventListener('pointerdown', onFirstInteraction, { once: true, passive: true });
+            window.addEventListener('touchstart', onFirstInteraction, { once: true, passive: true });
+            window.addEventListener('scroll', onFirstInteraction, { once: true, passive: true });
+          });
+      }
     }
     wakeRef.current?.();
+
     return () => {
+      video.removeEventListener('loadedmetadata', onVideoReady);
+      video.removeEventListener('loadeddata', onVideoReady);
+      video.removeEventListener('canplay', onVideoReady);
+      video.removeEventListener('playing', onVideoReady);
+      video.removeEventListener('timeupdate', onVideoReady);
       video.pause();
     };
   }, [videoSrc]);
@@ -874,7 +915,7 @@ export const PlanSummaryReflectiveCard: React.FC<PlanSummaryReflectiveCardProps>
       className={`plan-reflective-card ${className}`.trim()}
       style={{ ...cardStyle, ...style }}
     >
-      <div ref={bodyRef} className="plan-reflective-card__body">
+      <div ref={bodyRef} className={`plan-reflective-card__body ${bodyClassName}`.trim()}>
         <canvas ref={canvasRef} className="plan-reflective-card__canvas" aria-hidden="true" />
         <div className="plan-reflective-card__content">
           {children}
@@ -884,10 +925,11 @@ export const PlanSummaryReflectiveCard: React.FC<PlanSummaryReflectiveCardProps>
       <video
         ref={videoRef}
         className="plan-reflective-card__media"
+        autoPlay
         muted
         loop
         playsInline
-        crossOrigin="anonymous"
+        crossOrigin={videoSrc?.startsWith('http') ? 'anonymous' : undefined}
         aria-hidden="true"
       />
       <video ref={camRef} className="plan-reflective-card__media" muted playsInline aria-hidden="true" />

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { message } from 'antd';
+import { App } from 'antd';
 import { AlertTriangle, CheckCircle2, X } from '@/components/icons/FlaticonIcons';
 import { RefreshCwIcon } from '@/components/icons/Icons';
 import { useLanguage } from '@/components/providers/LanguageProvider';
@@ -161,6 +161,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
   const { messages, locale } = useLanguage();
   const isTamil = locale === 'ta';
   const router = useRouter();
+  const { message } = App.useApp();
   const t = messages.fertilizer;
   const isPhase5 = activePhaseIndex === currentPhases.length - 1;
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
@@ -564,9 +565,7 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                   >
                     <span>
                       {savingNextPhase
-                        ? isTamil
-                          ? 'சேமிக்கப்படுகிறது...'
-                          : 'Saving...'
+                        ? (messages.common.saving || 'Saving...')
                         : t.step3.navStepper.nextPhase}
                     </span>
                   </button>
@@ -596,9 +595,9 @@ export const Step3PhaseExpenses: React.FC<Step3PhaseExpensesProps> = ({
                     <h4 className="font-display text-base font-bold text-text-main">{pMeta.name}</h4>
                     {isPhaseLocked && (
                       <span className="rounded-full bg-slate-500/20 border border-slate-500/30 px-2.5 py-0.5 text-[11px] font-bold text-text-muted">
-                        🔒 {isTamil ? `நிலை ${phaseIdx} ஐ நிரப்பி திறக்கவும்` : `Complete Phase ${phaseIdx} to unlock`}
+                        🔒 {t.step3.completePhaseToUnlock.replace('{phase}', String(phaseIdx))}
                       </span>
-                    )}
+                    )}``
                   </div>
                   <span className="font-extrabold text-base" style={{ color: phase.color }}>
                     ₹{fmt(phaseTotals[phase.id]?.total || 0)}
